@@ -6,9 +6,12 @@ import {
   contacts,
   createDb,
   encryptToken,
+  flowRuns,
   webhookEvents,
   workspaces,
 } from '@replyooo/db'
+import type { FlowRunState } from '@replyooo/engine'
+import { newRunState } from '@replyooo/engine'
 import type {
   AccountCredentials,
   IceBreaker,
@@ -25,6 +28,7 @@ import { randomUUID } from 'node:crypto'
 import { pino } from 'pino'
 import { afterAll, inject } from 'vitest'
 import type { Deps, FlowJobData, FollowCheckJobData, Jobs, OutboundJobData, RateLimiter } from '../src/deps'
+import { runColumns } from '../src/records'
 
 export const TOKEN_KEY = Buffer.alloc(32, 7)
 export const NOW = new Date('2026-10-06T10:00:00.000Z')
@@ -277,4 +281,27 @@ export const comment = (
     senderUsername: 'priya',
     senderName: null,
   }
+}
+
+export async function insertRun(
+  db: Db,
+  refs: {
+    account: AccountRow
+    contact: { id: string }
+    automation: { id: string }
+    version: { id: string }
+  },
+  state: Partial<FlowRunState> = {},
+) {
+  const [run] = await db
+    .insert(flowRuns)
+    .values({
+      automationId: refs.automation.id,
+      automationVersionId: refs.version.id,
+      contactId: refs.contact.id,
+      connectedAccountId: refs.account.id,
+      ...runColumns({ ...newRunState(), ...state }, NOW),
+    })
+    .returning()
+  return run!
 }
