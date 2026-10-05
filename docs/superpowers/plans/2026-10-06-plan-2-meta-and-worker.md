@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Connect the Plan 1 engine to Instagram and Facebook. Build `packages/meta` (webhook normalization, Graph API calls, error classification) and `apps/worker` (webhook ingestion, inbound routing, flow execution, outbound sending, sweeper, token refresh). Everything is tested against real Postgres + Redis (Testcontainers) with Meta's HTTP API mocked (msw). No real Meta account is needed until manual E2E.
+**Goal:** Connect the Plan 1 engine to Instagram and Facebook. Build `packages/meta` (webhook normalization, Graph API calls, error classification) and `apps/worker` (webhook ingestion, inbound routing, flow execution, outbound sending, sweeper, token refresh). Everything is tested against real Postgres + Redis (Testcontainers) with Meta's HTTP API mocked (msw in `packages/meta`, a stubbed `fetch` in the worker e2e test). No real Meta account is needed until manual E2E.
 
 **Architecture:** `packages/meta` is a thin, stateless layer: `normalize*Webhook(payload) → NormalizedEvent[]` (pure) and `create*Adapter()` (Graph HTTP calls that throw a typed `MetaError`). `apps/worker` is a Hono server plus four BullMQ queues (`inbound`, `flow`, `outbound`, `maintenance`). Every job handler is a plain async function `handleX(deps, data)` that takes a `Deps` object (db, jobs, adapters, rate limiter, clock), so handlers are tested directly against Postgres with a recording `Jobs` fake and a fake adapter. BullMQ wiring is thin and covered by one end-to-end test.
 
@@ -2067,7 +2067,6 @@ git commit -m "feat(meta): add Facebook adapter"
     "@testcontainers/postgresql": "^12.2.0",
     "@testcontainers/redis": "^12.2.0",
     "@types/node": "^26.6.4",
-    "msw": "^3.0.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
   }
@@ -5235,11 +5234,9 @@ import type { FlowDefinition } from '@replyooo/shared'
 import type { Worker } from 'bullmq'
 import { and, eq } from 'drizzle-orm'
 import { Redis } from 'ioredis'
-import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
 import { createHmac, randomUUID } from 'node:crypto'
 import { pino } from 'pino'
-import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, inject, it, vi } from 'vitest'
 import type { Deps } from '../src/deps'
 import type { Queues } from '../src/queues'
 import { closeQueues, createBullJobs, createQueues, startWorkers } from '../src/queues'
@@ -5247,20 +5244,32 @@ import { createRedisRateLimiter } from '../src/rate-limit'
 import { createServer } from '../src/server'
 import { publishAutomation, seedAccount, TOKEN_KEY, useDb } from './support'
 
-const graph = 'https://graph.instagram.com/v24.0'
 const SECRET = 'ig-secret'
 const sent: { path: string; body: any }[] = []
-const msw = setupServer(
-  http.post(`${graph}/:id/messages`, async ({ request }) => {
+const realFetch = globalThis.fetch
+
+/**
+ * Fake Instagram Graph API. msw isn't used here: its Node interceptors also hook
+ * raw sockets, which breaks the postgres.js connection in the same process.
+ */
+async function fakeGraph(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  const request = new Request(input, init)
+  const url = new URL(request.url)
+  if (url.origin !== 'https://graph.instagram.com') return realFetch(input, init)
+  const [, , id, edge] = url.pathname.split('/')
+  if (request.method === 'POST' && edge === 'messages') {
     sent.push({ path: 'messages', body: await request.json() })
-    return HttpResponse.json({ message_id: `mid.out.${sent.length}` })
-  }),
-  http.post(`${graph}/:id/replies`, async ({ request, params }) => {
-    sent.push({ path: `replies:${params.id}`, body: await request.json() })
-    return HttpResponse.json({ id: `reply.${sent.length}` })
-  }),
-  http.get(`${graph}/:id`, () => HttpResponse.json({ name: 'Priya Sharma', username: 'priya' })),
-)
+    return Response.json({ message_id: `mid.out.${sent.length}` })
+  }
+  if (request.method === 'POST' && edge === 'replies') {
+    sent.push({ path: `replies:${id}`, body: await request.json() })
+    return Response.json({ id: `reply.${sent.length}` })
+  }
+  if (request.method === 'GET' && edge === undefined) {
+    return Response.json({ name: 'Priya Sharma', username: 'priya' })
+  }
+  return Response.json({ error: { message: `Unexpected ${request.method} ${url.pathname}`, code: 100 } }, { status: 400 })
+}
 
 const flow: FlowDefinition = {
   trigger: {
@@ -5283,7 +5292,7 @@ let redis: Redis
 let deps: Deps
 
 beforeAll(() => {
-  msw.listen({ onUnhandledFrame: 'error' })
+  vi.stubGlobal('fetch', fakeGraph)
   const redisUrl = inject('redisUrl')
   const prefix = `e2e-${randomUUID()}`
   redis = new Redis(redisUrl)
@@ -5304,7 +5313,7 @@ afterAll(async () => {
   await Promise.all(workers.map((w) => w.close()))
   await closeQueues(queues)
   await redis.quit()
-  msw.close()
+  vi.unstubAllGlobals()
 })
 
 async function waitFor<T>(check: () => Promise<T | undefined | false>, timeoutMs = 15_000): Promise<T> {
