@@ -1,3 +1,5 @@
 export * from './types'
 export { advance, newRunState } from './advance'
 export { renderText } from './render'
+export { parseAnswer } from './answers'
+export type { AnswerKind } from './answers'

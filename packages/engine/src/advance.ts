@@ -1,9 +1,11 @@
 import type { FlowDefinition, Step, StepOf, StepType } from '@replyooo/shared'
 import { hasReplyButtons, normalizeText } from '@replyooo/shared'
+import { parseAnswer } from './answers'
 import { renderText } from './render'
 import type {
   AdvanceInput,
   AdvanceResult,
+  ContactPatch,
   ContactState,
   Effect,
   EngineEvent,
@@ -124,7 +126,29 @@ function onReply(ctx: Ctx, text: string): boolean {
     if (!button || button.type !== 'reply' || !ctx.run.currentStepId) return false
     return onPostback(ctx, ctx.run.currentStepId, button.id)
   }
-  return false
+  if (current?.kind !== 'reply') return false
+  const step = currentStep(ctx, 'ask')
+  if (!step) return false
+
+  ctx.run.outbound = 'dm'
+  const value = parseAnswer(text, step.validate)
+  if (value !== null) {
+    saveAnswer(ctx, step, value)
+    runFrom(ctx, step.answered)
+    return true
+  }
+
+  const attempts = current.attempts + 1
+  if (attempts >= step.maxAttempts) {
+    runFrom(ctx, step.invalid)
+    return true
+  }
+  ctx.run.wait = { kind: 'reply', attempts }
+  ctx.effects.push({
+    type: 'send',
+    message: { text: renderText(step.retryText, ctx.contact, ctx.run.vars) },
+  })
+  return true
 }
 
 function onTimeout(ctx: Ctx): boolean {
@@ -136,7 +160,12 @@ function onTimeout(ctx: Ctx): boolean {
       ctx.run.wait = null
       ctx.run.waitUntil = null
       return true
-    case 'reply':
+    case 'reply': {
+      const step = currentStep(ctx, 'ask')
+      if (!step) return false
+      runFrom(ctx, step.timeout)
+      return true
+    }
     case 'delay':
     case 'follow_check':
       return false
@@ -177,8 +206,11 @@ function execute(ctx: Ctx, stepId: string, step: Step): StepOutcome {
       }
       return { next: step.next }
     }
-    case 'ask':
+    case 'ask': {
+      if (!send(ctx, { text: renderText(step.question, ctx.contact, ctx.run.vars) })) return 'stop'
+      wait(ctx, { kind: 'reply', attempts: 0 }, step.timeoutMinutes)
       return 'stop'
+    }
     case 'check_follow':
       return 'stop'
     case 'delay':
@@ -274,4 +306,24 @@ function complete(ctx: Ctx): void {
   ctx.run.wait = null
   ctx.run.waitUntil = null
   ctx.run.currentStepId = null
+}
+
+function saveAnswer(ctx: Ctx, step: StepOf<'ask'>, value: string): void {
+  const patch: ContactPatch = {}
+  let key: string
+  if (step.saveTo === 'email') {
+    key = 'email'
+    ctx.contact.email = value
+    patch.email = value
+  } else if (step.saveTo === 'phone') {
+    key = 'phone'
+    ctx.contact.phone = value
+    patch.phone = value
+  } else {
+    key = step.saveTo.field
+    ctx.contact.fields = { ...ctx.contact.fields, [key]: value }
+    patch.fields = { [key]: value }
+  }
+  ctx.run.vars = { ...ctx.run.vars, [key]: value }
+  ctx.effects.push({ type: 'update_contact', patch })
 }
