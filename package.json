@@ -1,0 +1,13 @@
+{
+  "name": "replyooo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.7"
+  },
+  "packageManager": "pnpm@10.15.0"
+}
