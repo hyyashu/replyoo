@@ -1,0 +1,41 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-bricolage), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  --color-ink: #151310;
+  --color-ink-2: #3a352e;
+  --color-muted: #5f584f;
+  --color-subtle: #958c80;
+  --color-faint: #b5aea4;
+  --color-sand: #f5f1ea;
+  --color-cream: #f2eee7;
+  --color-line: #e2dbcf;
+  --color-brand: #ff4f1f;
+  --color-brand-soft: #ffe1d6;
+  --color-brand-tint: #fff4ef;
+  --color-lime: #d8f25a;
+  --color-lime-soft: #e6f6b5;
+  --color-lime-ink: #3f5a0a;
+  --color-green: #4c8a0b;
+  --color-violet: #6b4bff;
+  --color-violet-soft: #ded8ff;
+  --color-sky-soft: #cde9ff;
+  --color-amber: #d9822b;
+  --color-amber-soft: #fff1d6;
+}
+
+@layer base {
+  body {
+    @apply bg-white font-sans text-ink antialiased;
+  }
+  ::selection {
+    @apply bg-lime;
+  }
+}
+
+@utility eyebrow {
+  @apply font-mono text-[11px] font-medium tracking-[0.14em] text-subtle uppercase;
+}
