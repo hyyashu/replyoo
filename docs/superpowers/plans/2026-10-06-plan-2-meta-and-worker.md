@@ -4749,7 +4749,7 @@ export function createRedisRateLimiter(redis: Redis, perSecond: number): RateLim
 ```ts
 import type { Db } from '@replyooo/db'
 import { connectedAccounts, contacts, messages, usageCounters } from '@replyooo/db'
-import type { AccountCredentials, PlatformAdapter, SendableMessage, SendResult } from '@replyooo/meta'
+import type { AccountCredentials, PlatformAdapter, SendableButton, SendableMessage, SendResult } from '@replyooo/meta'
 import { MetaError } from '@replyooo/meta'
 import { encodePostback } from '@replyooo/shared'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
@@ -4827,11 +4827,11 @@ async function failMessages(db: Db, ids: string[], error: string): Promise<void>
 export function toSendable(body: OutboundBody, runId: string | null): SendableMessage {
   if (body.type === 'image') return { kind: 'image', url: body.url }
   if (body.type === 'comment') return { kind: 'text', text: body.text }
-  const buttons = (body.message.buttons ?? []).flatMap((button) => {
-    if (button.type === 'url') return [{ type: 'url' as const, label: button.label, url: button.url }]
+  const buttons = (body.message.buttons ?? []).flatMap<SendableButton>((button) => {
+    if (button.type === 'url') return [{ type: 'url', label: button.label, url: button.url }]
     if (!runId) return []
     const payload = encodePostback({ kind: 'run', runId, stepId: button.stepId, buttonId: button.buttonId })
-    return [{ type: 'postback' as const, label: button.label, payload }]
+    return [{ type: 'postback', label: button.label, payload }]
   })
   return buttons.length > 0 ? { kind: 'text', text: body.message.text, buttons } : { kind: 'text', text: body.message.text }
 }
