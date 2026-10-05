@@ -25,7 +25,7 @@ export function hasReplyButtons(step: StepOf<'send_message'>): boolean {
 }
 
 export function isWaitStep(step: Step): boolean {
-  if (step.type === 'ask' || step.type === 'delay') return true
+  if (step.type === 'ask' || step.type === 'delay' || step.type === 'check_follow') return true
   return step.type === 'send_message' && hasReplyButtons(step)
 }
 

@@ -150,6 +150,19 @@ describe('validateFlow', () => {
     expect(codes(flow)).toEqual([])
   })
 
+  it('allows loops whose only wait is a follow check', () => {
+    const flow: FlowDefinition = {
+      trigger: { type: 'any_dm' },
+      start: 'check',
+      steps: {
+        check: { type: 'check_follow', following: 'deliver', notFollowing: 'nudge' },
+        nudge: { type: 'send_message', text: 'Follow me first', next: 'check' },
+        deliver: { type: 'send_message', text: 'Here you go' },
+      },
+    }
+    expect(codes(flow)).toEqual([])
+  })
+
   it('rejects next on a message that has reply buttons', () => {
     const flow: FlowDefinition = {
       trigger: { type: 'any_dm' },
