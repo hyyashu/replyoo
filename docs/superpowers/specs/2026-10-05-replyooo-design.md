@@ -19,7 +19,9 @@ Billing is subscription-based via Dodo Payments, metered on contacts reached per
 | Audience | Public multi-tenant SaaS |
 | Reply model | Keyword rules + multi-step flows + templates (ManyChat/LinkDM style) |
 | Platforms | Instagram **and** Facebook from day one |
-| Editor | Linear step editor with branches (no visual canvas in v1) |
+| Editor | **Recipe form** (Pencil design `App — Automation Editor`): trigger → public reply → DM → toggleable boosters (follow gate, ask for email). The form compiles to a `FlowDefinition`; the engine stays generic. Step-list editor (Pencil frame `App — Automation Editor (Step list)`) is a post-v1 "advanced editor". |
+| Integrations | Kit (ConvertKit) email sync for captured emails in v1 |
+| Design source | Pencil screens exported to `docs/design/` (brand in designs: "replyo") |
 | AI | None in v1; step system leaves room for an `ai_reply` step later |
 | Stack | TypeScript monorepo — Next.js, Hono worker, Drizzle + Postgres, Redis + BullMQ |
 | Auth | Better Auth (Drizzle adapter, self-hosted) |
@@ -28,7 +30,7 @@ Billing is subscription-based via Dodo Payments, metered on contacts reached per
 
 ### 1.2 Out of scope for v1
 
-Live inbox / manual replying, broadcasts, visual flow canvas, AI replies, analytics charts beyond basic counts, WhatsApp/TikTok, public API/Zapier, multi-language UI.
+Live inbox / manual replying, broadcasts, visual flow canvas, step-list editor, link click tracking (Clicks/CTR, "follow up if no click"), "welcome new followers" (no Meta webhook exists), link in bio, AI replies, analytics charts beyond basic counts, WhatsApp/TikTok, public API/Zapier, multi-language UI.
 
 ---
 
