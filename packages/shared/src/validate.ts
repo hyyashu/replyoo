@@ -11,12 +11,17 @@ export type ValidationCode =
   | 'cycle_without_wait'
   | 'next_with_reply_buttons'
   | 'save_type_mismatch'
+  | 'buttons_text_too_long'
+  | 'comment_first_message_image'
 
 export interface ValidationIssue {
   code: ValidationCode
   message: string
   stepId?: string
 }
+
+/** Meta's button template caps the text above the buttons at 640 characters. */
+export const MAX_BUTTON_TEMPLATE_TEXT = 640
 
 const isDefined = <T>(value: T | undefined): value is T => value !== undefined
 
@@ -78,6 +83,17 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
       })
     }
     if (
+      step.type === 'send_message' &&
+      (step.buttons ?? []).length > 0 &&
+      step.text.length > MAX_BUTTON_TEMPLATE_TEXT
+    ) {
+      issues.push({
+        code: 'buttons_text_too_long',
+        stepId,
+        message: `Messages with buttons can be at most ${MAX_BUTTON_TEMPLATE_TEXT} characters`,
+      })
+    }
+    if (
       step.type === 'ask' &&
       ((step.saveTo === 'email' && step.validate !== 'email') ||
         (step.saveTo === 'phone' && step.validate !== 'phone'))
@@ -112,6 +128,13 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
         stepId: flow.start,
         message:
           'Comment automations must start with a message that has a reply button — Meta allows only one message until the person replies',
+      })
+    }
+    if (first?.type === 'send_message' && first.imageUrl) {
+      issues.push({
+        code: 'comment_first_message_image',
+        stepId: flow.start,
+        message: 'The first message after a comment is a single private reply and cannot include an image',
       })
     }
   }
