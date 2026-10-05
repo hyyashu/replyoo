@@ -1,5 +1,5 @@
 import type { FlowDefinition, Step, StepOf, StepType } from '@replyooo/shared'
-import { hasReplyButtons } from '@replyooo/shared'
+import { hasReplyButtons, normalizeText } from '@replyooo/shared'
 import { renderText } from './render'
 import type {
   AdvanceInput,
@@ -105,16 +105,42 @@ function start(ctx: Ctx, trigger: StartTrigger): void {
 
 // ---------- resume handlers (filled in by later tasks) ----------
 
-function onPostback(_ctx: Ctx, _stepId: string, _buttonId: string): boolean {
+function onPostback(ctx: Ctx, stepId: string, buttonId: string): boolean {
+  if (ctx.run.wait?.kind !== 'postback' || ctx.run.currentStepId !== stepId) return false
+  const step = currentStep(ctx, 'send_message')
+  const button = step?.buttons?.find((b) => b.type === 'reply' && b.id === buttonId)
+  if (!button || button.type !== 'reply') return false
+  ctx.run.outbound = 'dm'
+  runFrom(ctx, button.next)
+  return true
+}
+
+function onReply(ctx: Ctx, text: string): boolean {
+  const current = ctx.run.wait
+  if (current?.kind === 'postback') {
+    const step = currentStep(ctx, 'send_message')
+    const typed = normalizeText(text)
+    const button = step?.buttons?.find((b) => b.type === 'reply' && normalizeText(b.label) === typed)
+    if (!button || button.type !== 'reply' || !ctx.run.currentStepId) return false
+    return onPostback(ctx, ctx.run.currentStepId, button.id)
+  }
   return false
 }
 
-function onReply(_ctx: Ctx, _text: string): boolean {
-  return false
-}
-
-function onTimeout(_ctx: Ctx): boolean {
-  return false
+function onTimeout(ctx: Ctx): boolean {
+  const { wait: current, waitUntil } = ctx.run
+  if (!current || !waitUntil || ctx.now.getTime() < waitUntil.getTime()) return false
+  switch (current.kind) {
+    case 'postback':
+      ctx.run.status = 'expired'
+      ctx.run.wait = null
+      ctx.run.waitUntil = null
+      return true
+    case 'reply':
+    case 'delay':
+    case 'follow_check':
+      return false
+  }
 }
 
 function onFollowResult(_ctx: Ctx, _following: boolean): boolean {

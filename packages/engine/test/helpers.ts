@@ -4,6 +4,8 @@ import type { AdvanceResult, ContactState, Effect, EngineEvent, FlowRunState } f
 
 export const T0 = new Date('2026-01-01T00:00:00.000Z')
 
+export const POSTBACK_MINUTES = 24 * 60
+
 export const addMinutes = (date: Date, minutes: number) => new Date(date.getTime() + minutes * 60_000)
 
 export function makeContact(overrides: Partial<ContactState> = {}): ContactState {
