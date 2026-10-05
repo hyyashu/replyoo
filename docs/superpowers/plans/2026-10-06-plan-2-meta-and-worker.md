@@ -2812,8 +2812,6 @@ export async function markReauthRequired(db: Db | Tx, accountId: string): Promis
 }
 ```
 
-> If TypeScript rejects calling `.update` on the `Db | Tx` union, change both parameters to `Db` and pass `tx as unknown as Db` from transactions. Only Task 13 calls these inside a transaction.
-
 - [ ] **Step 4: Run tests**
 
 Run: `pnpm --filter @replyooo/worker test records && pnpm --filter @replyooo/worker typecheck`
