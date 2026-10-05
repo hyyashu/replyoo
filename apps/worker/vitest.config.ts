@@ -1,0 +1,11 @@
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    globalSetup: ['./test/global-setup.ts'],
+    hookTimeout: 120_000,
+    testTimeout: 30_000,
+    // Test files share one database; the sweeper test scans global tables.
+    fileParallelism: false,
+  },
+})
