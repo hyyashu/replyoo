@@ -14,7 +14,7 @@ import type {
   StartTrigger,
   Wait,
 } from './types'
-import { MAX_STEPS_PER_ADVANCE, POSTBACK_WAIT_MINUTES } from './types'
+import { FOLLOW_CHECK_WAIT_MINUTES, MAX_STEPS_PER_ADVANCE, POSTBACK_WAIT_MINUTES } from './types'
 
 interface Ctx {
   flow: FlowDefinition
@@ -166,14 +166,24 @@ function onTimeout(ctx: Ctx): boolean {
       runFrom(ctx, step.timeout)
       return true
     }
-    case 'delay':
+    case 'delay': {
+      const step = currentStep(ctx, 'delay')
+      if (!step) return false
+      runFrom(ctx, step.next)
+      return true
+    }
     case 'follow_check':
-      return false
+      fail(ctx, 'follow_check_timeout')
+      return true
   }
 }
 
-function onFollowResult(_ctx: Ctx, _following: boolean): boolean {
-  return false
+function onFollowResult(ctx: Ctx, following: boolean): boolean {
+  if (ctx.run.wait?.kind !== 'follow_check') return false
+  const step = currentStep(ctx, 'check_follow')
+  if (!step) return false
+  runFrom(ctx, following ? step.following : step.notFollowing)
+  return true
 }
 
 // ---------- execution ----------
@@ -212,8 +222,11 @@ function execute(ctx: Ctx, stepId: string, step: Step): StepOutcome {
       return 'stop'
     }
     case 'check_follow':
+      ctx.effects.push({ type: 'check_follow' })
+      wait(ctx, { kind: 'follow_check' }, FOLLOW_CHECK_WAIT_MINUTES)
       return 'stop'
     case 'delay':
+      wait(ctx, { kind: 'delay' }, step.minutes)
       return 'stop'
     case 'tag': {
       const add = step.add ?? []
