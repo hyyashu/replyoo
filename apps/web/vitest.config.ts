@@ -8,4 +8,12 @@ export default defineConfig({
       'server-only': fileURLToPath(new URL('./test/server-only-stub.ts', import.meta.url)),
     },
   },
+  test: {
+    globalSetup: ['./test/global-setup.ts'],
+    setupFiles: ['./test/setup.ts'],
+    hookTimeout: 120_000,
+    testTimeout: 30_000,
+    // Test files share one database.
+    fileParallelism: false,
+  },
 })
