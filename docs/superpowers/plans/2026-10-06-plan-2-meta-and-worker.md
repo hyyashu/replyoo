@@ -651,7 +651,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { graphRequest, MetaError } from '../src'
 
 const server = setupServer()
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -1537,7 +1537,7 @@ import { createInstagramAdapter, MetaError } from '../src'
 import { IG_ACCOUNT, ig } from './fixtures'
 
 const server = setupServer()
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -1816,7 +1816,7 @@ import { createFacebookAdapter } from '../src'
 import { FB_PAGE, fb } from './fixtures'
 
 const server = setupServer()
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -5285,7 +5285,7 @@ let redis: Redis
 let deps: Deps
 
 beforeAll(() => {
-  msw.listen({ onUnhandledRequest: 'error' })
+  msw.listen({ onUnhandledFrame: 'error' })
   const redisUrl = inject('redisUrl')
   const prefix = `e2e-${randomUUID()}`
   redis = new Redis(redisUrl)
