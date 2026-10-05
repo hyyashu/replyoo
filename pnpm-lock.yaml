@@ -12,6 +12,22 @@ importers:
         specifier: ^2.11.7
         version: 2.11.7
 
+  packages/engine:
+    dependencies:
+      '@replyooo/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.4)(vite@8.3.2(@types/node@26.6.4))
+
   packages/shared:
     dependencies:
       zod:
