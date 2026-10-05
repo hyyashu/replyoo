@@ -1,4 +1,5 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql'
+import { eq } from 'drizzle-orm'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -148,5 +149,22 @@ describe('schema', () => {
         })
         .execute(),
     ).rejects.toThrow()
+  })
+
+  it('stores the usage period on contacts and allows comment messages', async () => {
+    const { account, contact } = await seed()
+    await db.update(contacts).set({ lastCountedPeriod: '2026-10' }).where(eq(contacts.id, contact.id))
+    const [row] = await db.select().from(contacts).where(eq(contacts.id, contact.id))
+    expect(row?.lastCountedPeriod).toBe('2026-10')
+
+    await db.insert(messages).values({
+      contactId: contact.id,
+      connectedAccountId: account.id,
+      direction: 'in',
+      kind: 'comment',
+      body: { text: 'GUIDE' },
+      commentId: 'c1',
+      status: 'received',
+    })
   })
 })

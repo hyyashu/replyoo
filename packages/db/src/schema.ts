@@ -43,6 +43,7 @@ export const messageKindEnum = pgEnum('message_kind', [
   'comment_reply',
   'postback',
   'story_reply',
+  'comment',
 ])
 export const messageStatusEnum = pgEnum('message_status', ['queued', 'sent', 'failed', 'received'])
 export const planEnum = pgEnum('plan', ['free', 'pro', 'business'])
@@ -114,6 +115,8 @@ export const contacts = pgTable(
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
     fields: jsonb('fields').$type<Record<string, string>>().notNull().default({}),
     lastInboundAt: tz('last_inbound_at'),
+    /** `YYYY-MM` of the last period this contact was counted in usage_counters. */
+    lastCountedPeriod: text('last_counted_period'),
     firstSeenAt: tz('first_seen_at').notNull().defaultNow(),
     ...timestamps,
   },
