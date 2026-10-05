@@ -2,6 +2,7 @@ import type { FlowDefinition } from '@replyooo/shared'
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
+  boolean,
   index,
   integer,
   jsonb,
@@ -48,6 +49,66 @@ export const messageKindEnum = pgEnum('message_kind', [
 export const messageStatusEnum = pgEnum('message_status', ['queued', 'sent', 'failed', 'received'])
 export const planEnum = pgEnum('plan', ['free', 'pro', 'business'])
 
+// ---------- auth (Better Auth core schema; the adapter maps by property name) ----------
+
+export const authUsers = pgTable('user', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  image: text('image'),
+  ...timestamps,
+})
+
+export const authSessions = pgTable(
+  'session',
+  {
+    id: text('id').primaryKey(),
+    expiresAt: tz('expires_at').notNull(),
+    token: text('token').notNull().unique(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUsers.id, { onDelete: 'cascade' }),
+    ...timestamps,
+  },
+  (t) => [index('session_user_id_idx').on(t.userId)],
+)
+
+export const authAccounts = pgTable(
+  'account',
+  {
+    id: text('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUsers.id, { onDelete: 'cascade' }),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: tz('access_token_expires_at'),
+    refreshTokenExpiresAt: tz('refresh_token_expires_at'),
+    scope: text('scope'),
+    password: text('password'),
+    ...timestamps,
+  },
+  (t) => [index('account_user_id_idx').on(t.userId)],
+)
+
+export const authVerifications = pgTable(
+  'verification',
+  {
+    id: text('id').primaryKey(),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: tz('expires_at').notNull(),
+    ...timestamps,
+  },
+  (t) => [index('verification_identifier_idx').on(t.identifier)],
+)
+
 // ---------- tenancy ----------
 
 export const workspaces = pgTable('workspaces', {
@@ -64,11 +125,32 @@ export const workspaceMembers = pgTable(
     workspaceId: uuid('workspace_id')
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
-    userId: text('user_id').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUsers.id, { onDelete: 'cascade' }),
     role: memberRoleEnum('role').notNull().default('member'),
     ...timestamps,
   },
   (t) => [uniqueIndex('workspace_members_workspace_user_uq').on(t.workspaceId, t.userId)],
+)
+
+export const workspaceInvitations = pgTable(
+  'workspace_invitations',
+  {
+    id: id(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** Always lower-case. */
+    email: text('email').notNull(),
+    role: memberRoleEnum('role').notNull().default('member'),
+    invitedByUserId: text('invited_by_user_id'),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('workspace_invitations_workspace_email_uq').on(t.workspaceId, t.email),
+    index('workspace_invitations_email_idx').on(t.email),
+  ],
 )
 
 // ---------- accounts ----------
@@ -85,6 +167,7 @@ export const connectedAccounts = pgTable(
     username: text('username').notNull(),
     displayName: text('display_name'),
     avatarUrl: text('avatar_url'),
+    followersCount: integer('followers_count'),
     accessTokenEnc: text('access_token_enc').notNull(),
     tokenExpiresAt: tz('token_expires_at'),
     status: accountStatusEnum('status').notNull().default('active'),
