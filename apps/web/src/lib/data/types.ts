@@ -1,4 +1,7 @@
-import type { FlowDefinition, Platform } from '@replyooo/shared'
+import type { FlowDefinition, PlanKey, Platform } from '@replyooo/shared'
+import type { Role } from '../workspaces'
+
+export type { Role } from '../workspaces'
 
 export interface ConnectedAccount {
   id: string
@@ -73,22 +76,24 @@ export interface HomeStats {
 
 export interface Member {
   id: string
+  userId: string
   name: string
   email: string
-  role: 'owner' | 'admin' | 'member'
+  role: Role
+}
+
+export interface Invitation {
+  id: string
+  email: string
+  role: Role
+  createdAt: string
 }
 
 export interface Subscription {
-  plan: 'free' | 'pro' | 'business'
+  plan: PlanKey
   contactsReached: number
   contactsLimit: number
   periodEnd: string
-}
-
-export interface Workspace {
-  id: string
-  name: string
-  user: { name: string; email: string }
 }
 
 export interface ContactFilters {

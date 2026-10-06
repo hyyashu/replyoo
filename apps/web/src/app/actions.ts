@@ -1,17 +1,34 @@
 'use server'
 
 import { FlowDefinitionSchema } from '@replyooo/shared'
-import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import * as data from '@/lib/data'
-import { ACCOUNT_COOKIE, COOKIE_OPTIONS, getCurrentAccount, requireWorkspace } from '@/lib/session'
+import { db } from '@/lib/db'
+import { ACCOUNT_COOKIE, COOKIE_OPTIONS, WORKSPACE_COOKIE, getCurrentAccount, requireWorkspace } from '@/lib/session'
+import { canManage, listWorkspaces } from '@/lib/workspaces'
+
+async function requireManager() {
+  const workspace = await requireWorkspace()
+  if (!canManage(workspace.role)) throw new Error('Only owners and admins can do that')
+  return workspace
+}
 
 export async function switchAccount(accountId: string) {
   const { workspaceId } = await requireWorkspace()
   if (!(await data.getAccount(workspaceId, accountId))) return
   ;(await cookies()).set(ACCOUNT_COOKIE, accountId, COOKIE_OPTIONS)
   revalidatePath('/', 'layout')
+}
+
+export async function switchWorkspace(workspaceId: string) {
+  const { user } = await requireWorkspace()
+  if (!(await listWorkspaces(db(), user.id)).some((w) => w.id === workspaceId)) return
+  const jar = await cookies()
+  jar.set(WORKSPACE_COOKIE, workspaceId, COOKIE_OPTIONS)
+  jar.delete(ACCOUNT_COOKIE)
+  redirect('/home')
 }
 
 export async function createAutomation(templateKey: string | null) {
@@ -34,9 +51,9 @@ export async function saveDraft(id: string, name: string, flow: unknown) {
 }
 
 export async function publishAutomation(id: string, name: string, flow: unknown): Promise<data.PublishResult> {
+  const { workspaceId } = await requireWorkspace()
   const saved = await saveDraft(id, name, flow)
   if (!saved.ok) return { ok: false, errors: [saved.error] }
-  const { workspaceId } = await requireWorkspace()
   const result = await data.publishAutomation(workspaceId, id)
   revalidatePath('/automations')
   revalidatePath(`/automations/${id}`)
@@ -57,30 +74,37 @@ export async function deleteAutomation(id: string) {
 }
 
 export async function disconnectAccount(id: string) {
-  const { workspaceId } = await requireWorkspace()
+  const { workspaceId } = await requireManager()
   await data.disconnectAccount(workspaceId, id)
   revalidatePath('/', 'layout')
 }
 
 export async function inviteMember(formData: FormData) {
-  await requireWorkspace()
-  const email = String(formData.get('email') ?? '').trim()
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return
-  await data.inviteMember(email)
+  const workspace = await requireManager()
+  const result = await data.inviteMember(workspace.workspaceId, workspace.user.id, String(formData.get('email') ?? ''))
+  revalidatePath('/settings')
+  redirect(`/settings?invite=${result}#members`)
+}
+
+export async function revokeInvitation(id: string) {
+  const { workspaceId } = await requireManager()
+  await data.revokeInvitation(workspaceId, id)
   revalidatePath('/settings')
 }
 
 export async function removeMember(id: string) {
-  await requireWorkspace()
-  await data.removeMember(id)
+  const { workspaceId } = await requireManager()
+  await data.removeMember(workspaceId, id)
   revalidatePath('/settings')
 }
 
 export async function deleteWorkspace(formData: FormData) {
-  await requireWorkspace()
-  const workspace = await data.getWorkspace()
-  if (String(formData.get('confirm') ?? '').trim() !== workspace.name) return
-  await data.deleteWorkspaceData()
-  ;(await cookies()).delete(ACCOUNT_COOKIE)
+  const workspace = await requireWorkspace()
+  if (workspace.role !== 'owner') return
+  if (String(formData.get('confirm') ?? '').trim() !== workspace.workspaceName) return
+  await data.deleteWorkspace(workspace.workspaceId)
+  const jar = await cookies()
+  jar.delete(ACCOUNT_COOKIE)
+  jar.delete(WORKSPACE_COOKIE)
   redirect('/')
 }

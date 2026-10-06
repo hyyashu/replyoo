@@ -13,7 +13,7 @@ export default async function HomePage() {
   const { workspace, account } = await getCurrentAccount()
   const [stats, subscription, automations, leads] = await Promise.all([
     getHomeStats(workspace.workspaceId, account.id),
-    getSubscription(),
+    getSubscription(workspace.workspaceId),
     listAutomations(workspace.workspaceId, account.id),
     listLatestLeads(workspace.workspaceId, account.id),
   ])

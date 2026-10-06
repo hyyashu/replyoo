@@ -5,7 +5,8 @@ import { getSubscription } from '@/lib/data'
 import { getCurrentAccount } from '@/lib/session'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [{ account, accounts }, subscription] = await Promise.all([getCurrentAccount(), getSubscription()])
+  const { workspace, account, accounts } = await getCurrentAccount()
+  const subscription = await getSubscription(workspace.workspaceId)
 
   return (
     <div className="flex min-h-screen">
