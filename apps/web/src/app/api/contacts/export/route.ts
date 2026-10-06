@@ -1,5 +1,5 @@
 import { parseContactFilters } from '@/lib/contact-filters'
-import { toCsv } from '@/lib/csv'
+import { csvContentDisposition, toCsv } from '@/lib/csv'
 import { listContacts } from '@/lib/data'
 import { getCurrentAccount } from '@/lib/session'
 
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   return new Response(csv, {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="contacts-${account.username}-${new Date().toISOString().slice(0, 10)}.csv"`,
+      'Content-Disposition': csvContentDisposition('contacts', account.username, new Date().toISOString().slice(0, 10)),
     },
   })
 }
