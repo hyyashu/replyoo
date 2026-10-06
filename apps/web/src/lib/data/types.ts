@@ -85,3 +85,6 @@ export interface ContactFilters {
   tag?: string
   has?: 'email' | 'phone'
 }
+
+export type PublishResult = { ok: true; version: number } | { ok: false; errors: string[] }
+export type StatusResult = { ok: true } | { ok: false; error: string }

@@ -8,8 +8,8 @@ import { AutomationsTable } from './automations-table'
 export const metadata: Metadata = { title: 'Automations' }
 
 export default async function AutomationsPage() {
-  const { account } = await getCurrentAccount()
-  const [automations, stats] = await Promise.all([listAutomations(account.id), getHomeStats(account.id)])
+  const { workspace, account } = await getCurrentAccount()
+  const [automations, stats] = await Promise.all([listAutomations(workspace.workspaceId, account.id), getHomeStats(account.id)])
   const surfaces = account.platform === 'instagram' ? 'comments, stories and DMs' : 'comments and Messenger'
 
   return (

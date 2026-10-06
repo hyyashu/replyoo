@@ -1,8 +1,6 @@
 import 'server-only'
-import { FlowDefinitionSchema, getTemplate, validateFlow, type FlowDefinition } from '@replyooo/shared'
-import { DEFAULT_RECIPE, compileRecipe } from '../recipe'
 import { seed } from './seed'
-import type { Automation, AutomationStatus, Contact, ContactFilters, Member } from './types'
+import type { Automation, Contact, ContactFilters, Member } from './types'
 
 /**
  * In-memory stand-in for the Postgres repositories (Plan 3 swaps these bodies for
@@ -15,80 +13,6 @@ const clone = <T>(value: T): T => structuredClone(value)
 
 export async function getWorkspace() {
   return clone(store.workspace)
-}
-
-// ---------- Automations ----------
-
-export async function listAutomations(accountId: string) {
-  return clone(
-    store.automations
-      .filter((a) => a.accountId === accountId)
-      .sort((a, b) => statusRank(a.status) - statusRank(b.status) || b.stats.runs - a.stats.runs),
-  )
-}
-
-const statusRank = (status: AutomationStatus) => ({ active: 0, paused: 1, draft: 2 })[status]
-
-export async function getAutomation(id: string) {
-  const automation = store.automations.find((a) => a.id === id)
-  return automation ? clone(automation) : null
-}
-
-export async function createAutomation(accountId: string, templateKey: string | null): Promise<Automation> {
-  const template = templateKey ? getTemplate(templateKey) : undefined
-  const automation: Automation = {
-    id: `aut_${crypto.randomUUID().slice(0, 8)}`,
-    accountId,
-    name: template?.title ?? 'Untitled automation',
-    status: 'draft',
-    flow: template ? clone(template.flow) : compileRecipe(DEFAULT_RECIPE),
-    version: 0,
-    templateKey: template?.key ?? null,
-    updatedAt: new Date().toISOString(),
-    publishedAt: null,
-    stats: { runs: 0, completed: 0, dmsSent: 0, leads: 0 },
-  }
-  store.automations.push(automation)
-  return clone(automation)
-}
-
-export async function saveDraft(id: string, input: { name: string; flow: FlowDefinition }) {
-  const automation = store.automations.find((a) => a.id === id)
-  if (!automation) throw new Error('Automation not found')
-  automation.name = input.name.trim() || 'Untitled automation'
-  automation.flow = input.flow
-  automation.updatedAt = new Date().toISOString()
-}
-
-export type PublishResult = { ok: true; version: number } | { ok: false; errors: string[] }
-
-/** Server-side publish validation (spec §5.4) — never trust the client's checks. */
-export async function publishAutomation(id: string): Promise<PublishResult> {
-  const automation = store.automations.find((a) => a.id === id)
-  if (!automation) return { ok: false, errors: ['Automation not found'] }
-  const account = store.accounts.find((a) => a.id === automation.accountId)
-  if (!account) return { ok: false, errors: ['Connected account not found'] }
-
-  const parsed = FlowDefinitionSchema.safeParse(automation.flow)
-  if (!parsed.success) return { ok: false, errors: parsed.error.issues.map((issue) => issue.message) }
-  const issues = validateFlow(parsed.data, account.platform)
-  if (issues.length > 0) return { ok: false, errors: issues.map((issue) => issue.message) }
-
-  automation.version += 1
-  automation.status = 'active'
-  automation.publishedAt = new Date().toISOString()
-  automation.updatedAt = automation.publishedAt
-  return { ok: true, version: automation.version }
-}
-
-export async function setAutomationStatus(id: string, status: 'active' | 'paused') {
-  const automation = store.automations.find((a) => a.id === id)
-  if (!automation || automation.version === 0) return
-  automation.status = status
-}
-
-export async function deleteAutomation(id: string) {
-  store.automations = store.automations.filter((a) => a.id !== id)
 }
 
 // ---------- Contacts ----------

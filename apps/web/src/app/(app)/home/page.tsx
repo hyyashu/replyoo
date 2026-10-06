@@ -10,12 +10,12 @@ import { TriggerIcon } from '../automations/automations-table'
 export const metadata: Metadata = { title: 'Home' }
 
 export default async function HomePage() {
-  const { account } = await getCurrentAccount()
+  const { workspace: ctx, account } = await getCurrentAccount()
   const [workspace, stats, subscription, automations, contacts] = await Promise.all([
     getWorkspace(),
     getHomeStats(account.id),
     getSubscription(),
-    listAutomations(account.id),
+    listAutomations(ctx.workspaceId, account.id),
     listContacts(account.id),
   ])
   const top = automations.filter((a) => a.status !== 'draft').slice(0, 4)

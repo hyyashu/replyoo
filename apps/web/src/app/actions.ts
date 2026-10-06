@@ -15,40 +15,44 @@ export async function switchAccount(accountId: string) {
 }
 
 export async function createAutomation(templateKey: string | null) {
-  const { account } = await getCurrentAccount()
-  const automation = await data.createAutomation(account.id, templateKey)
+  const { workspace, account } = await getCurrentAccount()
+  const automation = await data.createAutomation(workspace.workspaceId, account.id, templateKey)
+  if (!automation) redirect('/connect')
   redirect(`/automations/${automation.id}`)
 }
 
 export async function saveDraft(id: string, name: string, flow: unknown) {
-  await requireWorkspace()
+  const { workspaceId } = await requireWorkspace()
   // Drafts may be incomplete, but they must still be well-formed JSON of the right shape.
   const parsed = FlowDefinitionSchema.safeParse(flow)
   if (!parsed.success) return { ok: false as const, error: 'Fix the highlighted fields before saving' }
-  await data.saveDraft(id, { name, flow: parsed.data })
+  if (!(await data.saveDraft(workspaceId, id, { name, flow: parsed.data }))) {
+    return { ok: false as const, error: 'This automation no longer exists' }
+  }
   revalidatePath('/automations')
   return { ok: true as const, savedAt: new Date().toISOString() }
 }
 
-export async function publishAutomation(id: string, name: string, flow: unknown) {
-  await requireWorkspace()
+export async function publishAutomation(id: string, name: string, flow: unknown): Promise<data.PublishResult> {
   const saved = await saveDraft(id, name, flow)
-  if (!saved.ok) return { ok: false as const, errors: [saved.error] }
-  const result = await data.publishAutomation(id)
+  if (!saved.ok) return { ok: false, errors: [saved.error] }
+  const { workspaceId } = await requireWorkspace()
+  const result = await data.publishAutomation(workspaceId, id)
   revalidatePath('/automations')
   revalidatePath(`/automations/${id}`)
   return result
 }
 
-export async function setAutomationStatus(id: string, status: 'active' | 'paused') {
-  await requireWorkspace()
-  await data.setAutomationStatus(id, status)
+export async function setAutomationStatus(id: string, status: 'active' | 'paused'): Promise<data.StatusResult> {
+  const { workspaceId } = await requireWorkspace()
+  const result = await data.setAutomationStatus(workspaceId, id, status)
   revalidatePath('/automations')
+  return result
 }
 
 export async function deleteAutomation(id: string) {
-  await requireWorkspace()
-  await data.deleteAutomation(id)
+  const { workspaceId } = await requireWorkspace()
+  await data.deleteAutomation(workspaceId, id)
   revalidatePath('/automations')
 }
 

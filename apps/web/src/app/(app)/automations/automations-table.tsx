@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { deleteAutomation, setAutomationStatus } from '@/app/actions'
 import { ButtonLink, Card, EmptyState, Keyword, StatusPill, cx, formatNumber, formatPercent } from '@/components/ui'
-import type { Automation, AutomationStatus } from '@/lib/data/types'
+import type { Automation, AutomationStatus, StatusResult } from '@/lib/data/types'
 import { flowSearchText, triggerChips, triggerLabel } from '@/lib/describe'
 
 const TABS: { key: 'all' | AutomationStatus; label: string }[] = [
@@ -168,9 +168,12 @@ function RowMenu({ automation }: { automation: Automation }) {
     return () => document.removeEventListener('mousedown', close)
   }, [open])
 
-  const run = (action: () => Promise<void>) => {
+  const run = (action: () => Promise<StatusResult | void>) => {
     setOpen(false)
-    startTransition(action)
+    startTransition(async () => {
+      const result = await action()
+      if (result && !result.ok) alert(result.error)
+    })
   }
 
   return (

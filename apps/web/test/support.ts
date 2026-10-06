@@ -1,5 +1,16 @@
-import { authUsers, connectedAccounts, encryptToken, workspaceMembers, workspaces } from '@replyooo/db'
+import {
+  authUsers,
+  automations,
+  connectedAccounts,
+  contacts,
+  encryptToken,
+  flowRuns,
+  messages,
+  workspaceMembers,
+  workspaces,
+} from '@replyooo/db'
 import type { Platform } from '@replyooo/shared'
+import { eq } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 
@@ -51,6 +62,83 @@ export async function createAccount(
         followersCount: 1_200,
         accessTokenEnc: encryptToken('stored-token', TOKEN_KEY),
         ...overrides,
+      })
+      .returning(),
+  )
+}
+
+export async function createContact(
+  workspaceId: string,
+  accountId: string,
+  overrides: Partial<typeof contacts.$inferInsert> = {},
+) {
+  return one(
+    await db()
+      .insert(contacts)
+      .values({
+        workspaceId,
+        connectedAccountId: accountId,
+        platformUserId: `psid_${randomUUID()}`,
+        username: 'priya',
+        name: 'Priya Sharma',
+        lastInboundAt: new Date(),
+        ...overrides,
+      })
+      .returning(),
+  )
+}
+
+/** A run of the automation's current (published) version. */
+export async function createRun(input: {
+  automationId: string
+  contactId: string
+  accountId: string
+  status?: (typeof flowRuns.$inferInsert)['status']
+  createdAt?: Date
+}) {
+  const [automation] = await db()
+    .select({ versionId: automations.currentVersionId })
+    .from(automations)
+    .where(eq(automations.id, input.automationId))
+  if (!automation?.versionId) throw new Error('publish the automation before creating runs')
+  return one(
+    await db()
+      .insert(flowRuns)
+      .values({
+        automationId: input.automationId,
+        automationVersionId: automation.versionId,
+        contactId: input.contactId,
+        connectedAccountId: input.accountId,
+        status: input.status ?? 'completed',
+        createdAt: input.createdAt ?? new Date(),
+      })
+      .returning(),
+  )
+}
+
+export async function createMessage(input: {
+  contactId: string
+  accountId: string
+  runId?: string | null
+  direction?: 'in' | 'out'
+  kind?: (typeof messages.$inferInsert)['kind']
+  status?: (typeof messages.$inferInsert)['status']
+  body?: Record<string, unknown>
+  createdAt?: Date
+}) {
+  const direction = input.direction ?? 'out'
+  return one(
+    await db()
+      .insert(messages)
+      .values({
+        contactId: input.contactId,
+        connectedAccountId: input.accountId,
+        flowRunId: input.runId ?? null,
+        direction,
+        kind: input.kind ?? 'dm',
+        status: input.status ?? (direction === 'in' ? 'received' : 'sent'),
+        body: input.body ?? { type: 'message', message: { text: 'Here you go!' } },
+        createdAt: input.createdAt ?? new Date(),
       })
       .returning(),
   )

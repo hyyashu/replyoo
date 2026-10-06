@@ -78,9 +78,16 @@ export function Editor({
     })
 
   const toggleLive = () => {
+    const previous = status
     const next = status === 'active' ? 'paused' : 'active'
     setStatus(next)
-    startStatus(() => setAutomationStatus(automation.id, next))
+    startStatus(async () => {
+      const result = await setAutomationStatus(automation.id, next)
+      if (!result.ok) {
+        setStatus(previous)
+        setPublishErrors([result.error])
+      }
+    })
   }
 
   const isIceBreaker = recipe.trigger.type === 'ice_breaker'
