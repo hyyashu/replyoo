@@ -4,11 +4,16 @@ import { effectivePlan } from '@replyooo/shared'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { appUrl } from '../env'
-import { changeSubscriptionPlan, createCheckout, type DodoConfig, type PaidPlan } from './dodo'
+import { changeSubscriptionPlan, createCheckout, createPortalSession, type DodoConfig, type PaidPlan } from './dodo'
+
+/** Dodo statuses where the subscription still exists and resumes once the payment method is fixed. */
+const RECOVERABLE_STATUSES: readonly string[] = ['on_hold']
 
 /**
  * Where to send the browser to move a workspace to `plan`. One subscription per workspace: a live paid
- * subscription changes plan in place; anything else (free, lapsed) gets a new checkout.
+ * subscription changes plan in place; one on hold for a failed payment goes to the customer portal (a new
+ * checkout would leave the held subscription to resume later and bill twice); anything else (free,
+ * lapsed) gets a new checkout.
  */
 export async function startPlanChange(
   config: DodoConfig,
@@ -21,6 +26,9 @@ export async function startPlanChange(
   if (current?.dodoSubscriptionId && effectivePlan(current, now) !== 'free') {
     if (current.plan === plan) return returnUrl
     return (await changeSubscriptionPlan(config, current.dodoSubscriptionId, config.products[plan])) ?? returnUrl
+  }
+  if (current?.dodoSubscriptionId && current.dodoCustomerId && RECOVERABLE_STATUSES.includes(current.status)) {
+    return createPortalSession(config, current.dodoCustomerId, appUrl('/settings#billing'))
   }
   return createCheckout(config, {
     productId: config.products[plan],

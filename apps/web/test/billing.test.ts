@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { subscriptions } from '@replyooo/db'
 import { http, HttpResponse, type JsonBodyType } from 'msw'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -13,6 +14,7 @@ afterAll(() => server.restore())
 const DODO = 'https://test.dodopayments.com'
 const config: DodoConfig = { apiKey: 'dodo_key', baseUrl: DODO, products: { pro: 'pdt_pro', business: 'pdt_business' } }
 const RETURN = 'http://localhost:3000/settings?billing=updated#billing'
+const uid = (prefix: string) => `${prefix}_${randomUUID()}`
 
 function capture(method: 'post', path: string, response: JsonBodyType) {
   const calls: { url: string; auth: string | null; body: unknown }[] = []
@@ -53,17 +55,19 @@ describe('startPlanChange', () => {
 
   it('reuses the Dodo customer of a lapsed subscription', async () => {
     const workspace = await owner('Returning')
-    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'expired', dodoCustomerId: 'cus_9', dodoSubscriptionId: 'sub_9' })
+    const customer = uid('cus')
+    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'expired', dodoCustomerId: customer, dodoSubscriptionId: uid('sub') })
     const calls = capture('post', '/checkouts', { session_id: 'cks_2', checkout_url: 'https://checkout.dodopayments.com/cks_2' })
 
     await startPlanChange(config, workspace, 'business')
-    expect(calls[0]?.body).toMatchObject({ customer: { customer_id: 'cus_9' }, product_cart: [{ product_id: 'pdt_business', quantity: 1 }] })
+    expect(calls[0]?.body).toMatchObject({ customer: { customer_id: customer }, product_cart: [{ product_id: 'pdt_business', quantity: 1 }] })
   })
 
   it('changes an active subscription in place', async () => {
     const workspace = await owner('Upgrade')
-    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: 'cus_1', dodoSubscriptionId: 'sub_1' })
-    const calls = capture('post', '/subscriptions/sub_1/change-plan', { payment_link: null })
+    const sub = uid('sub')
+    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
+    const calls = capture('post', `/subscriptions/${sub}/change-plan`, { payment_link: null })
 
     expect(await startPlanChange(config, workspace, 'business')).toBe(RETURN)
     expect(calls[0]?.body).toEqual({ product_id: 'pdt_business', quantity: 1, proration_billing_mode: 'prorated_immediately' })
@@ -71,15 +75,29 @@ describe('startPlanChange', () => {
 
   it('sends the customer to Dodo when the change needs a payment', async () => {
     const workspace = await owner('PayDiff')
-    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: 'cus_2', dodoSubscriptionId: 'sub_2' })
-    capture('post', '/subscriptions/sub_2/change-plan', { payment_link: 'https://checkout.dodopayments.com/pay_1' })
+    const sub = uid('sub')
+    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
+    capture('post', `/subscriptions/${sub}/change-plan`, { payment_link: 'https://checkout.dodopayments.com/pay_1' })
     expect(await startPlanChange(config, workspace, 'business')).toBe('https://checkout.dodopayments.com/pay_1')
   })
 
   it('does nothing for the plan the workspace already pays for', async () => {
     const workspace = await owner('Same')
-    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: 'cus_3', dodoSubscriptionId: 'sub_3' })
+    const sub = uid('sub')
+    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
     expect(await startPlanChange(config, workspace, 'pro')).toBe(RETURN)
+  })
+
+  it('sends a subscription on hold to the portal instead of opening a second checkout', async () => {
+    const workspace = await owner('OnHold')
+    const customer = uid('cus')
+    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'on_hold', dodoCustomerId: customer, dodoSubscriptionId: uid('sub') })
+    const checkouts = capture('post', '/checkouts', { session_id: 'cks_3', checkout_url: 'https://checkout.dodopayments.com/cks_3' })
+    const portal = capture('post', `/customers/${customer}/customer-portal/session`, { link: 'https://customer.dodopayments.com/s_2' })
+
+    expect(await startPlanChange(config, workspace, 'business')).toBe('https://customer.dodopayments.com/s_2')
+    expect(checkouts).toEqual([])
+    expect(new URL(portal[0]?.url ?? '').searchParams.get('return_url')).toBe('http://localhost:3000/settings#billing')
   })
 })
 
