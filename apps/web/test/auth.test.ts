@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { authErrorMessage, createAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { requestPasswordResetThrottled } from '@/lib/password-reset'
 
 const mailer = new RecordingMailer()
 beforeEach(() => mailer.clear())
@@ -132,6 +133,54 @@ describe('password reset', () => {
       auth.api.requestPasswordReset({ body: { email: email(), redirectTo: 'http://localhost:3000/reset-password' } }),
     ).resolves.toBeTruthy()
     expect(mailer.sent).toEqual([])
+  })
+
+  it('revokes existing sessions when the password is reset', async () => {
+    const address = email()
+    const { headers } = await auth.api.signUpEmail({
+      body: { name: 'Hijacked', email: address, password: 'correct-horse' },
+      returnHeaders: true,
+    })
+    const old = new Headers({ cookie: sessionCookie(headers) })
+    expect((await auth.api.getSession({ headers: old }))?.user.email).toBe(address)
+    mailer.clear()
+
+    await auth.api.requestPasswordReset({ body: { email: address, redirectTo: 'http://localhost:3000/reset-password' } })
+    const token = new URL(linkIn(mailer.sent[0]?.text ?? '')).pathname.split('/').at(-1) ?? ''
+    await auth.api.resetPassword({ body: { newPassword: 'battery-staple', token } })
+
+    expect(await auth.api.getSession({ headers: old })).toBeNull()
+  })
+
+  it('sends one reset email per address per minute and answers the same either way', async () => {
+    const address = email()
+    await auth.api.signUpEmail({ body: { name: 'Flooded', email: address, password: 'correct-horse' } })
+    mailer.clear()
+    const redirectTo = 'http://localhost:3000/reset-password'
+
+    await expect(requestPasswordResetThrottled({ auth, db: db() }, { email: address, redirectTo })).resolves.toBeUndefined()
+    await expect(requestPasswordResetThrottled({ auth, db: db() }, { email: address.toUpperCase(), redirectTo })).resolves.toBeUndefined()
+    expect(mailer.sent).toHaveLength(1)
+
+    await expect(requestPasswordResetThrottled({ auth, db: db() }, { email: email(), redirectTo })).resolves.toBeUndefined()
+    expect(mailer.sent).toHaveLength(1)
+  })
+
+  it('still answers when the email provider is down', async () => {
+    const address = email()
+    await auth.api.signUpEmail({ body: { name: 'Offline', email: address, password: 'correct-horse' } })
+    const failing = new RecordingMailer()
+    failing.failWith = new Error('provider down')
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const flaky = createAuth({ db: db(), secret: 'test-secret-test-secret-test-secret-0000', baseURL: 'http://localhost:3000', mailer: failing })
+
+    await expect(
+      requestPasswordResetThrottled({ auth: flaky, db: db() }, { email: address, redirectTo: 'http://localhost:3000/reset-password' }),
+    ).resolves.toBeUndefined()
+    await vi.waitFor(() =>
+      expect(errors).toHaveBeenCalledWith('email delivery failed', expect.objectContaining({ subject: 'Reset your Replyooo password' })),
+    )
+    errors.mockRestore()
   })
 
   it('explains an expired or reused token', async () => {

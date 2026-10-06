@@ -4,7 +4,9 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { auth, authErrorMessage } from '@/lib/auth'
+import { db } from '@/lib/db'
 import { appUrl } from '@/lib/env'
+import { requestPasswordResetThrottled } from '@/lib/password-reset'
 import { safeNext } from '@/lib/redirects'
 import { COOKIE_OPTIONS, getSessionUser, VERIFY_COOLDOWN_COOKIE } from '@/lib/session'
 
@@ -12,7 +14,7 @@ export type AuthState = { error: string } | null
 export type FormState = { error?: string; notice?: string } | null
 
 /** Where Better Auth sends people after they click the verification link (autoSignInAfterVerification). */
-const VERIFIED_CALLBACK = '/home?verified=1'
+const VERIFIED_CALLBACK = '/verified'
 
 const text = (formData: FormData, name: string) => String(formData.get(name) ?? '').trim()
 
@@ -68,7 +70,10 @@ export async function requestPasswordReset(_state: FormState, formData: FormData
   const email = text(formData, 'email')
   if (!email) return { error: 'Enter your email address.' }
   try {
-    await auth().api.requestPasswordReset({ body: { email, redirectTo: appUrl('/reset-password') }, headers: await headers() })
+    await requestPasswordResetThrottled(
+      { auth: auth(), db: db() },
+      { email, redirectTo: appUrl('/reset-password'), headers: await headers() },
+    )
   } catch (error) {
     const message = authErrorMessage(error)
     if (message) return { error: message }
