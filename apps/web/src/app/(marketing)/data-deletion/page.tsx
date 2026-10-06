@@ -22,8 +22,8 @@ export default function DataDeletionPage() {
       </ul>
       <p>
         Removing the app stops Replyooo from using your account. If you also choose to delete your data there, Meta sends us a deletion
-        request: we delete the connected account and everything stored for it, and Meta shows you a confirmation code you can check on
-        our status page.
+        request: we delete the connected account and its contacts, messages and automations (raw webhook deliveries from Meta are
+        removed within 30 days), and Meta shows you a confirmation code you can check on our status page.
       </p>
 
       <h2>3. Email us</h2>
