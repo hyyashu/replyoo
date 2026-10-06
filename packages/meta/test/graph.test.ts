@@ -59,4 +59,16 @@ describe('graphRequest', () => {
     server.use(http.delete(`${base}/x`, () => new HttpResponse(null, { status: 200 })))
     await expect(graphRequest({ baseUrl: base, path: 'x', token: 't', method: 'DELETE' })).resolves.toEqual({})
   })
+
+  it('omits the Authorization header when no token is given', async () => {
+    let auth: string | null = 'unset'
+    server.use(
+      http.get(`${base}/thing`, ({ request }) => {
+        auth = request.headers.get('authorization')
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+    await graphRequest({ baseUrl: base, path: 'thing' })
+    expect(auth).toBeNull()
+  })
 })

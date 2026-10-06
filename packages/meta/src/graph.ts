@@ -6,7 +6,7 @@ const TIMEOUT_MS = 15_000
 export interface GraphRequest {
   baseUrl: string
   path: string
-  token: string
+  token?: string
   method?: 'GET' | 'POST' | 'DELETE'
   query?: Record<string, string>
   body?: unknown
@@ -16,7 +16,8 @@ export async function graphRequest<T>(req: GraphRequest): Promise<T> {
   const url = new URL(`${req.baseUrl}/${req.path.replace(/^\//, '')}`)
   for (const [key, value] of Object.entries(req.query ?? {})) url.searchParams.set(key, value)
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${req.token}` }
+  const headers: Record<string, string> = {}
+  if (req.token) headers.Authorization = `Bearer ${req.token}`
   if (req.body !== undefined) headers['Content-Type'] = 'application/json'
 
   let response: Response
