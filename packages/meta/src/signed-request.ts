@@ -12,6 +12,8 @@ export interface SignedRequest {
  * signature matches and the payload names HMAC-SHA256 and a user.
  */
 export function parseSignedRequest(signedRequest: string, appSecret: string): SignedRequest | null {
+  // An empty key would let anyone sign: HMAC with '' is computable by everybody.
+  if (typeof signedRequest !== 'string' || typeof appSecret !== 'string' || appSecret.length === 0) return null
   const [encodedSignature, encodedPayload, ...rest] = signedRequest.split('.')
   if (!encodedSignature || !encodedPayload || rest.length > 0) return null
   const expected = createHmac('sha256', appSecret).update(encodedPayload).digest()

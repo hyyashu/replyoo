@@ -28,4 +28,28 @@ describe('parseSignedRequest', () => {
     expect(parseSignedRequest('not-a-signed-request', 'app-secret')).toBeNull()
     expect(parseSignedRequest('', 'app-secret')).toBeNull()
   })
+
+  it('refuses an empty app secret even when the request is signed with it', () => {
+    expect(parseSignedRequest(sign({ algorithm: 'HMAC-SHA256', user_id: '1234' }, ''), '')).toBeNull()
+  })
+
+  it('accepts padded signatures and a lowercase algorithm name', () => {
+    const good = sign({ algorithm: 'hmac-sha256', user_id: '1234' }, 'app-secret')
+    const [signature, body] = good.split('.') as [string, string]
+    expect(parseSignedRequest(`${signature}=.${body}`, 'app-secret')).toEqual({ userId: '1234', issuedAt: null })
+    expect(parseSignedRequest(good, 'app-secret')).toEqual({ userId: '1234', issuedAt: null })
+  })
+
+  it('returns null without throwing for short signatures, extra segments and non-object payloads', () => {
+    const good = sign({ algorithm: 'HMAC-SHA256', user_id: '1234' }, 'app-secret')
+    const [signature, body] = good.split('.') as [string, string]
+    expect(parseSignedRequest(`${signature.slice(0, 10)}.${body}`, 'app-secret')).toBeNull()
+    expect(parseSignedRequest(`${good}.extra`, 'app-secret')).toBeNull()
+    expect(parseSignedRequest(`.${body}`, 'app-secret')).toBeNull()
+    for (const raw of ['null', '42', '"text"', '[]', '{not json']) {
+      const encoded = Buffer.from(raw).toString('base64url')
+      const sig = createHmac('sha256', 'app-secret').update(encoded).digest('base64url')
+      expect(parseSignedRequest(`${sig}.${encoded}`, 'app-secret')).toBeNull()
+    }
+  })
 })
