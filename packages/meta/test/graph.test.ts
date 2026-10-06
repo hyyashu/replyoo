@@ -71,4 +71,17 @@ describe('graphRequest', () => {
     await graphRequest({ baseUrl: base, path: 'thing' })
     expect(auth).toBeNull()
   })
+
+  it('sends Authorization header even for empty string token', async () => {
+    let auth: string | null = 'unset'
+    server.use(
+      http.get(`${base}/thing`, ({ request }) => {
+        auth = request.headers.get('authorization')
+        return HttpResponse.json({ ok: true })
+      }),
+    )
+    await graphRequest({ baseUrl: base, path: 'thing', token: '' })
+    expect(auth).not.toBeNull()
+    expect(auth?.startsWith('Bearer')).toBe(true)
+  })
 })

@@ -17,7 +17,7 @@ export async function graphRequest<T>(req: GraphRequest): Promise<T> {
   for (const [key, value] of Object.entries(req.query ?? {})) url.searchParams.set(key, value)
 
   const headers: Record<string, string> = {}
-  if (req.token) headers.Authorization = `Bearer ${req.token}`
+  if (req.token !== undefined) headers.Authorization = `Bearer ${req.token}`
   if (req.body !== undefined) headers['Content-Type'] = 'application/json'
 
   let response: Response
