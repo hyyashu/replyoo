@@ -2,8 +2,9 @@ import { connectedAccounts, encryptToken, flowRuns, messages, webhookEvents } fr
 import type { StartTrigger } from '@replyooo/engine'
 import { MetaError } from '@replyooo/meta'
 import { and, asc, eq, gt, isNull, lt } from 'drizzle-orm'
+import { flagReauth } from './alerts'
 import type { Deps } from './deps'
-import { credentials, markReauthRequired } from './records'
+import { credentials } from './records'
 
 export const SWEEP_BATCH = 500
 const SECOND = 1000
@@ -93,7 +94,7 @@ export async function refreshExpiringTokens(deps: Deps) {
       refreshed++
     } catch (error) {
       failed++
-      if (error instanceof MetaError && error.kind === 'reauth') await markReauthRequired(db, account.id)
+      if (error instanceof MetaError && error.kind === 'reauth') await flagReauth(deps, account.id)
       deps.log.warn({ err: error, accountId: account.id }, 'token refresh failed')
     }
   }

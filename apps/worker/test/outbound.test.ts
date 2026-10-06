@@ -6,7 +6,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { OutboundBody } from '../src/flow'
 import { handleOutbound } from '../src/outbound'
-import { createTestContext, insertRun, NOW, publishAutomation, seedAccount, seedContact } from './support'
+import { createTestContext, insertRun, NOW, publishAutomation, seedAccount, seedContact, seedMember } from './support'
 
 const flow: FlowDefinition = {
   trigger: { type: 'any_dm' },
@@ -129,7 +129,8 @@ describe('handleOutbound', () => {
   })
 
   it('reauth errors flag the account and fail the run', async () => {
-    const { db, deps, adapters, account, run, queue, statuses } = await setup()
+    const { db, deps, adapters, account, run, queue, statuses, mailer } = await setup()
+    await seedMember(db, account.workspaceId, 'owner')
     adapters.instagram.errors.push(new MetaError('reauth', 'expired', { reason: 'token_invalid' }))
     const ids = await queue({ kind: 'dm', body: text('hi') })
     await expect(handleOutbound(deps, { messageIds: ids })).resolves.toEqual({ status: 'done' })
@@ -138,6 +139,7 @@ describe('handleOutbound', () => {
     expect(acct?.status).toBe('reauth_required')
     const [after] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
     expect(after).toMatchObject({ status: 'failed', error: 'token_invalid' })
+    expect(mailer.sent).toHaveLength(1)
   })
 
   it('rethrows retryable errors until the final attempt', async () => {

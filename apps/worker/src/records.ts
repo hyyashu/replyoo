@@ -98,6 +98,12 @@ export async function endRun(
     .where(and(eq(flowRuns.id, runId), inArray(flowRuns.status, ['running', 'waiting'])))
 }
 
-export async function markReauthRequired(db: Db | Tx, accountId: string): Promise<void> {
-  await db.update(connectedAccounts).set({ status: 'reauth_required' }).where(eq(connectedAccounts.id, accountId))
+/** Flags an active account. Returns false when it was already flagged or isn't active, so callers alert once. */
+export async function markReauthRequired(db: Db | Tx, accountId: string): Promise<boolean> {
+  const rows = await db
+    .update(connectedAccounts)
+    .set({ status: 'reauth_required' })
+    .where(and(eq(connectedAccounts.id, accountId), eq(connectedAccounts.status, 'active')))
+    .returning({ id: connectedAccounts.id })
+  return rows.length > 0
 }

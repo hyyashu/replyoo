@@ -1,4 +1,5 @@
 import type { Db } from '@replyooo/db'
+import type { Mailer } from '@replyooo/email'
 import type { EngineEvent } from '@replyooo/engine'
 import type { PlatformAdapter } from '@replyooo/meta'
 import type { Platform } from '@replyooo/shared'
@@ -41,4 +42,7 @@ export interface Deps {
   tokenKey: Buffer
   log: Logger
   now: () => Date
+  mailer: Mailer
+  /** Public web origin (APP_URL), for links in emails. */
+  appUrl: string
 }

@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { createDb, parseEncryptionKey } from '@replyooo/db'
+import { createMailer, parseEmailConfig } from '@replyooo/email'
 import { createFacebookAdapter, createInstagramAdapter } from '@replyooo/meta'
 import { Redis } from 'ioredis'
 import type { Deps } from './deps'
@@ -11,6 +12,7 @@ import { createServer } from './server'
 
 const env = loadEnv()
 const log = createLogger(env.LOG_LEVEL)
+const mailer = createMailer(parseEmailConfig(process.env), { print: (line) => log.info(line) })
 const { db, close: closeDb } = createDb(env.DATABASE_URL)
 const redis = new Redis(env.REDIS_URL)
 const queues = createQueues(env.REDIS_URL)
@@ -26,6 +28,8 @@ const deps: Deps = {
   tokenKey: parseEncryptionKey(env.TOKEN_ENCRYPTION_KEY),
   log,
   now: () => new Date(),
+  mailer,
+  appUrl: env.APP_URL,
 }
 
 const workers = startWorkers(deps, env.REDIS_URL)

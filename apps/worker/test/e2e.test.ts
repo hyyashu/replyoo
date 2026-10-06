@@ -1,4 +1,5 @@
 import { contacts, flowRuns, messages } from '@replyooo/db'
+import { RecordingMailer } from '@replyooo/email/testing'
 import { createFacebookAdapter, createInstagramAdapter } from '@replyooo/meta'
 import type { FlowDefinition } from '@replyooo/shared'
 import type { Worker } from 'bullmq'
@@ -75,6 +76,8 @@ beforeAll(() => {
     tokenKey: TOKEN_KEY,
     log: pino({ level: 'silent' }),
     now: () => new Date(),
+    mailer: new RecordingMailer(),
+    appUrl: 'http://localhost:3000',
   }
   workers = startWorkers(deps, redisUrl, { prefix, concurrency: 2 })
 })

@@ -4,10 +4,11 @@ import type { AccountCredentials, PlatformAdapter, SendableButton, SendableMessa
 import { MetaError } from '@replyooo/meta'
 import { encodePostback } from '@replyooo/shared'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { flagReauth } from './alerts'
 import type { Deps, OutboundJobData } from './deps'
 import type { OutboundBody } from './flow'
 import type { ContactRow } from './records'
-import { credentials, endRun, markReauthRequired } from './records'
+import { credentials, endRun } from './records'
 
 export const DM_WINDOW_MS = 24 * 60 * 60 * 1000
 
@@ -55,7 +56,7 @@ export async function handleOutbound(
     } catch (error) {
       if (!(error instanceof MetaError)) throw error
       if (error.kind === 'retryable' && !attempt.isFinal) throw error
-      if (error.kind === 'reauth') await markReauthRequired(db, account.id)
+      if (error.kind === 'reauth') await flagReauth(deps, account.id)
       const reason = error.details.reason ?? error.kind
       return stop(reason, reason === 'window_closed' ? 'expired' : 'failed')
     }

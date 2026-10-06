@@ -3,12 +3,12 @@ import type { Effect, OutboundMessage, Wait } from '@replyooo/engine'
 import { advance } from '@replyooo/engine'
 import { MetaError } from '@replyooo/meta'
 import { and, eq, ne, sql } from 'drizzle-orm'
+import { flagReauth } from './alerts'
 import type { Deps, FlowJobData, FollowCheckJobData } from './deps'
 import {
   applyContactEffects,
   credentials,
   endRun,
-  markReauthRequired,
   runColumns,
   toContactState,
   toRunState,
@@ -142,7 +142,7 @@ export async function handleFollowCheck(deps: Deps, job: FollowCheckJobData): Pr
       following = await adapter.isFollower(credentials(account, deps.tokenKey), contact.platformUserId)
     } catch (error) {
       if (!(error instanceof MetaError) || error.kind === 'retryable') throw error
-      if (error.kind === 'reauth') await markReauthRequired(deps.db, account.id)
+      if (error.kind === 'reauth') await flagReauth(deps, account.id)
       await endRun(deps.db, run.id, 'failed', error.details.reason ?? error.kind, deps.now())
       return
     }

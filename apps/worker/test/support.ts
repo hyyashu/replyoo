@@ -1,5 +1,6 @@
 import type { Db } from '@replyooo/db'
 import {
+  authUsers,
   automationVersions,
   automations,
   connectedAccounts,
@@ -10,8 +11,10 @@ import {
   subscriptions,
   usageCounters,
   webhookEvents,
+  workspaceMembers,
   workspaces,
 } from '@replyooo/db'
+import { RecordingMailer } from '@replyooo/email/testing'
 import type { FlowRunState } from '@replyooo/engine'
 import { newRunState } from '@replyooo/engine'
 import type {
@@ -151,12 +154,14 @@ export interface TestContext {
   jobs: RecordingJobs
   adapters: { instagram: FakeAdapter; facebook: FakeAdapter }
   clock: { now: Date }
+  mailer: RecordingMailer
 }
 
 export function createTestContext(overrides: Partial<Deps> = {}): TestContext {
   const jobs = new RecordingJobs()
   const adapters = { instagram: new FakeAdapter('instagram'), facebook: new FakeAdapter('facebook') }
   const clock = { now: NOW }
+  const mailer = new RecordingMailer()
   const deps: Deps = {
     db: useDb(),
     jobs,
@@ -165,9 +170,11 @@ export function createTestContext(overrides: Partial<Deps> = {}): TestContext {
     tokenKey: TOKEN_KEY,
     log: pino({ level: 'silent' }),
     now: () => clock.now,
+    mailer,
+    appUrl: 'http://localhost:3000',
     ...overrides,
   }
-  return { deps, jobs, adapters, clock }
+  return { deps, jobs, adapters, clock, mailer }
 }
 
 // ---------- seeding ----------
@@ -324,4 +331,13 @@ export async function seedUsage(
       currentPeriodEnd: subscription.currentPeriodEnd ?? null,
     })
   }
+}
+
+/** A workspace member with a real user row; returns the member's email. */
+export async function seedMember(db: Db, workspaceId: string, role: 'owner' | 'admin' | 'member'): Promise<string> {
+  const id = randomUUID()
+  const email = `${role}-${id}@example.com`
+  await db.insert(authUsers).values({ id, name: role, email })
+  await db.insert(workspaceMembers).values({ workspaceId, userId: id, role })
+  return email
 }
