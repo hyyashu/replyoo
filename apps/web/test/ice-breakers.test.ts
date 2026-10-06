@@ -129,6 +129,19 @@ describe('publishing conversation starters', () => {
     expect(calls.map((c) => c.method)).toEqual(['POST', 'DELETE'])
     expect(calls[1]?.body).toEqual({ platform: 'instagram', fields: ['ice_breakers'] })
   })
+
+  it('replacing the live conversation starter doesn’t count against the live limit', async () => {
+    const { workspaceId, account } = await setup()
+    messengerProfile(account.externalId)
+    const first = await starters(workspaceId, account.id)
+    await data.publishAutomation(workspaceId, first.id)
+    for (let i = 0; i < 2; i++) {
+      const other = await data.createAutomation(workspaceId, account.id, 'comment_to_dm')
+      await data.publishAutomation(workspaceId, other?.id ?? '')
+    }
+    const second = await starters(workspaceId, account.id)
+    expect(await data.publishAutomation(workspaceId, second.id)).toEqual({ ok: true, version: 1 })
+  })
 })
 
 describe('pausing, resuming and deleting conversation starters', () => {

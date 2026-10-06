@@ -30,8 +30,12 @@ const INVITE_NOTICES: Record<string, string> = {
   invalid: 'That doesn’t look like an email address.',
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ invite?: string }> }) {
-  const [{ invite }, workspace] = await Promise.all([searchParams, requireWorkspace()])
+const NOTICES: Record<string, string> = {
+  account_limit: 'Some Pages weren’t connected because your plan’s account limit is reached. Upgrade to connect more.',
+}
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ invite?: string; notice?: string }> }) {
+  const [{ invite, notice: pageNotice }, workspace] = await Promise.all([searchParams, requireWorkspace()])
   const [accounts, members, invitations, subscription, workspaces] = await Promise.all([
     listAccounts(workspace.workspaceId),
     listMembers(workspace.workspaceId),
@@ -46,6 +50,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="mx-auto max-w-[920px] px-10 py-9">
       <PageHeader title="Settings" subtitle={workspace.workspaceName} />
+
+      {pageNotice && NOTICES[pageNotice] && (
+        <p role="status" className="mt-6 rounded-xl bg-brand-tint px-4 py-3 text-[13.5px] text-ink">
+          {NOTICES[pageNotice]}
+        </p>
+      )}
 
       {workspaces.length > 1 && (
         <SettingsSection id="workspaces" title="Workspaces" description="Workspaces you belong to.">

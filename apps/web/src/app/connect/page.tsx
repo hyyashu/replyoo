@@ -38,6 +38,7 @@ const ERRORS: Record<string, string> = {
     'That Instagram account is personal. Switch it to a Professional (Business or Creator) account in the Instagram app, then try again.',
   owned_elsewhere: 'That account is already connected to another Replyooo workspace.',
   no_pages: 'We didn’t get access to any Facebook Pages. Try again and pick at least one Page.',
+  plan_limit: 'Your plan’s connected-account limit is reached. Disconnect an account or upgrade in Settings → Billing.',
   meta_error: 'Meta didn’t accept the connection. Try again in a minute.',
 }
 

@@ -8,15 +8,24 @@ import {
   MetaError,
   type OAuthApp,
 } from '@replyooo/meta'
-import type { Platform } from '@replyooo/shared'
+import { PLAN_LIMITS, type Platform } from '@replyooo/shared'
 import { and, eq, ne } from 'drizzle-orm'
+import { workspacePlan } from './data/limits'
 import { env } from './env'
 import { adapterFor, tokenKey } from './meta'
 
 export const OAUTH_COOKIE = 'replyooo_oauth'
 
-export type ConnectError = 'cancelled' | 'state_mismatch' | 'personal_account' | 'owned_elsewhere' | 'no_pages' | 'meta_error'
-export type ConnectResult = { ok: true; accountIds: string[] } | { ok: false; error: ConnectError }
+export type ConnectError =
+  | 'cancelled'
+  | 'state_mismatch'
+  | 'personal_account'
+  | 'owned_elsewhere'
+  | 'no_pages'
+  | 'plan_limit'
+  | 'meta_error'
+/** `limited`: some granted Pages weren't connected because the plan's account limit was reached. */
+export type ConnectResult = { ok: true; accountIds: string[]; limited: boolean } | { ok: false; error: ConnectError }
 
 const PROFESSIONAL = new Set(['BUSINESS', 'MEDIA_CREATOR'])
 
@@ -67,6 +76,16 @@ async function ownedElsewhere(db: Db, workspaceId: string, platform: Platform, e
   return Boolean(row)
 }
 
+/** Spec §3.6 connected-account limit. Reconnecting an account this workspace already has never needs a new slot. */
+async function hasSlot(db: Db, workspaceId: string, platform: Platform, externalId: string): Promise<boolean> {
+  const rows = await db
+    .select({ platform: connectedAccounts.platform, externalId: connectedAccounts.externalId })
+    .from(connectedAccounts)
+    .where(and(eq(connectedAccounts.workspaceId, workspaceId), ne(connectedAccounts.status, 'disconnected')))
+  if (rows.some((row) => row.platform === platform && row.externalId === externalId)) return true
+  return rows.length < PLAN_LIMITS[await workspacePlan(db, workspaceId, new Date())].connectedAccounts
+}
+
 /**
  * Inserts the account or refreshes it in place. An account owned by another workspace is never
  * moved (the worker matches automations by account ID), so the upsert only updates our own row.
@@ -99,10 +118,11 @@ async function connectInstagram(db: Db, workspaceId: string, userId: string, cod
   const connection = await exchangeInstagramCode(oauthApp('instagram'), code)
   if (!connection.accountType || !PROFESSIONAL.has(connection.accountType)) return { ok: false, error: 'personal_account' }
   if (await ownedElsewhere(db, workspaceId, 'instagram', connection.externalId)) return { ok: false, error: 'owned_elsewhere' }
+  if (!(await hasSlot(db, workspaceId, 'instagram', connection.externalId))) return { ok: false, error: 'plan_limit' }
 
   await adapterFor('instagram').subscribeWebhooks({ externalId: connection.externalId, accessToken: connection.accessToken })
   const id = await saveConnectedAccount(db, workspaceId, userId, { platform: 'instagram', ...connection })
-  return id ? { ok: true, accountIds: [id] } : { ok: false, error: 'owned_elsewhere' }
+  return id ? { ok: true, accountIds: [id], limited: false } : { ok: false, error: 'owned_elsewhere' }
 }
 
 async function connectFacebook(db: Db, workspaceId: string, userId: string, code: string): Promise<ConnectResult> {
@@ -110,13 +130,19 @@ async function connectFacebook(db: Db, workspaceId: string, userId: string, code
   if (pages.length === 0) return { ok: false, error: 'no_pages' }
 
   const accountIds: string[] = []
+  let limited = false
   for (const page of pages) {
     if (await ownedElsewhere(db, workspaceId, 'facebook', page.externalId)) continue
+    if (!(await hasSlot(db, workspaceId, 'facebook', page.externalId))) {
+      limited = true
+      continue
+    }
     await adapterFor('facebook').subscribeWebhooks({ externalId: page.externalId, accessToken: page.accessToken })
     const id = await saveConnectedAccount(db, workspaceId, userId, { platform: 'facebook', ...page, expiresAt: null })
     if (id) accountIds.push(id)
   }
-  return accountIds.length > 0 ? { ok: true, accountIds } : { ok: false, error: 'owned_elsewhere' }
+  if (accountIds.length > 0) return { ok: true, accountIds, limited }
+  return { ok: false, error: limited ? 'plan_limit' : 'owned_elsewhere' }
 }
 
 export async function completeConnect(

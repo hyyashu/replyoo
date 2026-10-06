@@ -1,7 +1,7 @@
 import 'server-only'
 import { authUsers, subscriptions, usageCounters, workspaceInvitations, workspaceMembers, workspaces } from '@replyooo/db'
 import { invitationEmail } from '@replyooo/email'
-import { PLAN_LIMITS, periodEnd, usagePeriod } from '@replyooo/shared'
+import { effectivePlan, PLAN_LIMITS, periodEnd, usagePeriod } from '@replyooo/shared'
 import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { deliver } from '../email'
@@ -85,7 +85,12 @@ export async function removeMember(workspaceId: string, memberId: string): Promi
 export async function getSubscription(workspaceId: string, now = new Date()): Promise<Subscription> {
   const [[subscription], [usage]] = await Promise.all([
     db()
-      .select({ plan: subscriptions.plan, currentPeriodEnd: subscriptions.currentPeriodEnd })
+      .select({
+        plan: subscriptions.plan,
+        status: subscriptions.status,
+        currentPeriodEnd: subscriptions.currentPeriodEnd,
+        dodoCustomerId: subscriptions.dodoCustomerId,
+      })
       .from(subscriptions)
       .where(eq(subscriptions.workspaceId, workspaceId)),
     db()
@@ -93,12 +98,16 @@ export async function getSubscription(workspaceId: string, now = new Date()): Pr
       .from(usageCounters)
       .where(and(eq(usageCounters.workspaceId, workspaceId), eq(usageCounters.period, usagePeriod(now)))),
   ])
-  const plan = subscription?.plan ?? 'free'
+  const plan = effectivePlan(subscription, now)
   return {
     plan,
+    billedPlan: subscription?.plan ?? 'free',
+    status: subscription?.status ?? 'active',
+    hasBillingAccount: Boolean(subscription?.dodoCustomerId),
+    renewsAt: subscription?.currentPeriodEnd?.toISOString() ?? null,
     contactsReached: usage?.contactsReached ?? 0,
     contactsLimit: PLAN_LIMITS[plan].contactsPerMonth,
-    periodEnd: (subscription?.currentPeriodEnd ?? periodEnd(now)).toISOString(),
+    periodEnd: periodEnd(now).toISOString(),
   }
 }
 

@@ -54,6 +54,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Link>
           </div>
         )}
+        {subscription.contactsReached >= subscription.contactsLimit && (
+          <div className="flex items-center gap-2 border-b border-[#ffd7c4] bg-brand-tint px-10 py-2.5 text-[13.5px] text-ink">
+            <TriangleAlert className="size-4 text-brand" />
+            You’ve reached {subscription.contactsLimit.toLocaleString('en-US')} contacts this month. New conversations are paused until{' '}
+            {new Date(subscription.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
+            <Link href="/settings#billing" className="ml-auto font-semibold text-brand hover:underline">
+              Upgrade
+            </Link>
+          </div>
+        )}
         {children}
       </main>
     </div>

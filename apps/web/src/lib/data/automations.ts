@@ -7,6 +7,7 @@ import { db } from '../db'
 import { DEFAULT_RECIPE, compileRecipe } from '../recipe'
 import { clearIceBreakersQuietly, iceBreakerError, iceBreakerItems, pushIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
+import { liveAutomationBlock } from './limits'
 import type { Automation, AutomationStats, AutomationStatus, PublishResult, StatusResult } from './types'
 
 export const STATS_WINDOW_DAYS = 30
@@ -235,6 +236,10 @@ export async function publishAutomation(workspaceId: string, id: string): Promis
       const issues = validateFlow(parsed.data, current.account.platform)
       if (issues.length > 0) return { ok: false, errors: issues.map((issue) => issue.message) }
       const flow = parsed.data
+      if (current.automation.status !== 'active') {
+        const blocked = await liveAutomationBlock(tx, workspaceId, current.automation, flow.trigger.type === 'ice_breaker', new Date())
+        if (blocked) return { ok: false, errors: [blocked] }
+      }
 
       const [latest] = await tx
         .select({ version: max(automationVersions.version) })
@@ -294,6 +299,10 @@ export async function setAutomationStatus(
       if (row.automation.status === status) return { ok: true }
 
       const items = iceBreakerItems(id, row.live)
+      if (status === 'active') {
+        const blocked = await liveAutomationBlock(tx, workspaceId, row.automation, items.length > 0, new Date())
+        if (blocked) return { ok: false, error: blocked }
+      }
       if (items.length > 0 && status === 'active') {
         await pauseOtherIceBreakers(tx, workspaceId, row.account.id, id)
         await pushIceBreakers(row.account, items)

@@ -1,4 +1,4 @@
-import { connectedAccounts, decryptToken } from '@replyooo/db'
+import { connectedAccounts, decryptToken, subscriptions } from '@replyooo/db'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { http, HttpResponse } from 'msw'
@@ -108,7 +108,7 @@ describe('connecting Instagram', () => {
     const existing = await createAccount(workspaceId, 'instagram', { externalId: IG_ID, status: 'reauth_required' })
     instagram({ followers_count: 500000 })
 
-    expect(await completeConnect(db(), 'instagram', workspaceId, user.id, 'CODE')).toEqual({ ok: true, accountIds: [existing.id] })
+    expect(await completeConnect(db(), 'instagram', workspaceId, user.id, 'CODE')).toEqual({ ok: true, accountIds: [existing.id], limited: false })
     const rows = await accountsFor(workspaceId)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ id: existing.id, status: 'active', followersCount: 500000 })
@@ -140,6 +140,21 @@ describe('connecting Instagram', () => {
     )
     expect(await completeConnect(db(), 'instagram', workspaceId, user.id, 'BAD')).toEqual({ ok: false, error: 'meta_error' })
     expect(await accountsFor(workspaceId)).toEqual([])
+  })
+
+  it('refuses a second account on Free before subscribing webhooks', async () => {
+    const { workspaceId, user } = await createWorkspace('FullIG')
+    await createAccount(workspaceId, 'facebook', { externalId: `page_${randomUUID()}` })
+    const subscribed = instagram()
+    expect(await completeConnect(db(), 'instagram', workspaceId, user.id, 'CODE')).toEqual({ ok: false, error: 'plan_limit' })
+    expect(subscribed).toEqual([])
+  })
+
+  it('a disconnected account doesn’t take a slot', async () => {
+    const { workspaceId, user } = await createWorkspace('Slots')
+    await createAccount(workspaceId, 'facebook', { externalId: `page_${randomUUID()}`, status: 'disconnected' })
+    instagram()
+    expect((await completeConnect(db(), 'instagram', workspaceId, user.id, 'CODE')).ok).toBe(true)
   })
 })
 
@@ -181,5 +196,28 @@ describe('connecting Facebook Pages', () => {
     const { workspaceId, user } = await createWorkspace('NoPages')
     facebook([])
     expect(await completeConnect(db(), 'facebook', workspaceId, user.id, 'FBCODE')).toEqual({ ok: false, error: 'no_pages' })
+  })
+
+  it('connects Pages up to the plan limit and reports the rest as limited', async () => {
+    const { workspaceId, user } = await createWorkspace('ManyPages')
+    const subscribed = facebook([
+      { id: `page_${randomUUID()}`, name: 'One', access_token: 'P1' },
+      { id: `page_${randomUUID()}`, name: 'Two', access_token: 'P2' },
+    ])
+    const result = await completeConnect(db(), 'facebook', workspaceId, user.id, 'FBCODE')
+    expect(result).toMatchObject({ ok: true, limited: true })
+    expect(result.ok && result.accountIds).toHaveLength(1)
+    expect(subscribed).toHaveLength(1)
+
+    await db().insert(subscriptions).values({ workspaceId, plan: 'pro', status: 'active' })
+    facebook([{ id: `page_${randomUUID()}`, name: 'Three', access_token: 'P3' }])
+    expect(await completeConnect(db(), 'facebook', workspaceId, user.id, 'FBCODE')).toMatchObject({ ok: true, limited: false })
+  })
+
+  it('reports plan_limit when no Page fits', async () => {
+    const { workspaceId, user } = await createWorkspace('NoRoom')
+    await createAccount(workspaceId, 'instagram')
+    facebook([{ id: `page_${randomUUID()}`, name: 'One', access_token: 'P1' }])
+    expect(await completeConnect(db(), 'facebook', workspaceId, user.id, 'FBCODE')).toEqual({ ok: false, error: 'plan_limit' })
   })
 })

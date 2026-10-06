@@ -97,25 +97,45 @@ describe('members and invitations', () => {
 })
 
 describe('getSubscription', () => {
-  it('reads the plan, this month’s usage and the reset date', async () => {
+  const NOW = new Date('2026-10-06T10:00:00.000Z')
+
+  it('reads the plan, this month’s usage and when usage resets', async () => {
     const { workspaceId } = await createWorkspace('Billing')
-    await db().insert(subscriptions).values({ workspaceId, plan: 'pro' })
+    await db().insert(subscriptions).values({
+      workspaceId,
+      plan: 'pro',
+      dodoCustomerId: 'cus_1',
+      currentPeriodEnd: new Date('2026-10-20T00:00:00.000Z'),
+    })
     await db().insert(usageCounters).values([
       { workspaceId, period: '2026-10', contactsReached: 321 },
       { workspaceId, period: '2026-09', contactsReached: 999 },
     ])
-    expect(await getSubscription(workspaceId, new Date('2026-10-06T10:00:00.000Z'))).toEqual({
+    expect(await getSubscription(workspaceId, NOW)).toEqual({
       plan: 'pro',
+      billedPlan: 'pro',
+      status: 'active',
+      hasBillingAccount: true,
+      renewsAt: '2026-10-20T00:00:00.000Z',
       contactsReached: 321,
       contactsLimit: 5_000,
       periodEnd: '2026-11-01T00:00:00.000Z',
     })
   })
 
+  it('uses free limits when a paid subscription is on hold', async () => {
+    const { workspaceId } = await createWorkspace('Lapsed')
+    await db().insert(subscriptions).values({ workspaceId, plan: 'business', status: 'on_hold' })
+    expect(await getSubscription(workspaceId, NOW)).toMatchObject({ plan: 'free', billedPlan: 'business', status: 'on_hold', contactsLimit: 1_000 })
+  })
+
   it('defaults to the free plan with no usage', async () => {
     const { workspaceId } = await createWorkspace('Fresh')
-    expect(await getSubscription(workspaceId, new Date('2026-10-06T10:00:00.000Z'))).toMatchObject({
+    expect(await getSubscription(workspaceId, NOW)).toMatchObject({
       plan: 'free',
+      billedPlan: 'free',
+      hasBillingAccount: false,
+      renewsAt: null,
       contactsReached: 0,
       contactsLimit: 1_000,
     })

@@ -90,9 +90,18 @@ export interface Invitation {
 }
 
 export interface Subscription {
+  /** The plan whose limits apply now (a lapsed paid plan counts as free). */
   plan: PlanKey
+  /** The plan on the subscription row, paid or not. */
+  billedPlan: PlanKey
+  status: string
+  /** A Dodo customer exists, so the customer portal can open. */
+  hasBillingAccount: boolean
+  /** Dodo's next billing date (ISO), when there is one. */
+  renewsAt: string | null
   contactsReached: number
   contactsLimit: number
+  /** When monthly usage resets: the 1st of next month, UTC (ISO). */
   periodEnd: string
 }
 

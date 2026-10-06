@@ -22,5 +22,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ plat
   if (!result.ok) return fail(result.error)
   const [first] = result.accountIds
   if (first) jar.set(ACCOUNT_COOKIE, first, COOKIE_OPTIONS)
-  redirect('/automations/new')
+  redirect(result.limited ? '/settings?notice=account_limit#accounts' : '/automations/new')
 }

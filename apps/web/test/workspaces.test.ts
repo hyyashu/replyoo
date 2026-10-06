@@ -1,5 +1,6 @@
 import { subscriptions, workspaceInvitations, workspaces } from '@replyooo/db'
 import { eq } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { db } from '@/lib/db'
 import { listWorkspaces, resolveWorkspace, type SessionUser } from '@/lib/workspaces'
@@ -37,9 +38,10 @@ describe('resolveWorkspace', () => {
 
   it('lets a verified invitee join the inviting workspace and lands them there', async () => {
     const { workspaceId } = await createWorkspace('Acme')
-    const invitee = await createUser({ email: 'Sam@Example.com', emailVerified: true })
+    const email = `sam-${randomUUID()}@example.com` // unique: other files leave pending invites for shared addresses
+    const invitee = await createUser({ email: email.toUpperCase(), emailVerified: true })
     await resolveWorkspace(db(), asSession(invitee)) // already has their own workspace
-    await db().insert(workspaceInvitations).values({ workspaceId, email: 'sam@example.com', role: 'admin' })
+    await db().insert(workspaceInvitations).values({ workspaceId, email, role: 'admin' })
 
     const ws = await resolveWorkspace(db(), asSession(invitee))
     expect(ws).toMatchObject({ workspaceId, workspaceName: 'Acme', role: 'admin' })
