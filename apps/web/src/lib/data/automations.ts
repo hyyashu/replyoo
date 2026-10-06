@@ -235,7 +235,7 @@ export async function publishAutomation(workspaceId: string, id: string): Promis
         .innerJoin(connectedAccounts, eq(connectedAccounts.id, automations.connectedAccountId))
         .leftJoin(automationVersions, eq(automationVersions.id, automations.currentVersionId))
         .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
-        .for('update', { of: automations })
+        .for('update', { of: [automations, connectedAccounts] })
       if (!current) return { ok: false, errors: [NOT_FOUND] }
       state.account = current.account
 
@@ -296,7 +296,7 @@ export async function setAutomationStatus(
         .innerJoin(connectedAccounts, eq(connectedAccounts.id, automations.connectedAccountId))
         .leftJoin(automationVersions, eq(automationVersions.id, automations.currentVersionId))
         .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
-        .for('update', { of: automations })
+        .for('update', { of: [automations, connectedAccounts] })
       if (!row) return { ok: false, error: NOT_FOUND }
       if (!row.automation.currentVersionId) return { ok: false, error: 'Publish this automation first' }
       state.account = row.account

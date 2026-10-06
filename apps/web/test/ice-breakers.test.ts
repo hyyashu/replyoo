@@ -1,23 +1,17 @@
 import { automationVersions, automations, connectedAccounts } from '@replyooo/db'
 import { encodePostback } from '@replyooo/shared'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as data from '@/lib/data/automations'
 import { iceBreakerItems } from '@/lib/data/ice-breakers'
 import { db } from '@/lib/db'
 import { DEFAULT_RECIPE, compileRecipe } from '@/lib/recipe'
-import { createAccount, createWorkspace } from './support'
+import { createAccount, createWorkspace, mockFetch } from './support'
 
-const server = setupServer()
-beforeAll(async () => {
-  // msw 3 wraps new TCP sockets, which breaks the Postgres handshake; open the pooled connection first.
-  await db().execute(sql`select 1`)
-  server.listen({ onUnhandledFrame: 'error' })
-})
-afterEach(() => server.resetHandlers())
-afterAll(() => server.close())
+const server = mockFetch()
+beforeEach(() => server.reset())
+afterAll(() => server.restore())
 
 const IG = 'https://graph.instagram.com/v24.0'
 
@@ -107,6 +101,20 @@ describe('publishing conversation starters', () => {
     expect(row?.status).toBe('reauth_required')
   })
 
+  it('concurrent publishes of two conversation starters leave exactly one active', async () => {
+    const { workspaceId, account } = await setup()
+    messengerProfile(account.externalId)
+    const first = await starters(workspaceId, account.id)
+    const second = await starters(workspaceId, account.id)
+    const results = await Promise.all([
+      data.publishAutomation(workspaceId, first.id),
+      data.publishAutomation(workspaceId, second.id),
+    ])
+    expect(results.every((r) => r.ok)).toBe(true)
+    const statuses = [(await data.getAutomation(workspaceId, first.id))?.status, (await data.getAutomation(workspaceId, second.id))?.status]
+    expect(statuses.filter((s) => s === 'active')).toHaveLength(1)
+  })
+
   it('clears the questions when the automation is republished with another trigger', async () => {
     const { workspaceId, account } = await setup()
     const calls = messengerProfile(account.externalId)
@@ -142,7 +150,7 @@ describe('pausing, resuming and deleting conversation starters', () => {
     await data.publishAutomation(workspaceId, automation.id)
     await data.setAutomationStatus(workspaceId, automation.id, 'paused')
 
-    server.resetHandlers()
+    server.reset()
     messengerProfile(account.externalId, { status: 500, body: { error: { message: 'Temporarily unavailable', code: 2 } } })
     const result = await data.setAutomationStatus(workspaceId, automation.id, 'active')
     expect(result.ok).toBe(false)
@@ -166,9 +174,12 @@ describe('pausing, resuming and deleting conversation starters', () => {
     const automation = await starters(workspaceId, account.id)
     await data.publishAutomation(workspaceId, automation.id)
 
-    server.resetHandlers()
+    server.reset()
     messengerProfile(account.externalId, { status: 500, body: { error: { message: 'down', code: 2 } } })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     expect(await data.setAutomationStatus(workspaceId, automation.id, 'paused')).toEqual({ ok: true })
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
     expect((await data.getAutomation(workspaceId, automation.id))?.status).toBe('paused')
   })
 })

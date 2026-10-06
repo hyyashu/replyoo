@@ -11,7 +11,9 @@ import {
 } from '@replyooo/db'
 import type { Platform } from '@replyooo/shared'
 import { eq } from 'drizzle-orm'
+import { type RequestHandler, getResponse } from 'msw'
 import { randomUUID } from 'node:crypto'
+import { vi } from 'vitest'
 import { db } from '@/lib/db'
 
 export const TOKEN_KEY = Buffer.alloc(32, 7)
@@ -142,4 +144,29 @@ export async function createMessage(input: {
       })
       .returning(),
   )
+}
+
+/**
+ * Stubs global `fetch` and answers from msw handlers. Unmatched requests reject, like `onUnhandledFrame: 'error'`.
+ * msw's `setupServer` patches `net.Socket`, which breaks Postgres connections opened while it is listening.
+ */
+export function mockFetch(...initial: RequestHandler[]) {
+  let handlers = initial
+  vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init)
+    const response = await getResponse(handlers, request)
+    if (!response) throw new Error(`Unhandled ${request.method} ${request.url}`)
+    return response
+  })
+  return {
+    use(...next: RequestHandler[]) {
+      handlers = [...next, ...handlers]
+    },
+    reset() {
+      handlers = initial
+    },
+    restore() {
+      vi.unstubAllGlobals()
+    },
+  }
 }
