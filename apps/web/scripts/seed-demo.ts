@@ -25,7 +25,17 @@ const PEOPLE = [
 const STATUSES = ['completed', 'completed', 'completed', 'waiting', 'failed'] as const
 const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000)
 
+/** The demo login is public, so never seed anything but a local database. */
+function assertLocalTarget() {
+  const host = new URL(env().DATABASE_URL).hostname
+  const local = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(host)
+  if (process.env.NODE_ENV === 'production' || (!local && process.env.ALLOW_SEED !== '1')) {
+    throw new Error(`Refusing to seed ${host} (NODE_ENV=${process.env.NODE_ENV ?? 'unset'}). Local databases only; set ALLOW_SEED=1 to override a non-local host.`)
+  }
+}
+
 async function main() {
+  assertLocalTarget()
   const [existing] = await db().select({ id: authUsers.id }).from(authUsers).where(eq(authUsers.email, EMAIL))
   if (existing) {
     console.log(`${EMAIL} already exists, nothing to do.`)
