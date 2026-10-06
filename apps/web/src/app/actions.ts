@@ -4,8 +4,11 @@ import { FlowDefinitionSchema } from '@replyooo/shared'
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { billingCustomer, startPlanChange } from '@/lib/billing/checkout'
+import { createPortalSession, dodoConfig, DodoError } from '@/lib/billing/dodo'
 import * as data from '@/lib/data'
 import { db } from '@/lib/db'
+import { appUrl } from '@/lib/env'
 import { ACCOUNT_COOKIE, COOKIE_OPTIONS, WORKSPACE_COOKIE, getCurrentAccount, requireWorkspace } from '@/lib/session'
 import { canManage, listWorkspaces } from '@/lib/workspaces'
 
@@ -107,4 +110,36 @@ export async function deleteWorkspace(formData: FormData) {
   jar.delete(ACCOUNT_COOKIE)
   jar.delete(WORKSPACE_COOKIE)
   redirect('/')
+}
+
+export async function switchPlan(formData: FormData) {
+  const workspace = await requireManager()
+  const plan = String(formData.get('plan') ?? '')
+  const config = dodoConfig()
+  if (!config || (plan !== 'pro' && plan !== 'business')) redirect('/settings?billing=unavailable#billing')
+  let destination: string
+  try {
+    destination = await startPlanChange(config, workspace, plan)
+  } catch (error) {
+    if (!(error instanceof DodoError)) throw error
+    console.error('dodo plan change failed', error)
+    destination = '/settings?billing=error#billing'
+  }
+  redirect(destination)
+}
+
+export async function openBillingPortal() {
+  const { workspaceId } = await requireManager()
+  const config = dodoConfig()
+  const customerId = await billingCustomer(workspaceId)
+  if (!config || !customerId) redirect('/settings?billing=unavailable#billing')
+  let destination: string
+  try {
+    destination = await createPortalSession(config, customerId, appUrl('/settings#billing'))
+  } catch (error) {
+    if (!(error instanceof DodoError)) throw error
+    console.error('dodo portal failed', error)
+    destination = '/settings?billing=error#billing'
+  }
+  redirect(destination)
 }

@@ -1,28 +1,26 @@
-import { PLAN_LIMITS } from '@replyooo/shared'
+import { PLAN_NAMES } from '@replyooo/shared'
 import { Check, Plus, TriangleAlert } from 'lucide-react'
 import type { Metadata } from 'next'
 import {
   deleteWorkspace,
   disconnectAccount,
   inviteMember,
+  openBillingPortal,
   removeMember,
   revokeInvitation,
+  switchPlan,
 } from '@/app/actions'
 import { WorkspaceList } from '@/components/workspace-list'
 import { PlatformIcon } from '@/components/sidebar'
 import { Avatar, ButtonLink, Card, PageHeader, buttonClass, cx, formatCompact, formatNumber } from '@/components/ui'
+import { dodoConfig } from '@/lib/billing/dodo'
 import { getSubscription, listAccounts, listInvitations, listMembers } from '@/lib/data'
 import { db } from '@/lib/db'
+import { PLAN_CATALOG } from '@/lib/plans'
 import { requireWorkspace } from '@/lib/session'
 import { canManage, listWorkspaces } from '@/lib/workspaces'
 
 export const metadata: Metadata = { title: 'Settings' }
-
-const PLANS = [
-  { key: 'free', name: 'Free', price: '$0', features: ['1 connected account', '3 live automations', 'Replyooo branding'] },
-  { key: 'pro', name: 'Pro', price: '$12', features: ['3 connected accounts', 'Unlimited automations', 'Follow gate & lead capture'] },
-  { key: 'business', name: 'Business', price: '$29', features: ['10 connected accounts', 'Team members', 'Priority support'] },
-] as const
 
 const INVITE_NOTICES: Record<string, string> = {
   invited: 'Invite sent. They join as soon as they sign in with that email address and confirm it.',
@@ -34,8 +32,15 @@ const NOTICES: Record<string, string> = {
   account_limit: 'Some Pages weren’t connected because your plan’s account limit is reached. Upgrade to connect more.',
 }
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ invite?: string; notice?: string }> }) {
-  const [{ invite, notice: pageNotice }, workspace] = await Promise.all([searchParams, requireWorkspace()])
+const BILLING_NOTICES: Record<string, string> = {
+  updated: 'Thanks! Your plan changes as soon as Dodo Payments confirms the payment, usually within a few seconds.',
+  unavailable: 'Billing isn’t set up yet.',
+  error: 'Dodo Payments didn’t respond. Try again in a minute.',
+}
+const PAYMENT_PROBLEMS = new Set(['on_hold', 'past_due', 'failed'])
+
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ invite?: string; notice?: string; billing?: string }> }) {
+  const [{ invite, notice: pageNotice, billing }, workspace] = await Promise.all([searchParams, requireWorkspace()])
   const [accounts, members, invitations, subscription, workspaces] = await Promise.all([
     listAccounts(workspace.workspaceId),
     listMembers(workspace.workspaceId),
@@ -46,6 +51,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const manager = canManage(workspace.role)
   const usage = subscription.contactsReached / subscription.contactsLimit
   const notice = invite ? INVITE_NOTICES[invite] : undefined
+  const billingEnabled = dodoConfig() !== null
+  const billingNotice = billing ? BILLING_NOTICES[billing] : undefined
 
   return (
     <div className="mx-auto max-w-[920px] px-10 py-9">
@@ -167,9 +174,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       </SettingsSection>
 
       <SettingsSection id="billing" title="Billing" description="Plans are metered on contacts reached per month.">
+        {billingNotice && <p role="status" className="mb-3 text-[13px] text-muted">{billingNotice}</p>}
+        {manager && subscription.billedPlan !== 'free' && PAYMENT_PROBLEMS.has(subscription.status) && (
+          <Card className="mb-4 flex items-center gap-3 border-[#ffb59a] p-4 text-[13.5px]">
+            <TriangleAlert className="size-4 shrink-0 text-brand" />
+            Your last payment didn’t go through. Update your payment method to keep {PLAN_NAMES[subscription.billedPlan]}.
+            {billingEnabled && subscription.hasBillingAccount && (
+              <form action={openBillingPortal} className="ml-auto">
+                <button type="submit" className={buttonClass('dark', 'sm')}>
+                  Update payment
+                </button>
+              </form>
+            )}
+          </Card>
+        )}
         <Card className="p-5">
           <div className="flex items-baseline justify-between">
-            <span className="text-[14px] font-semibold">This period</span>
+            <span className="text-[14px] font-semibold">This month</span>
             <span className="text-[13px] text-subtle">
               {formatNumber(subscription.contactsReached)} / {formatNumber(subscription.contactsLimit)} contacts reached
             </span>
@@ -177,10 +198,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-sand">
             <div className="h-full rounded-full bg-ink" style={{ width: `${Math.min(100, usage * 100)}%` }} />
           </div>
+          {subscription.renewsAt && subscription.plan !== 'free' && (
+            <p className="mt-3 text-[12.5px] text-subtle">
+              {PLAN_NAMES[subscription.plan]} renews on{' '}
+              {new Date(subscription.renewsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+            </p>
+          )}
         </Card>
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          {PLANS.map((plan) => {
+          {PLAN_CATALOG.map((plan) => {
             const current = plan.key === subscription.plan
+            const canAct = manager && billingEnabled
             return (
               <Card key={plan.key} className={cx('flex flex-col p-5', current && 'border-ink ring-1 ring-ink')}>
                 <div className="flex items-center justify-between">
@@ -192,19 +220,47 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                   <span className="font-sans text-[13px] font-normal tracking-normal text-subtle">/month</span>
                 </div>
                 <ul className="mt-3 flex flex-col gap-1.5 text-[13px] text-muted">
-                  <li>{formatNumber(PLAN_LIMITS[plan.key].contactsPerMonth)} contacts / month</li>
-                  {plan.features.map((feature) => (
-                    <li key={feature}>{feature}</li>
+                  {plan.perks.map((perk) => (
+                    <li key={perk}>{perk}</li>
                   ))}
                 </ul>
-                {/* Checkout and the customer portal are Dodo Payments links (Plan 4). */}
-                <button type="button" disabled={current} className={cx(buttonClass(current ? 'secondary' : 'dark', 'sm'), 'mt-5')}>
-                  {current ? 'Your plan' : `Switch to ${plan.name}`}
-                </button>
+                {current ? (
+                  <button type="button" disabled className={cx(buttonClass('secondary', 'sm'), 'mt-5')}>
+                    Your plan
+                  </button>
+                ) : plan.key === 'free' ? (
+                  canAct && subscription.hasBillingAccount ? (
+                    <form action={openBillingPortal} className="mt-5 flex">
+                      <button type="submit" className={cx(buttonClass('secondary', 'sm'), 'w-full')}>
+                        Cancel in billing portal
+                      </button>
+                    </form>
+                  ) : (
+                    <button type="button" disabled className={cx(buttonClass('secondary', 'sm'), 'mt-5')}>
+                      Included
+                    </button>
+                  )
+                ) : (
+                  <form action={switchPlan} className="mt-5 flex">
+                    <input type="hidden" name="plan" value={plan.key} />
+                    <button type="submit" disabled={!canAct} className={cx(buttonClass('dark', 'sm'), 'w-full')}>
+                      Switch to {plan.name}
+                    </button>
+                  </form>
+                )}
               </Card>
             )
           })}
         </div>
+        {manager && billingEnabled && subscription.hasBillingAccount && (
+          <form action={openBillingPortal} className="mt-4">
+            <button type="submit" className="text-[13px] font-semibold text-ink hover:underline">
+              Manage billing and invoices →
+            </button>
+          </form>
+        )}
+        {!billingEnabled && <p className="mt-4 text-[12.5px] text-subtle">Billing isn’t set up yet. Plans can be changed once payments are configured.</p>}
+        {billingEnabled && !manager && <p className="mt-4 text-[12.5px] text-subtle">Only owners and admins can change the plan.</p>}
       </SettingsSection>
 
       {workspace.role === 'owner' && (
