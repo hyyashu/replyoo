@@ -1,9 +1,12 @@
+import { PLAN_LIMITS } from '@replyooo/shared'
 import { ArrowRight, AtSign, MessageCircleReply, MessagesSquare, Sparkles, UserPlus, Zap } from 'lucide-react'
 import { InstagramIcon } from '@/components/brand-icons'
 import { MarketingFooter, MarketingHeader, PricingCards } from '@/components/marketing'
 import { PhonePreview } from '@/components/phone-preview'
 import { ButtonLink, Keyword, cx } from '@/components/ui'
 import { DEFAULT_RECIPE, type Recipe } from '@/lib/recipe'
+
+const FREE_CONTACTS = PLAN_LIMITS.free.contactsPerMonth.toLocaleString('en-US')
 
 const HERO_RECIPE: Recipe = {
   ...DEFAULT_RECIPE,
@@ -192,7 +195,7 @@ export default function LandingPage() {
             <span className="size-1.5 rounded-full bg-brand" /> Pricing
           </span>
           <h2 className="mt-3 font-display text-[44px] leading-tight font-bold tracking-[-0.04em]">Free until it’s working.</h2>
-          <p className="mt-2 text-[15px] text-muted">Start with 1,000 contacts a month on us. Upgrade when your comments outgrow it.</p>
+          <p className="mt-2 text-[15px] text-muted">Start with {FREE_CONTACTS} contacts a month on us. Upgrade when your comments outgrow it.</p>
           <PricingCards />
         </div>
       </section>
@@ -202,7 +205,7 @@ export default function LandingPage() {
           <h2 className="mx-auto max-w-2xl font-display text-[52px] leading-[1] font-extrabold tracking-[-0.05em]">
             Your next reel could reply to itself.
           </h2>
-          <p className="mt-4 text-[16px] text-white/80">Set up your first automation in 3 minutes. Free forever for 1,000 contacts.</p>
+          <p className="mt-4 text-[16px] text-white/80">Set up your first automation in 3 minutes. Free forever for {FREE_CONTACTS} contacts.</p>
           <div className="mt-8 flex justify-center gap-3">
             <ButtonLink href="/signup" variant="dark" className="h-12 px-6">
               Start free <ArrowRight className="size-4" />

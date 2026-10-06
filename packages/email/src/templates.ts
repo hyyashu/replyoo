@@ -74,7 +74,7 @@ export function invitationEmail({
     `${inviterName} invited you to ${workspaceName} on Replyooo`,
     `Join ${workspaceName} on Replyooo`,
     [
-      `${inviterName} invited you to the ${workspaceName} workspace on Replyooo.`,
+      `${inviterName} invited you to ${workspaceName} on Replyooo.`,
       'Sign up or log in with this email address and confirm it. You’re added to the workspace automatically.',
     ],
     { label: 'Join the workspace', url },

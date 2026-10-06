@@ -55,7 +55,8 @@ export default function PrivacyPage() {
       <p>
         Raw webhook deliveries from Meta are deleted after 30 days. Everything else is kept until the customer deletes it, deletes their
         workspace, or the account owner asks Meta to delete their data. Deleting a workspace removes its connected accounts, contacts,
-        messages and automations immediately.
+        messages and automations immediately. When Meta sends us a deletion request, we keep a record of it (the confirmation code, the
+        Meta user ID it named, when it arrived and how many accounts were deleted) so we can show its status and prove it was handled.
       </p>
 
       <h2>Your choices</h2>

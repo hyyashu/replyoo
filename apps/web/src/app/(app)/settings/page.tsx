@@ -141,7 +141,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <Avatar name={invitation.email} size={36} />
               <div className="min-w-0 flex-1">
                 <div className="text-[14px] font-semibold">{invitation.email}</div>
-                <div className="text-[12.5px] text-subtle">Invited · joins on their next Google sign-in</div>
+                <div className="text-[12.5px] text-subtle">Invited · joins when they sign up or log in with this email</div>
               </div>
               <span className="rounded-full bg-cream px-2.5 py-0.5 text-[12px] font-medium">Pending</span>
               {manager && (

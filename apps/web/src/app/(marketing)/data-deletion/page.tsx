@@ -12,7 +12,7 @@ export default function DataDeletionPage() {
       <h2>1. Delete your workspace</h2>
       <p>
         If you use Replyooo, open Settings → Delete workspace. It immediately deletes every connected account, contact, message and
-        automation in that workspace.
+        automation in that workspace. Your login stays so you can keep using other workspaces; to delete it too, email us (option 3).
       </p>
 
       <h2>2. Remove Replyooo from Instagram or Facebook</h2>
