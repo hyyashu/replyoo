@@ -17,6 +17,9 @@ importers:
       '@replyooo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@replyooo/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@replyooo/engine':
         specifier: workspace:*
         version: link:../../packages/engine

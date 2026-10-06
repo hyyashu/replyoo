@@ -5,7 +5,17 @@ import { googleEnabled } from '@/lib/auth'
 
 export const metadata: Metadata = { title: 'Log in' }
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const { next } = await searchParams
-  return <AuthForm mode="login" action={signIn} googleAction={googleEnabled() ? signInWithGoogle : undefined} next={next} />
+const NOTICES: Record<string, string> = { '1': 'Password updated. Log in with your new password.' }
+
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; reset?: string }> }) {
+  const { next, reset } = await searchParams
+  return (
+    <AuthForm
+      mode="login"
+      action={signIn}
+      googleAction={googleEnabled() ? signInWithGoogle : undefined}
+      next={next}
+      notice={reset ? NOTICES[reset] : undefined}
+    />
+  )
 }

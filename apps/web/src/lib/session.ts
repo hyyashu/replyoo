@@ -9,6 +9,8 @@ import { resolveWorkspace, type WorkspaceContext } from './workspaces'
 
 export const ACCOUNT_COOKIE = 'replyooo_account'
 export const WORKSPACE_COOKIE = 'replyooo_workspace'
+/** Set for a minute after "Resend link" so the banner can't be used to spam an inbox. */
+export const VERIFY_COOLDOWN_COOKIE = 'replyooo_verify_sent'
 export const COOKIE_OPTIONS = {
   path: '/',
   sameSite: 'lax',

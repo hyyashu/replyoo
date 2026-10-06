@@ -5,7 +5,7 @@ import { useActionState } from 'react'
 import type { AuthState } from '@/app/auth-actions'
 import { buttonClass, cx } from './ui'
 
-const field =
+export const authField =
   'h-11 w-full rounded-xl border border-line bg-white px-3.5 text-[14px] outline-none transition-colors placeholder:text-faint focus:border-ink'
 
 export function AuthForm({
@@ -13,11 +13,15 @@ export function AuthForm({
   action,
   googleAction,
   next,
+  notice,
+  email,
 }: {
   mode: 'login' | 'signup'
   action: (state: AuthState, formData: FormData) => Promise<AuthState>
   googleAction?: (formData: FormData) => Promise<void>
   next?: string
+  notice?: string
+  email?: string
 }) {
   const signup = mode === 'signup'
   const [state, formAction, pending] = useActionState(action, null)
@@ -30,6 +34,11 @@ export function AuthForm({
       <p className="mt-1.5 text-[15px] text-muted">
         {signup ? '1,000 contacts a month free. No card needed.' : 'Log in to your Replyooo workspace.'}
       </p>
+      {notice && (
+        <p role="status" className="mt-4 rounded-xl bg-white px-3.5 py-2.5 text-[13.5px] text-ink">
+          {notice}
+        </p>
+      )}
 
       {googleAction && (
         <>
@@ -47,8 +56,8 @@ export function AuthForm({
 
       <form action={formAction} className={cx('flex flex-col gap-3', !googleAction && 'mt-8')}>
         {next && <input type="hidden" name="next" value={next} />}
-        {signup && <input name="name" placeholder="Your name" autoComplete="name" className={field} />}
-        <input name="email" type="email" required placeholder="you@example.com" autoComplete="email" className={field} />
+        {signup && <input name="name" placeholder="Your name" autoComplete="name" className={authField} />}
+        <input name="email" type="email" required defaultValue={email} placeholder="you@example.com" autoComplete="email" className={authField} />
         <input
           name="password"
           type="password"
@@ -56,8 +65,13 @@ export function AuthForm({
           minLength={8}
           placeholder="Password"
           autoComplete={signup ? 'new-password' : 'current-password'}
-          className={field}
+          className={authField}
         />
+        {!signup && (
+          <Link href="/forgot-password" className="-mt-1 self-end text-[12.5px] font-medium text-muted hover:text-ink">
+            Forgot password?
+          </Link>
+        )}
         {state?.error && (
           <p role="alert" className="text-[13px] font-medium text-[#c2330e]">
             {state.error}

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@replyooo/db": "workspace:*",
+    "@replyooo/email": "workspace:*",
     "@replyooo/engine": "workspace:*",
     "@replyooo/meta": "workspace:*",
     "@replyooo/shared": "workspace:*",

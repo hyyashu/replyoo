@@ -35,3 +35,8 @@ export function env(): Env {
   cached ??= parseEnv(process.env)
   return cached
 }
+
+/** An absolute URL on the app's public origin (links in emails, OAuth and billing return URLs). */
+export function appUrl(path: string): string {
+  return new URL(path, env().APP_URL).toString()
+}
