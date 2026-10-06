@@ -6,7 +6,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { POST as dataDeletion } from '@/app/api/meta/data-deletion/route'
 import { POST as deauthorize } from '@/app/api/meta/deauthorize/route'
 import { createAutomation, publishAutomation } from '@/lib/data/automations'
-import { findDeletionRequest } from '@/lib/meta-callbacks'
+import { findDeletionRequest, ICE_BREAKER_CLEAR_BUDGET_MS } from '@/lib/meta-callbacks'
 import { db } from '@/lib/db'
 import { createAccount, createContact, createWorkspace, mockFetch } from './support'
 
@@ -118,6 +118,30 @@ describe('Meta data-deletion callback', () => {
     expect(await account(ig.id)).toBeUndefined()
     warn.mockRestore()
   })
+})
+
+describe('Meta callbacks with a slow Graph API', () => {
+  it('answers Meta within the budget even when clearing conversation starters hangs', async () => {
+    const igUser = `igu_${randomUUID()}`
+    const { ig, automation } = await liveStarters(igUser)
+    let release = () => {}
+    const hung = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.all(`https://graph.instagram.com/v24.0/${ig.externalId}/messenger_profile`, async () => {
+        await hung
+        return HttpResponse.json({ result: 'success' })
+      }),
+    )
+
+    const started = Date.now()
+    expect((await dataDeletion(post(signed(igUser, 'ig-secret')))).status).toBe(200)
+    expect(Date.now() - started).toBeLessThan(ICE_BREAKER_CLEAR_BUDGET_MS + 2_000)
+    expect(await account(ig.id)).toBeUndefined()
+    expect(await db().select().from(automations).where(eq(automations.id, automation.id))).toEqual([])
+    release()
+  }, 15_000)
 })
 
 describe('Meta deauthorize callback', () => {

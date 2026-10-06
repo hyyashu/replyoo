@@ -31,17 +31,29 @@ function grantedBy(platform: Platform, userId: string) {
   return and(eq(connectedAccounts.platform, platform), platform === 'instagram' ? or(byUser, eq(connectedAccounts.externalId, userId)) : byUser)
 }
 
+/** How long the callbacks wait for Meta to clear conversation starters before answering Meta anyway. */
+export const ICE_BREAKER_CLEAR_BUDGET_MS = 3_000
+
 /**
  * Same cleanup as a manual disconnect: clear Meta's conversation starters for the granted accounts
  * that are still connected and have a live ice-breaker automation. Best-effort (the token may
- * already be revoked); failures are only logged.
+ * already be revoked); failures are only logged. The clears run in parallel and are bounded by
+ * ICE_BREAKER_CLEAR_BUDGET_MS so a slow Graph API (15 s timeout per call) can't hold Meta's
+ * callback past its own timeout; stragglers finish in the background.
  */
 async function clearGrantedIceBreakers(db: Db, platform: Platform, userId: string): Promise<void> {
   const rows = await db
     .select({ id: connectedAccounts.id, workspaceId: connectedAccounts.workspaceId })
     .from(connectedAccounts)
     .where(and(grantedBy(platform, userId), ne(connectedAccounts.status, 'disconnected')))
-  for (const row of rows) await clearLiveIceBreakers(row.workspaceId, row.id)
+  if (rows.length === 0) return
+  const clears = Promise.allSettled(rows.map((row) => clearLiveIceBreakers(row.workspaceId, row.id)))
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const budget = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, ICE_BREAKER_CLEAR_BUDGET_MS)
+  })
+  await Promise.race([clears, budget])
+  clearTimeout(timer)
 }
 
 /** The person removed the app, so the tokens are dead: stop using the accounts but keep the data. */
