@@ -27,9 +27,19 @@ const OPTIONS = [
   },
 ] as const
 
-export default async function ConnectPage({ searchParams }: { searchParams: Promise<{ platform?: string }> }) {
+const ERRORS: Record<string, string> = {
+  cancelled: 'Connection was cancelled. Try again when you’re ready.',
+  state_mismatch: 'That sign-in link expired. Start again from this page.',
+  personal_account:
+    'That Instagram account is personal. Switch it to a Professional (Business or Creator) account in the Instagram app, then try again.',
+  owned_elsewhere: 'That account is already connected to another Replyooo workspace.',
+  no_pages: 'We didn’t get access to any Facebook Pages. Try again and pick at least one Page.',
+  meta_error: 'Meta didn’t accept the connection. Try again in a minute.',
+}
+
+export default async function ConnectPage({ searchParams }: { searchParams: Promise<{ platform?: string; error?: string }> }) {
   const { workspaceId } = await requireWorkspace()
-  const [{ platform: highlight }, accounts] = await Promise.all([searchParams, listAccounts(workspaceId)])
+  const [{ platform: highlight, error }, accounts] = await Promise.all([searchParams, listAccounts(workspaceId)])
 
   return (
     <div className="min-h-screen bg-sand">
@@ -49,6 +59,11 @@ export default async function ConnectPage({ searchParams }: { searchParams: Prom
         <p className="mx-auto mt-2 max-w-md text-[15.5px] text-muted">
           Replyooo uses Meta’s official API. We never see your password, and you can disconnect any time.
         </p>
+        {error && ERRORS[error] && (
+          <p role="alert" className="mx-auto mt-6 max-w-md rounded-2xl border border-[#ffd7c4] bg-brand-tint px-4 py-3 text-[13.5px] text-ink">
+            {ERRORS[error]}
+          </p>
+        )}
 
         <div className="mt-10 grid gap-4 text-left sm:grid-cols-2">
           {OPTIONS.map((option) => {
