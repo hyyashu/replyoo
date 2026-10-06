@@ -1,9 +1,11 @@
 import 'server-only'
-import { automationVersions, automations, connectedAccounts, contacts, flowRuns, messages } from '@replyooo/db'
+import { type Tx, automationVersions, automations, connectedAccounts, contacts, flowRuns, messages } from '@replyooo/db'
+import { MetaError } from '@replyooo/meta'
 import { FlowDefinitionSchema, getTemplate, validateFlow, type FlowDefinition } from '@replyooo/shared'
-import { and, eq, gte, inArray, max, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, max, ne, type SQL, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { DEFAULT_RECIPE, compileRecipe } from '../recipe'
+import { iceBreakerError, iceBreakerItems, pushIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
 import type { Automation, AutomationStats, AutomationStatus, PublishResult, StatusResult } from './types'
 
@@ -172,47 +174,111 @@ export function keepsPinnedPost(previous: FlowDefinition | null, next: FlowDefin
   return isNextPost(previous) && isNextPost(next)
 }
 
-/** Spec §5.4: validate server-side, write an immutable version, point the automation at it. */
+type AccountRow = typeof connectedAccounts.$inferSelect
+
+/** Other live automations on the account whose published trigger is ice_breaker → paused. */
+async function pauseOtherIceBreakers(tx: Tx, workspaceId: string, accountId: string, keepId: string): Promise<void> {
+  const live = tx
+    .select({ id: automations.id })
+    .from(automations)
+    .innerJoin(automationVersions, eq(automationVersions.id, automations.currentVersionId))
+    .where(
+      and(
+        eq(automations.connectedAccountId, accountId),
+        eq(automations.status, 'active'),
+        ne(automations.id, keepId),
+        sql`${automationVersions.definition}->'trigger'->>'type' = 'ice_breaker'`,
+      ),
+    )
+  await tx
+    .update(automations)
+    .set({ status: 'paused' })
+    .where(and(eq(automations.workspaceId, workspaceId), inArray(automations.id, live)))
+}
+
+async function markReauthRequired(workspaceId: string, accountId: string): Promise<void> {
+  await db()
+    .update(connectedAccounts)
+    .set({ status: 'reauth_required' })
+    .where(and(eq(connectedAccounts.workspaceId, workspaceId), eq(connectedAccounts.id, accountId)))
+}
+
+/** Meta errors from a push inside a transaction become a user-facing message after the rollback. */
+async function metaFailure(error: unknown, workspaceId: string, account: AccountRow | undefined): Promise<string> {
+  if (!(error instanceof MetaError) || !account) throw error
+  if (error.kind === 'reauth') await markReauthRequired(workspaceId, account.id)
+  return iceBreakerError(error, account.username)
+}
+
+async function clearIceBreakersQuietly(account: AccountRow): Promise<void> {
+  try {
+    await pushIceBreakers(account, [])
+  } catch (error) {
+    // The worker ignores postbacks for automations that aren't live, so stale questions are harmless.
+    console.warn('clearing conversation starters failed', { accountId: account.id, error })
+  }
+}
+
+/**
+ * Spec §5.4: validate server-side, write an immutable version, point the automation at it,
+ * and (for conversation starters) push the questions to Meta before committing.
+ */
 export async function publishAutomation(workspaceId: string, id: string): Promise<PublishResult> {
   if (!isUuid(id)) return { ok: false, errors: [NOT_FOUND] }
-  return db().transaction(async (tx): Promise<PublishResult> => {
-    const [current] = await tx
-      .select({ automation: automations, platform: connectedAccounts.platform, live: automationVersions.definition })
-      .from(automations)
-      .innerJoin(connectedAccounts, eq(connectedAccounts.id, automations.connectedAccountId))
-      .leftJoin(automationVersions, eq(automationVersions.id, automations.currentVersionId))
-      .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
-      .for('update', { of: automations })
-    if (!current) return { ok: false, errors: [NOT_FOUND] }
+  // Set inside the transaction callback; an object so TypeScript doesn't narrow it to undefined.
+  const state: { account?: AccountRow } = {}
+  try {
+    return await db().transaction(async (tx): Promise<PublishResult> => {
+      const [current] = await tx
+        .select({ automation: automations, account: connectedAccounts, live: automationVersions.definition })
+        .from(automations)
+        .innerJoin(connectedAccounts, eq(connectedAccounts.id, automations.connectedAccountId))
+        .leftJoin(automationVersions, eq(automationVersions.id, automations.currentVersionId))
+        .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
+        .for('update', { of: automations })
+      if (!current) return { ok: false, errors: [NOT_FOUND] }
+      state.account = current.account
 
-    const parsed = FlowDefinitionSchema.safeParse(current.automation.definition)
-    if (!parsed.success) return { ok: false, errors: parsed.error.issues.map((issue) => issue.message) }
-    const issues = validateFlow(parsed.data, current.platform)
-    if (issues.length > 0) return { ok: false, errors: issues.map((issue) => issue.message) }
-    const flow = parsed.data
+      const parsed = FlowDefinitionSchema.safeParse(current.automation.definition)
+      if (!parsed.success) return { ok: false, errors: parsed.error.issues.map((issue) => issue.message) }
+      const issues = validateFlow(parsed.data, current.account.platform)
+      if (issues.length > 0) return { ok: false, errors: issues.map((issue) => issue.message) }
+      const flow = parsed.data
 
-    const [latest] = await tx
-      .select({ version: max(automationVersions.version) })
-      .from(automationVersions)
-      .where(eq(automationVersions.automationId, id))
-    const version = (latest?.version ?? 0) + 1
-    const [created] = await tx
-      .insert(automationVersions)
-      .values({ automationId: id, version, definition: flow })
-      .returning({ id: automationVersions.id })
-    if (!created) throw new Error('version insert returned nothing')
+      const [latest] = await tx
+        .select({ version: max(automationVersions.version) })
+        .from(automationVersions)
+        .where(eq(automationVersions.automationId, id))
+      const version = (latest?.version ?? 0) + 1
+      const [created] = await tx
+        .insert(automationVersions)
+        .values({ automationId: id, version, definition: flow })
+        .returning({ id: automationVersions.id })
+      if (!created) throw new Error('version insert returned nothing')
 
-    await tx
-      .update(automations)
-      .set({
-        currentVersionId: created.id,
-        status: 'active',
-        triggerType: flow.trigger.type,
-        pinnedMediaId: keepsPinnedPost(current.live, flow) ? current.automation.pinnedMediaId : null,
-      })
-      .where(eq(automations.id, id))
-    return { ok: true, version }
-  })
+      await tx
+        .update(automations)
+        .set({
+          currentVersionId: created.id,
+          status: 'active',
+          triggerType: flow.trigger.type,
+          pinnedMediaId: keepsPinnedPost(current.live, flow) ? current.automation.pinnedMediaId : null,
+        })
+        .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
+
+      const items = iceBreakerItems(id, flow)
+      const wasLiveIceBreaker = current.automation.status === 'active' && iceBreakerItems(id, current.live).length > 0
+      if (items.length > 0) {
+        await pauseOtherIceBreakers(tx, workspaceId, current.account.id, id)
+        await pushIceBreakers(current.account, items)
+      } else if (wasLiveIceBreaker) {
+        await pushIceBreakers(current.account, [])
+      }
+      return { ok: true, version }
+    })
+  } catch (error) {
+    return { ok: false, errors: [await metaFailure(error, workspaceId, state.account)] }
+  }
 }
 
 export async function setAutomationStatus(
@@ -221,18 +287,52 @@ export async function setAutomationStatus(
   status: 'active' | 'paused',
 ): Promise<StatusResult> {
   if (!isUuid(id)) return { ok: false, error: NOT_FOUND }
-  const [row] = await db()
-    .select({ versionId: automations.currentVersionId })
-    .from(automations)
-    .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
-  if (!row) return { ok: false, error: NOT_FOUND }
-  if (!row.versionId) return { ok: false, error: 'Publish this automation first' }
-  await db().update(automations).set({ status }).where(eq(automations.id, id))
-  return { ok: true }
+  const state: { account?: AccountRow; clearAfter: boolean } = { clearAfter: false }
+  try {
+    const result = await db().transaction(async (tx): Promise<StatusResult> => {
+      const [row] = await tx
+        .select({ automation: automations, account: connectedAccounts, live: automationVersions.definition })
+        .from(automations)
+        .innerJoin(connectedAccounts, eq(connectedAccounts.id, automations.connectedAccountId))
+        .leftJoin(automationVersions, eq(automationVersions.id, automations.currentVersionId))
+        .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
+        .for('update', { of: automations })
+      if (!row) return { ok: false, error: NOT_FOUND }
+      if (!row.automation.currentVersionId) return { ok: false, error: 'Publish this automation first' }
+      state.account = row.account
+      if (row.automation.status === status) return { ok: true }
+
+      const items = iceBreakerItems(id, row.live)
+      if (items.length > 0 && status === 'active') {
+        await pauseOtherIceBreakers(tx, workspaceId, row.account.id, id)
+        await pushIceBreakers(row.account, items)
+      }
+      state.clearAfter = items.length > 0 && status === 'paused'
+      await tx
+        .update(automations)
+        .set({ status })
+        .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
+      return { ok: true }
+    })
+    if (state.clearAfter && state.account) await clearIceBreakersQuietly(state.account)
+    return result
+  } catch (error) {
+    return { ok: false, error: await metaFailure(error, workspaceId, state.account) }
+  }
 }
 
-/** Cascades to versions and runs; in-flight conversations stop. */
+/** Cascades to versions and runs; in-flight conversations stop. Reads the live version before the cascade removes it. */
 export async function deleteAutomation(workspaceId: string, id: string): Promise<void> {
   if (!isUuid(id)) return
+  const [row] = await db()
+    .select({ automation: automations, account: connectedAccounts, live: automationVersions.definition })
+    .from(automations)
+    .innerJoin(connectedAccounts, eq(connectedAccounts.id, automations.connectedAccountId))
+    .leftJoin(automationVersions, eq(automationVersions.id, automations.currentVersionId))
+    .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
+  if (!row) return
   await db().delete(automations).where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
+  if (row.automation.status === 'active' && iceBreakerItems(id, row.live).length > 0) {
+    await clearIceBreakersQuietly(row.account)
+  }
 }
