@@ -4,7 +4,7 @@ import { AtSign, Phone, X } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
 import { Avatar, Keyword, cx, timeAgo } from '@/components/ui'
-import type { Contact, ContactRun } from '@/lib/data/types'
+import type { ContactDetail, ContactRun } from '@/lib/data/types'
 
 const RUN_STATUS: Record<ContactRun['status'], string> = {
   running: 'bg-sky-soft text-[#1f5f99]',
@@ -15,7 +15,7 @@ const RUN_STATUS: Record<ContactRun['status'], string> = {
   cancelled: 'bg-cream text-muted',
 }
 
-export function ContactDrawer({ contact }: { contact: Contact }) {
+export function ContactDrawer({ contact }: { contact: ContactDetail }) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()

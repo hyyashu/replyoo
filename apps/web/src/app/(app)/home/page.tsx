@@ -2,7 +2,7 @@ import { ArrowRight, AtSign, CircleCheckBig, Phone, Plus, Send, Users } from 'lu
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Avatar, ButtonLink, Card, PageHeader, StatCard, StatusPill, formatNumber, formatPercent, timeAgo } from '@/components/ui'
-import { getHomeStats, getSubscription, getWorkspace, listAutomations, listContacts } from '@/lib/data'
+import { getHomeStats, getSubscription, listAutomations, listLatestLeads } from '@/lib/data'
 import { triggerLabel } from '@/lib/describe'
 import { getCurrentAccount } from '@/lib/session'
 import { TriggerIcon } from '../automations/automations-table'
@@ -10,16 +10,14 @@ import { TriggerIcon } from '../automations/automations-table'
 export const metadata: Metadata = { title: 'Home' }
 
 export default async function HomePage() {
-  const { workspace: ctx, account } = await getCurrentAccount()
-  const [workspace, stats, subscription, automations, contacts] = await Promise.all([
-    getWorkspace(),
-    getHomeStats(account.id),
+  const { workspace, account } = await getCurrentAccount()
+  const [stats, subscription, automations, leads] = await Promise.all([
+    getHomeStats(workspace.workspaceId, account.id),
     getSubscription(),
-    listAutomations(ctx.workspaceId, account.id),
-    listContacts(account.id),
+    listAutomations(workspace.workspaceId, account.id),
+    listLatestLeads(workspace.workspaceId, account.id),
   ])
   const top = automations.filter((a) => a.status !== 'draft').slice(0, 4)
-  const leads = contacts.filter((c) => c.email || c.phone).slice(0, 6)
   const usage = subscription.contactsReached / subscription.contactsLimit
   const firstName = workspace.user.name.split(' ')[0]
 

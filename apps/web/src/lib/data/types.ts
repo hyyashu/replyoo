@@ -56,8 +56,19 @@ export interface Contact {
   fields: Record<string, string>
   firstSeenAt: string
   lastInboundAt: string
+}
+
+export interface ContactDetail extends Contact {
   messages: ContactMessage[]
   runs: ContactRun[]
+}
+
+export interface HomeStats {
+  dmsSent: number
+  runs: number
+  completionRate: number
+  leads: number
+  liveCount: number
 }
 
 export interface Member {
