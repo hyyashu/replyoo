@@ -1,10 +1,12 @@
-import { connectedAccounts, decryptToken, subscriptions } from '@replyooo/db'
+import { automationVersions, automations, connectedAccounts, decryptToken, subscriptions } from '@replyooo/db'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { http, HttpResponse } from 'msw'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { completeConnect, stateMatches } from '@/lib/connect'
+import { iceBreakerItems } from '@/lib/data/ice-breakers'
 import { db } from '@/lib/db'
+import { compileRecipe, DEFAULT_RECIPE } from '@/lib/recipe'
 import { TOKEN_KEY, createAccount, createWorkspace, mockFetch } from './support'
 
 const server = mockFetch()
@@ -157,6 +159,87 @@ describe('connecting Instagram', () => {
     await createAccount(workspaceId, 'facebook', { externalId: `page_${randomUUID()}`, status: 'disconnected' })
     instagram()
     expect((await completeConnect(db(), 'instagram', workspaceId, user.id, 'CODE')).ok).toBe(true)
+  })
+  it('puts the live conversation starters back after a reconnect', async () => {
+    const { workspaceId, user } = await createWorkspace('Restore')
+    const existing = await createAccount(workspaceId, 'instagram', { externalId: IG_ID, status: 'disconnected' })
+    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Prices?', answer: 'From $9' }] } })
+    const [automation] = await db()
+      .insert(automations)
+      .values({ workspaceId, connectedAccountId: existing.id, name: 'Starters', status: 'active', triggerType: 'ice_breaker', definition: flow })
+      .returning()
+    const [version] = await db().insert(automationVersions).values({ automationId: automation!.id, version: 1, definition: flow }).returning()
+    await db().update(automations).set({ currentVersionId: version!.id }).where(eq(automations.id, automation!.id))
+
+    instagram()
+    const pushed: unknown[] = []
+    server.use(
+      http.post(`https://graph.instagram.com/v24.0/${IG_ID}/messenger_profile`, async ({ request }) => {
+        pushed.push(await request.json())
+        return HttpResponse.json({ result: 'success' })
+      }),
+    )
+
+    expect((await completeConnect(db(), 'instagram', workspaceId, user.id, 'CODE')).ok).toBe(true)
+    expect(pushed).toEqual([
+      { platform: 'instagram', ice_breakers: [{ locale: 'default', call_to_actions: iceBreakerItems(automation!.id, flow) }] },
+    ])
+  })
+
+  it('a restore never overwrites starters published while it was in flight', async () => {
+    const { workspaceId, user } = await createWorkspace('RestoreRace')
+    const existing = await createAccount(workspaceId, 'instagram', { externalId: IG_ID, status: 'disconnected' })
+    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Old?', answer: 'Old' }] } })
+    const newer = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'New?', answer: 'New' }] } })
+    const [automation] = await db()
+      .insert(automations)
+      .values({ workspaceId, connectedAccountId: existing.id, name: 'Starters', status: 'active', triggerType: 'ice_breaker', definition: flow })
+      .returning()
+    const [version] = await db().insert(automationVersions).values({ automationId: automation!.id, version: 1, definition: flow }).returning()
+    await db().update(automations).set({ currentVersionId: version!.id }).where(eq(automations.id, automation!.id))
+
+    instagram()
+    const pushed: unknown[] = []
+    server.use(
+      http.post(`https://graph.instagram.com/v24.0/${IG_ID}/messenger_profile`, async ({ request }) => {
+        if (pushed.length === 0) {
+          // A publish of version 2 commits while the restore's push of version 1 is still in flight.
+          const [v2] = await db().insert(automationVersions).values({ automationId: automation!.id, version: 2, definition: newer }).returning()
+          await db().update(automations).set({ currentVersionId: v2!.id }).where(eq(automations.id, automation!.id))
+        }
+        pushed.push(await request.json())
+        return HttpResponse.json({ result: 'success' })
+      }),
+    )
+
+    expect((await completeConnect(db(), 'instagram', workspaceId, user.id, 'CODE')).ok).toBe(true)
+    expect(pushed).toEqual([
+      { platform: 'instagram', ice_breakers: [{ locale: 'default', call_to_actions: iceBreakerItems(automation!.id, flow) }] },
+      { platform: 'instagram', ice_breakers: [{ locale: 'default', call_to_actions: iceBreakerItems(automation!.id, newer) }] },
+    ])
+  })
+
+  it('a failed restore doesn’t fail the connect', async () => {
+    const { workspaceId, user } = await createWorkspace('RestoreFails')
+    const existing = await createAccount(workspaceId, 'instagram', { externalId: IG_ID, status: 'disconnected' })
+    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Hours?', answer: '9–5' }] } })
+    const [automation] = await db()
+      .insert(automations)
+      .values({ workspaceId, connectedAccountId: existing.id, name: 'Starters', status: 'active', triggerType: 'ice_breaker', definition: flow })
+      .returning()
+    const [version] = await db().insert(automationVersions).values({ automationId: automation!.id, version: 1, definition: flow }).returning()
+    await db().update(automations).set({ currentVersionId: version!.id }).where(eq(automations.id, automation!.id))
+
+    instagram()
+    server.use(
+      http.post(`https://graph.instagram.com/v24.0/${IG_ID}/messenger_profile`, () =>
+        HttpResponse.json({ error: { message: 'Service unavailable', code: 2 } }, { status: 503 }),
+      ),
+    )
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect((await completeConnect(db(), 'instagram', workspaceId, user.id, 'CODE')).ok).toBe(true)
+    expect(warn).toHaveBeenCalledOnce()
+    warn.mockRestore()
   })
 })
 

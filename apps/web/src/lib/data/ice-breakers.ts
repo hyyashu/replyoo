@@ -55,3 +55,65 @@ export async function clearLiveIceBreakers(workspaceId: string, accountId?: stri
   }
   for (const account of accounts.values()) await clearIceBreakersQuietly(account)
 }
+
+/**
+ * The account's live conversation starters, read only after any publish or status change that is
+ * pushing them right now has committed: those hold the account row FOR UPDATE while they call Meta,
+ * so FOR SHARE waits for them, and the next statement gets a fresh snapshot. No Meta call happens
+ * here. Null when the account isn't active in this workspace.
+ */
+async function liveIceBreakersAfterSync(
+  workspaceId: string,
+  accountId: string,
+): Promise<{ account: AccountRow; items: IceBreaker[] } | null> {
+  return db().transaction(async (tx) => {
+    const [account] = await tx
+      .select()
+      .from(connectedAccounts)
+      .where(
+        and(
+          eq(connectedAccounts.workspaceId, workspaceId),
+          eq(connectedAccounts.id, accountId),
+          eq(connectedAccounts.status, 'active'),
+        ),
+      )
+      .for('share')
+    if (!account) return null
+    const rows = await tx
+      .select({ automationId: automations.id, live: automationVersions.definition })
+      .from(automations)
+      .leftJoin(automationVersions, eq(automationVersions.id, automations.currentVersionId))
+      .where(
+        and(
+          eq(automations.workspaceId, workspaceId),
+          eq(automations.connectedAccountId, accountId),
+          eq(automations.status, 'active'),
+        ),
+      )
+    const live = rows.find((row) => iceBreakerItems(row.automationId, row.live).length > 0)
+    return { account, items: live ? iceBreakerItems(live.automationId, live.live) : [] }
+  })
+}
+
+const sameItems = (a: IceBreaker[], b: IceBreaker[]) =>
+  a.length === b.length && a.every((item, i) => item.question === b[i]?.question && item.payload === b[i]?.payload)
+
+/**
+ * After a reconnect, put the account's live conversation starters back on Meta (disconnecting cleared
+ * them). Best-effort: a failure leaves the account connected and is only logged. The push runs outside
+ * any transaction; re-reading afterwards catches a publish that pushed different starters while ours
+ * was in flight, so ours never overwrites newer ones (bounded, so a busy account can't loop forever).
+ */
+export async function restoreLiveIceBreakers(workspaceId: string, accountId: string): Promise<void> {
+  try {
+    let onMeta: IceBreaker[] = []
+    for (let round = 0; round < 3; round++) {
+      const live = await liveIceBreakersAfterSync(workspaceId, accountId)
+      if (!live || sameItems(live.items, onMeta)) return
+      await pushIceBreakers(live.account, live.items)
+      onMeta = live.items
+    }
+  } catch (error) {
+    console.warn('restoring conversation starters failed', { accountId, error })
+  }
+}
