@@ -10,7 +10,7 @@ import {
 } from '@replyooo/meta'
 import { PLAN_LIMITS, type Platform } from '@replyooo/shared'
 import { and, eq, ne } from 'drizzle-orm'
-import { restoreLiveIceBreakers } from './data/ice-breakers'
+import { restoreLiveIceBreakersFor } from './data/ice-breakers'
 import { workspacePlan } from './data/limits'
 import { env } from './env'
 import { adapterFor, tokenKey } from './meta'
@@ -126,7 +126,7 @@ async function connectInstagram(db: Db, workspaceId: string, userId: string, cod
 
   await adapterFor('instagram').subscribeWebhooks({ externalId: connection.externalId, accessToken: connection.accessToken })
   const id = await saveConnectedAccount(db, workspaceId, userId, { platform: 'instagram', ...connection })
-  if (id) await restoreLiveIceBreakers(workspaceId, id)
+  if (id) await restoreLiveIceBreakersFor(workspaceId, [id])
   return id ? { ok: true, accountIds: [id], limited: false } : { ok: false, error: 'owned_elsewhere' }
 }
 
@@ -144,11 +144,9 @@ async function connectFacebook(db: Db, workspaceId: string, userId: string, code
     }
     await adapterFor('facebook').subscribeWebhooks({ externalId: page.externalId, accessToken: page.accessToken })
     const id = await saveConnectedAccount(db, workspaceId, userId, { platform: 'facebook', ...page, metaUserId, expiresAt: null })
-    if (id) {
-      accountIds.push(id)
-      await restoreLiveIceBreakers(workspaceId, id)
-    }
+    if (id) accountIds.push(id)
   }
+  await restoreLiveIceBreakersFor(workspaceId, accountIds)
   if (accountIds.length > 0) return { ok: true, accountIds, limited }
   return { ok: false, error: limited ? 'plan_limit' : 'owned_elsewhere' }
 }

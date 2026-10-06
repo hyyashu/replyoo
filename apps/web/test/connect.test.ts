@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { http, HttpResponse } from 'msw'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { completeConnect, stateMatches } from '@/lib/connect'
-import { iceBreakerItems } from '@/lib/data/ice-breakers'
+import { ICE_BREAKER_RESTORE_BUDGET_MS, iceBreakerItems } from '@/lib/data/ice-breakers'
 import { db } from '@/lib/db'
 import { compileRecipe, DEFAULT_RECIPE } from '@/lib/recipe'
 import { TOKEN_KEY, createAccount, createWorkspace, mockFetch } from './support'
@@ -300,6 +300,42 @@ describe('connecting Facebook Pages', () => {
     facebook([{ id: `page_${randomUUID()}`, name: 'Three', access_token: 'P3' }])
     expect(await completeConnect(db(), 'facebook', workspaceId, user.id, 'FBCODE')).toMatchObject({ ok: true, limited: false })
   })
+
+  it('restores every reconnected Page’s starters in parallel without holding up the connect', async () => {
+    const { workspaceId, user } = await createWorkspace('SlowRestore')
+    await db().insert(subscriptions).values({ workspaceId, plan: 'pro', status: 'active' })
+    const pages = [`page_${randomUUID()}`, `page_${randomUUID()}`]
+    for (const [i, externalId] of pages.entries()) {
+      const existing = await createAccount(workspaceId, 'facebook', { externalId, status: 'disconnected' })
+      const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: `Q${i}?`, answer: 'A' }] } })
+      const [automation] = await db()
+        .insert(automations)
+        .values({ workspaceId, connectedAccountId: existing.id, name: 'Starters', status: 'active', triggerType: 'ice_breaker', definition: flow })
+        .returning()
+      const [version] = await db().insert(automationVersions).values({ automationId: automation!.id, version: 1, definition: flow }).returning()
+      await db().update(automations).set({ currentVersionId: version!.id }).where(eq(automations.id, automation!.id))
+    }
+    facebook(pages.map((id, i) => ({ id, name: `Page ${i}`, access_token: `TOKEN_${id}` })))
+    let release = () => {}
+    const hung = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const started: string[] = []
+    server.use(
+      http.post('https://graph.facebook.com/v24.0/me/messenger_profile', async ({ request }) => {
+        started.push(request.headers.get('authorization') ?? '')
+        await hung
+        return HttpResponse.json({ result: 'success' })
+      }),
+    )
+
+    const began = Date.now()
+    const result = await completeConnect(db(), 'facebook', workspaceId, user.id, 'FBCODE')
+    expect(Date.now() - began).toBeLessThan(ICE_BREAKER_RESTORE_BUDGET_MS + 2_000)
+    expect(result).toMatchObject({ ok: true, limited: false })
+    expect(started.sort()).toEqual(pages.map((id) => `Bearer TOKEN_${id}`).sort())
+    release()
+  }, 15_000)
 
   it('reports plan_limit when no Page fits', async () => {
     const { workspaceId, user } = await createWorkspace('NoRoom')

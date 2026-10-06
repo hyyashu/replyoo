@@ -4,7 +4,7 @@ import { parseSignedRequest } from '@replyooo/meta'
 import type { Platform } from '@replyooo/shared'
 import { and, eq, ne, or } from 'drizzle-orm'
 import { randomBytes } from 'node:crypto'
-import { clearLiveIceBreakers } from './data/ice-breakers'
+import { clearLiveIceBreakers, settleWithin } from './data/ice-breakers'
 import { env } from './env'
 
 /** Which app signed it tells us the platform: Facebook Login uses META_APP_SECRET, Instagram Login INSTAGRAM_APP_SECRET. */
@@ -46,14 +46,10 @@ async function clearGrantedIceBreakers(db: Db, platform: Platform, userId: strin
     .select({ id: connectedAccounts.id, workspaceId: connectedAccounts.workspaceId })
     .from(connectedAccounts)
     .where(and(grantedBy(platform, userId), ne(connectedAccounts.status, 'disconnected')))
-  if (rows.length === 0) return
-  const clears = Promise.allSettled(rows.map((row) => clearLiveIceBreakers(row.workspaceId, row.id)))
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const budget = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, ICE_BREAKER_CLEAR_BUDGET_MS)
-  })
-  await Promise.race([clears, budget])
-  clearTimeout(timer)
+  await settleWithin(
+    rows.map((row) => clearLiveIceBreakers(row.workspaceId, row.id)),
+    ICE_BREAKER_CLEAR_BUDGET_MS,
+  )
 }
 
 /** The person removed the app, so the tokens are dead: stop using the accounts but keep the data. */

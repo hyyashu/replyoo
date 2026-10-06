@@ -117,3 +117,28 @@ export async function restoreLiveIceBreakers(workspaceId: string, accountId: str
     console.warn('restoring conversation starters failed', { accountId, error })
   }
 }
+
+/**
+ * Waits for the tasks, but at most `budgetMs`; stragglers keep running in the background. For
+ * best-effort Meta calls (15 s timeout each) that a request handler shouldn't be held up by.
+ */
+export async function settleWithin(tasks: Promise<unknown>[], budgetMs: number): Promise<void> {
+  if (tasks.length === 0) return
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const budget = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, budgetMs)
+  })
+  await Promise.race([Promise.allSettled(tasks), budget])
+  clearTimeout(timer)
+}
+
+/** How long the OAuth callback waits for restored conversation starters before redirecting anyway. */
+export const ICE_BREAKER_RESTORE_BUDGET_MS = 3_000
+
+/** restoreLiveIceBreakers for each (re)connected account, in parallel and bounded by ICE_BREAKER_RESTORE_BUDGET_MS. */
+export async function restoreLiveIceBreakersFor(workspaceId: string, accountIds: string[]): Promise<void> {
+  await settleWithin(
+    accountIds.map((id) => restoreLiveIceBreakers(workspaceId, id)),
+    ICE_BREAKER_RESTORE_BUDGET_MS,
+  )
+}
