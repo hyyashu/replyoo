@@ -3,6 +3,7 @@ import { authUsers, subscriptions, usageCounters, workspaceInvitations, workspac
 import { PLAN_LIMITS, periodEnd, usagePeriod } from '@replyooo/shared'
 import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import { db } from '../db'
+import { clearLiveIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
 import type { Invitation, Member, Subscription } from './types'
 
@@ -84,7 +85,8 @@ export async function getSubscription(workspaceId: string, now = new Date()): Pr
   }
 }
 
-/** Spec §5.2 data deletion: every table hangs off workspaces with ON DELETE CASCADE. */
+/** Spec §5.2 data deletion (live conversation starters are cleared on Meta first, best-effort): every table hangs off workspaces with ON DELETE CASCADE. */
 export async function deleteWorkspace(workspaceId: string): Promise<void> {
+  await clearLiveIceBreakers(workspaceId)
   await db().delete(workspaces).where(eq(workspaces.id, workspaceId))
 }

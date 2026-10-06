@@ -5,7 +5,7 @@ import { FlowDefinitionSchema, getTemplate, validateFlow, type FlowDefinition } 
 import { and, eq, gte, inArray, max, ne, type SQL, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { DEFAULT_RECIPE, compileRecipe } from '../recipe'
-import { iceBreakerError, iceBreakerItems, pushIceBreakers } from './ice-breakers'
+import { clearIceBreakersQuietly, iceBreakerError, iceBreakerItems, pushIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
 import type { Automation, AutomationStats, AutomationStatus, PublishResult, StatusResult } from './types'
 
@@ -208,15 +208,6 @@ async function metaFailure(error: unknown, workspaceId: string, account: Account
   if (!(error instanceof MetaError) || !account) throw error
   if (error.kind === 'reauth') await markReauthRequired(workspaceId, account.id)
   return iceBreakerError(error, account.username)
-}
-
-async function clearIceBreakersQuietly(account: AccountRow): Promise<void> {
-  try {
-    await pushIceBreakers(account, [])
-  } catch (error) {
-    // The worker ignores postbacks for automations that aren't live, so stale questions are harmless.
-    console.warn('clearing conversation starters failed', { accountId: account.id, error })
-  }
 }
 
 /**

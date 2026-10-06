@@ -2,6 +2,7 @@ import 'server-only'
 import { connectedAccounts } from '@replyooo/db'
 import { and, asc, eq, ne } from 'drizzle-orm'
 import { db } from '../db'
+import { clearLiveIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
 import type { ConnectedAccount } from './types'
 
@@ -34,6 +35,7 @@ export async function getAccount(workspaceId: string, id: string): Promise<Conne
 /** The account stays owned by this workspace; the worker ignores events for disconnected accounts. */
 export async function disconnectAccount(workspaceId: string, id: string): Promise<void> {
   if (!isUuid(id)) return
+  await clearLiveIceBreakers(workspaceId, id)
   await db()
     .update(connectedAccounts)
     .set({ status: 'disconnected' })
