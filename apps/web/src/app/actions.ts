@@ -81,7 +81,7 @@ export async function disconnectAccount(id: string) {
 
 export async function inviteMember(formData: FormData) {
   const workspace = await requireManager()
-  const result = await data.inviteMember(workspace.workspaceId, workspace.user.id, String(formData.get('email') ?? ''))
+  const result = await data.inviteMember(workspace.workspaceId, workspace.user, String(formData.get('email') ?? ''))
   revalidatePath('/settings')
   redirect(`/settings?invite=${result}#members`)
 }

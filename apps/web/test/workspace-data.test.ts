@@ -10,6 +10,7 @@ import {
   workspaceMembers,
 } from '@replyooo/db'
 import { eq } from 'drizzle-orm'
+import { RecordingMailer } from '@replyooo/email/testing'
 import { http, HttpResponse } from 'msw'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { disconnectAccount } from '@/lib/data/accounts'
@@ -24,10 +25,17 @@ import {
   revokeInvitation,
 } from '@/lib/data/workspace'
 import { db } from '@/lib/db'
+import { setMailer } from '@/lib/email'
 import { createAccount, createContact, createMessage, createRun, createUser, createWorkspace, mockFetch } from './support'
 
 const server = mockFetch()
 beforeEach(() => server.reset())
+
+const mailer = new RecordingMailer()
+beforeEach(() => {
+  mailer.clear()
+  setMailer(mailer)
+})
 afterAll(() => server.restore())
 
 describe('members and invitations', () => {
@@ -40,17 +48,28 @@ describe('members and invitations', () => {
 
   it('invites new people once, lower-cased, and refuses existing members and bad emails', async () => {
     const { workspaceId, user } = await createWorkspace('Crew')
-    expect(await inviteMember(workspaceId, user.id, '  Sam@Example.com ')).toBe('invited')
-    expect(await inviteMember(workspaceId, user.id, 'sam@example.com')).toBe('invited')
-    expect(await inviteMember(workspaceId, user.id, user.email.toUpperCase())).toBe('member')
-    expect(await inviteMember(workspaceId, user.id, 'not-an-email')).toBe('invalid')
+    expect(await inviteMember(workspaceId, user, '  Sam@Example.com ')).toBe('invited')
+    expect(await inviteMember(workspaceId, user, 'sam@example.com')).toBe('invited')
+    expect(await inviteMember(workspaceId, user, user.email.toUpperCase())).toBe('member')
+    expect(await inviteMember(workspaceId, user, 'not-an-email')).toBe('invalid')
     expect((await listInvitations(workspaceId)).map((i) => i.email)).toEqual(['sam@example.com'])
+  })
+
+  it('emails the invitee a sign-up link, and nobody else', async () => {
+    const { workspaceId, user } = await createWorkspace('Mailroom')
+    expect(await inviteMember(workspaceId, user, '  Sam@Example.com ')).toBe('invited')
+    expect(await inviteMember(workspaceId, user, user.email)).toBe('member')
+    expect(await inviteMember(workspaceId, user, 'nope')).toBe('invalid')
+
+    expect(mailer.sent).toHaveLength(1)
+    expect(mailer.sent[0]).toMatchObject({ to: 'sam@example.com', subject: `${user.name} invited you to Mailroom on Replyooo` })
+    expect(mailer.sent[0]?.text).toContain('http://localhost:3000/signup?email=sam%40example.com')
   })
 
   it('revokes invitations only within the workspace', async () => {
     const a = await createWorkspace('A')
     const b = await createWorkspace('B')
-    await inviteMember(a.workspaceId, a.user.id, 'pat@example.com')
+    await inviteMember(a.workspaceId, a.user, 'pat@example.com')
     const [invite] = await listInvitations(a.workspaceId)
     if (!invite) throw new Error('no invite')
     await revokeInvitation(b.workspaceId, invite.id)

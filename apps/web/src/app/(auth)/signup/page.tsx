@@ -5,6 +5,7 @@ import { googleEnabled } from '@/lib/auth'
 
 export const metadata: Metadata = { title: 'Sign up' }
 
-export default function SignupPage() {
-  return <AuthForm mode="signup" action={signUp} googleAction={googleEnabled() ? signInWithGoogle : undefined} />
+export default async function SignupPage({ searchParams }: { searchParams: Promise<{ email?: string }> }) {
+  const { email } = await searchParams
+  return <AuthForm mode="signup" action={signUp} googleAction={googleEnabled() ? signInWithGoogle : undefined} email={email} />
 }

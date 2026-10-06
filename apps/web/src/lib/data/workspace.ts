@@ -1,8 +1,11 @@
 import 'server-only'
 import { authUsers, subscriptions, usageCounters, workspaceInvitations, workspaceMembers, workspaces } from '@replyooo/db'
+import { invitationEmail } from '@replyooo/email'
 import { PLAN_LIMITS, periodEnd, usagePeriod } from '@replyooo/shared'
 import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import { db } from '../db'
+import { deliver } from '../email'
+import { appUrl } from '../env'
 import { clearLiveIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
 import type { Invitation, Member, Subscription } from './types'
@@ -35,8 +38,12 @@ export async function listInvitations(workspaceId: string): Promise<Invitation[]
   return rows.map((row) => ({ id: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString() }))
 }
 
-/** Saves a pending invite. It's accepted when someone with that verified email signs in (lib/workspaces.ts). */
-export async function inviteMember(workspaceId: string, invitedByUserId: string, rawEmail: string): Promise<InviteResult> {
+/** Saves a pending invite and emails it. It's accepted when someone with that verified email signs in (lib/workspaces.ts). */
+export async function inviteMember(
+  workspaceId: string,
+  inviter: { id: string; name: string },
+  rawEmail: string,
+): Promise<InviteResult> {
   const email = rawEmail.trim().toLowerCase()
   if (!EMAIL.test(email)) return 'invalid'
   const [existing] = await db()
@@ -45,7 +52,17 @@ export async function inviteMember(workspaceId: string, invitedByUserId: string,
     .innerJoin(authUsers, eq(authUsers.id, workspaceMembers.userId))
     .where(and(eq(workspaceMembers.workspaceId, workspaceId), sql`lower(${authUsers.email}) = ${email}`))
   if (existing) return 'member'
-  await db().insert(workspaceInvitations).values({ workspaceId, email, invitedByUserId }).onConflictDoNothing()
+  await db().insert(workspaceInvitations).values({ workspaceId, email, invitedByUserId: inviter.id }).onConflictDoNothing()
+  const [workspace] = await db().select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, workspaceId))
+  // Re-inviting an address re-sends the email.
+  deliver({
+    to: email,
+    ...invitationEmail({
+      inviterName: inviter.name,
+      workspaceName: workspace?.name ?? 'a workspace',
+      url: appUrl(`/signup?email=${encodeURIComponent(email)}`),
+    }),
+  })
   return 'invited'
 }
 

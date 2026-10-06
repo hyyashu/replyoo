@@ -25,7 +25,7 @@ const PLANS = [
 ] as const
 
 const INVITE_NOTICES: Record<string, string> = {
-  invited: 'Invite saved. They join as soon as they sign in with Google using that address.',
+  invited: 'Invite sent. They join as soon as they sign in with that email address and confirm it.',
   member: 'That person is already in this workspace.',
   invalid: 'That doesn’t look like an email address.',
 }
