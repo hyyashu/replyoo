@@ -13,6 +13,8 @@ import type { TriggerCandidate } from '@replyooo/engine'
 import type { AccountCredentials, NormalizedEvent, PlatformAdapter, Profile } from '@replyooo/meta'
 import { and, eq, isNull, lt, sql } from 'drizzle-orm'
 import type { Deps, FlowJobData } from './deps'
+import { mayStartRun } from './limits'
+import type { Logger } from './logger'
 import type { AccountRow, ContactRow } from './records'
 import { credentials, toContactState, toRunState } from './records'
 import type { Route, WaitingRun } from './route'
@@ -78,7 +80,7 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
 
   return db.transaction(async (tx) => {
     const contact = await upsertContact(tx, account, event, profile, now)
-    const job = await applyRoute(tx, { account, contact, route, candidates, event, now })
+    const job = await applyRoute(tx, { account, contact, route, candidates, event, now, log: deps.log })
     await tx.insert(messages).values(inboundMessage(account, contact, event, job?.runId ?? null))
     await markProcessed(tx)
     return job
@@ -187,6 +189,7 @@ interface ApplyContext {
   candidates: readonly Candidate[]
   event: NormalizedEvent
   now: Date
+  log: Logger
 }
 
 async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<FlowJobData | null> {
@@ -203,6 +206,10 @@ async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<FlowJobData | null
 
   const candidate = ctx.candidates.find((c) => c.automationId === route.automationId)
   if (!candidate) return null
+  if (!(await mayStartRun(tx, account.workspaceId, contact, now))) {
+    ctx.log.info({ workspaceId: account.workspaceId, automationId: candidate.automationId }, 'monthly contact limit reached; run not started')
+    return null
+  }
 
   const entered = await tx
     .insert(automationEntries)

@@ -7,6 +7,8 @@ import {
   createDb,
   encryptToken,
   flowRuns,
+  subscriptions,
+  usageCounters,
   webhookEvents,
   workspaces,
 } from '@replyooo/db'
@@ -23,6 +25,7 @@ import type {
 } from '@replyooo/meta'
 import { normalizeFacebookWebhook, normalizeInstagramWebhook } from '@replyooo/meta'
 import type { FlowDefinition, Platform } from '@replyooo/shared'
+import { usagePeriod } from '@replyooo/shared'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { pino } from 'pino'
@@ -304,4 +307,21 @@ export async function insertRun(
     })
     .returning()
   return run!
+}
+
+export async function seedUsage(
+  db: Db,
+  workspaceId: string,
+  contactsReached: number,
+  subscription?: { plan: 'free' | 'pro' | 'business'; status?: string; currentPeriodEnd?: Date | null },
+) {
+  await db.insert(usageCounters).values({ workspaceId, period: usagePeriod(NOW), contactsReached })
+  if (subscription) {
+    await db.insert(subscriptions).values({
+      workspaceId,
+      plan: subscription.plan,
+      status: subscription.status ?? 'active',
+      currentPeriodEnd: subscription.currentPeriodEnd ?? null,
+    })
+  }
 }

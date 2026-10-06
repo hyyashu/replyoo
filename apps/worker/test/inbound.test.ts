@@ -1,6 +1,6 @@
 import { automationEntries, automations, connectedAccounts, contacts, flowRuns, messages, webhookEvents } from '@replyooo/db'
 import type { FlowDefinition } from '@replyooo/shared'
-import { encodePostback } from '@replyooo/shared'
+import { encodePostback, PLAN_LIMITS, usagePeriod } from '@replyooo/shared'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { handleInbound } from '../src/inbound'
@@ -15,6 +15,7 @@ import {
   publishAutomation,
   seedAccount,
   seedContact,
+  seedUsage,
 } from './support'
 
 const keywordFlow: FlowDefinition = {
@@ -215,5 +216,67 @@ describe('handleInbound', () => {
       .from(messages)
       .where(and(eq(messages.connectedAccountId, account.id), eq(messages.kind, 'postback')))
     expect(logged?.body).toEqual({ payload, title: null })
+  })
+})
+
+describe('plan limits', () => {
+  const FREE_LIMIT = PLAN_LIMITS.free.contactsPerMonth
+
+  it('starts no run for a new contact once the month’s contacts are used up', async () => {
+    const { db, deps, jobs, account } = await setup()
+    const { automation } = await publishAutomation(db, account, keywordFlow)
+    await seedUsage(db, account.workspaceId, FREE_LIMIT)
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-new', 'price please')))
+    expect(jobs.flows).toEqual([])
+    // The cooldown wasn't consumed, so the contact gets a run as soon as there's room again.
+    expect(await db.select().from(automationEntries).where(eq(automationEntries.automationId, automation.id))).toEqual([])
+    // The inbound message is still logged.
+    expect(await db.select().from(messages).where(eq(messages.connectedAccountId, account.id))).toHaveLength(1)
+  })
+
+  it('keeps serving a contact already counted this month', async () => {
+    const { db, deps, jobs, account } = await setup()
+    await publishAutomation(db, account, keywordFlow)
+    await seedContact(db, account, { platformUserId: 'u-known', lastCountedPeriod: usagePeriod(NOW) })
+    await seedUsage(db, account.workspaceId, FREE_LIMIT)
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-known', 'price please')))
+    expect(jobs.flows).toHaveLength(1)
+  })
+
+  it('uses the paid plan’s limit while the subscription is active', async () => {
+    const { db, deps, jobs, account } = await setup()
+    await publishAutomation(db, account, keywordFlow)
+    await seedUsage(db, account.workspaceId, FREE_LIMIT, { plan: 'pro' })
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-pro', 'price please')))
+    expect(jobs.flows).toHaveLength(1)
+  })
+
+  it('falls back to the free limit when the paid subscription is on hold', async () => {
+    const { db, deps, jobs, account } = await setup()
+    await publishAutomation(db, account, keywordFlow)
+    await seedUsage(db, account.workspaceId, FREE_LIMIT, { plan: 'pro', status: 'on_hold' })
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-hold', 'price please')))
+    expect(jobs.flows).toEqual([])
+  })
+
+  it('lets a waiting run finish at the limit', async () => {
+    const { db, deps, jobs, account } = await setup()
+    const ask = await publishAutomation(db, account, askFlow)
+    const contact = await seedContact(db, account, { platformUserId: 'u-waiting' })
+    const run = await insertRun(db, { account, contact, ...ask }, {
+      status: 'waiting',
+      currentStepId: 'ask',
+      wait: { kind: 'reply', attempts: 0 },
+      waitUntil: new Date(NOW.getTime() + 86_400_000),
+      stateVersion: 1,
+    })
+    await seedUsage(db, account.workspaceId, FREE_LIMIT)
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-waiting', 'priya@gmail.com')))
+    expect(jobs.flows).toEqual([{ data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' } } }])
   })
 })
