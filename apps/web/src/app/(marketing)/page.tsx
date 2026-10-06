@@ -1,8 +1,8 @@
-import { ArrowRight, AtSign, Check, MessageCircleReply, MessagesSquare, Sparkles, UserPlus, Zap } from 'lucide-react'
-import Link from 'next/link'
+import { ArrowRight, AtSign, MessageCircleReply, MessagesSquare, Sparkles, UserPlus, Zap } from 'lucide-react'
 import { InstagramIcon } from '@/components/brand-icons'
+import { MarketingFooter, MarketingHeader, PricingCards } from '@/components/marketing'
 import { PhonePreview } from '@/components/phone-preview'
-import { ButtonLink, Keyword, Logo, cx } from '@/components/ui'
+import { ButtonLink, Keyword, cx } from '@/components/ui'
 import { DEFAULT_RECIPE, type Recipe } from '@/lib/recipe'
 
 const HERO_RECIPE: Recipe = {
@@ -94,37 +94,10 @@ const FEATURES = [
   },
 ]
 
-const PLANS = [
-  { name: 'Free', price: '$0', blurb: 'For trying it on your next reel.', perks: ['1,000 contacts / month', 'Comment & story automations', 'Replyooo branding'] },
-  {
-    name: 'Pro',
-    price: '$12',
-    blurb: 'For creators who post every week and want the funnel.',
-    perks: ['5,000 contacts / month', 'Follow gate & lead capture', '3 connected accounts', 'No branding'],
-    featured: true,
-  },
-  { name: 'Business', price: '$29', blurb: 'For full-time creators, teams and brands.', perks: ['25,000 contacts / month', 'Team members', '10 connected accounts', 'Priority support'] },
-]
-
 export default function LandingPage() {
   return (
     <div className="bg-sand">
-      <header className="mx-auto flex max-w-[1200px] items-center justify-between px-6 py-5">
-        <Logo />
-        <nav className="hidden items-center gap-8 text-[14px] text-muted md:flex">
-          <a href="#how" className="hover:text-ink">How it works</a>
-          <a href="#features" className="hover:text-ink">Features</a>
-          <a href="#pricing" className="hover:text-ink">Pricing</a>
-        </nav>
-        <div className="flex items-center gap-2">
-          <Link href="/login" className="px-3 text-[14px] font-semibold">
-            Log in
-          </Link>
-          <ButtonLink href="/signup" size="sm">
-            Start free <ArrowRight className="size-3.5" />
-          </ButtonLink>
-        </div>
-      </header>
+      <MarketingHeader />
 
       <section className="mx-auto grid max-w-[1200px] items-center gap-12 px-6 pt-10 pb-20 lg:grid-cols-[1.1fr_1fr]">
         <div>
@@ -220,36 +193,7 @@ export default function LandingPage() {
           </span>
           <h2 className="mt-3 font-display text-[44px] leading-tight font-bold tracking-[-0.04em]">Free until it’s working.</h2>
           <p className="mt-2 text-[15px] text-muted">Start with 1,000 contacts a month on us. Upgrade when your comments outgrow it.</p>
-          <div className="mx-auto mt-12 grid max-w-[980px] gap-5 text-left md:grid-cols-3">
-            {PLANS.map((plan) => (
-              <div
-                key={plan.name}
-                className={cx('flex flex-col rounded-[24px] border p-7', plan.featured ? 'border-ink bg-ink text-white' : 'border-line bg-white')}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[16px] font-semibold">{plan.name}</span>
-                  {plan.featured && <span className="rounded-full bg-lime px-2.5 py-0.5 text-[11px] font-semibold text-ink">Most popular</span>}
-                </div>
-                <div className="mt-4 font-display text-[44px] leading-none font-bold tracking-[-0.04em]">
-                  {plan.price}
-                  <span className={cx('font-sans text-[14px] font-normal tracking-normal', plan.featured ? 'text-white/50' : 'text-subtle')}>
-                    /month
-                  </span>
-                </div>
-                <p className={cx('mt-3 text-[14px]', plan.featured ? 'text-white/60' : 'text-muted')}>{plan.blurb}</p>
-                <ButtonLink href="/signup" variant={plan.featured ? 'primary' : 'secondary'} className="mt-6">
-                  {plan.price === '$0' ? 'Start free' : `Go ${plan.name}`}
-                </ButtonLink>
-                <ul className="mt-6 flex flex-col gap-2.5 text-[14px]">
-                  {plan.perks.map((perk) => (
-                    <li key={perk} className="flex items-center gap-2">
-                      <Check className={cx('size-4', plan.featured ? 'text-lime' : 'text-green')} /> {perk}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+          <PricingCards />
         </div>
       </section>
 
@@ -267,15 +211,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-4 px-6 pt-4 pb-12 text-[13px] text-subtle">
-        <Logo />
-        <nav className="flex gap-6">
-          <Link href="/privacy" className="hover:text-ink">Privacy</Link>
-          <Link href="/terms" className="hover:text-ink">Terms</Link>
-          <Link href="/data-deletion" className="hover:text-ink">Data deletion</Link>
-        </nav>
-        <span>© {new Date().getFullYear()} Replyooo. Not affiliated with Instagram or Meta.</span>
-      </footer>
+      <MarketingFooter />
     </div>
   )
 }
