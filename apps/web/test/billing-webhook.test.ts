@@ -93,6 +93,33 @@ describe('applyDodoEvent', () => {
     expect(await row(workspaceId)).toMatchObject({ status: 'active' })
   })
 
+  it('re-applies a duplicate delivery idempotently and lets an equal-timestamp event through, but not an older one', async () => {
+    const { workspaceId } = await createWorkspace('Duplicate')
+    const sub = `sub_${workspaceId}`
+    const renewed = event('subscription.renewed', '2026-10-06T10:00:00.000Z', { workspace_id: workspaceId, subscription_id: sub })
+    expect(await applyDodoEvent(db(), PRODUCTS, renewed)).toBe('updated')
+    const { updatedAt: _first, ...first } = (await row(workspaceId))!
+    expect(await applyDodoEvent(db(), PRODUCTS, renewed)).toBe('updated')
+    expect(await row(workspaceId)).toMatchObject(first)
+    expect(
+      await applyDodoEvent(db(), PRODUCTS, event('subscription.on_hold', '2026-10-06T09:59:59.999Z', { subscription_id: sub, status: 'on_hold' })),
+    ).toBe('stale')
+    expect(await row(workspaceId)).toMatchObject({ status: 'active', dodoEventAt: new Date('2026-10-06T10:00:00.000Z') })
+  })
+
+  it('doesn’t guess between workspaces that share a Dodo customer', async () => {
+    const customer = `cus_${randomUUID()}`
+    const a = await createWorkspace('Shared A')
+    const b = await createWorkspace('Shared B')
+    await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: a.workspaceId, subscription_id: `sub_${a.workspaceId}`, customer_id: customer }))
+    await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: b.workspaceId, subscription_id: `sub_${b.workspaceId}`, customer_id: customer }))
+    expect(
+      await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-07T10:00:00.000Z', { subscription_id: `sub_${randomUUID()}`, customer_id: customer, product_id: PRODUCTS.business })),
+    ).toBe('unknown_workspace')
+    expect(await row(a.workspaceId)).toMatchObject({ plan: 'pro', dodoSubscriptionId: `sub_${a.workspaceId}` })
+    expect(await row(b.workspaceId)).toMatchObject({ plan: 'pro', dodoSubscriptionId: `sub_${b.workspaceId}` })
+  })
+
   it('finds the workspace by subscription id when metadata is missing, and follows plan changes', async () => {
     const { workspaceId } = await createWorkspace('Upgrader')
     const sub = `sub_${workspaceId}`
@@ -143,5 +170,17 @@ describe('POST /api/webhooks/dodo', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ received: true, result: 'updated' })
     expect(await row(workspaceId)).toMatchObject({ plan: 'pro' })
+  })
+
+  it('answers malformed signed payloads without crashing', async () => {
+    const { workspaceId } = await createWorkspace('Malformed')
+    const notJson = '{not json'
+    expect((await POST(new Request('http://localhost:3217/api/webhooks/dodo', { method: 'POST', body: notJson, headers: sign(notJson) }))).status).toBe(400)
+
+    const badDate = JSON.stringify(event('subscription.active', new Date().toISOString(), { workspace_id: workspaceId, next_billing_date: 'soon' }))
+    const response = await POST(new Request('http://localhost:3217/api/webhooks/dodo', { method: 'POST', body: badDate, headers: sign(badDate) }))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ received: true, result: 'ignored' })
+    expect(await row(workspaceId)).toBeUndefined()
   })
 })

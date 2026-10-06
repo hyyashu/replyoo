@@ -15,7 +15,7 @@ const SubscriptionEvent = z.object({
     product_id: z.string().min(1),
     status: z.string().min(1),
     customer: z.object({ customer_id: z.string().min(1) }),
-    next_billing_date: z.string().nullish(),
+    next_billing_date: z.iso.datetime({ offset: true }).nullish(),
     metadata: z.record(z.string(), z.unknown()).nullish(),
   }),
 })
@@ -35,11 +35,13 @@ async function findWorkspace(db: Db, data: SubscriptionData): Promise<string | n
     .from(subscriptions)
     .where(eq(subscriptions.dodoSubscriptionId, data.subscription_id))
   if (bySubscription) return bySubscription.workspaceId
-  const [byCustomer] = await db
+  // One Dodo customer can pay for several workspaces; only trust the customer id when it is unambiguous.
+  const byCustomer = await db
     .select({ workspaceId: subscriptions.workspaceId })
     .from(subscriptions)
     .where(eq(subscriptions.dodoCustomerId, data.customer.customer_id))
-  return byCustomer?.workspaceId ?? null
+    .limit(2)
+  return byCustomer.length === 1 ? (byCustomer[0]?.workspaceId ?? null) : null
 }
 
 /**
