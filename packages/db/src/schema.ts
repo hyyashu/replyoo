@@ -172,9 +172,14 @@ export const connectedAccounts = pgTable(
     tokenExpiresAt: tz('token_expires_at'),
     status: accountStatusEnum('status').notNull().default('active'),
     connectedByUserId: text('connected_by_user_id'),
+    /** The Meta user who granted access (app-scoped ID); Meta's deauthorize and data-deletion callbacks name this user. */
+    metaUserId: text('meta_user_id'),
     ...timestamps,
   },
-  (t) => [uniqueIndex('connected_accounts_platform_external_uq').on(t.platform, t.externalId)],
+  (t) => [
+    uniqueIndex('connected_accounts_platform_external_uq').on(t.platform, t.externalId),
+    index('connected_accounts_meta_user_idx').on(t.platform, t.metaUserId),
+  ],
 )
 
 // ---------- audience ----------
@@ -368,9 +373,15 @@ export const subscriptions = pgTable(
     dodoSubscriptionId: text('dodo_subscription_id'),
     status: text('status').notNull().default('active'),
     currentPeriodEnd: tz('current_period_end'),
+    /** `timestamp` of the last Dodo webhook applied; older events are ignored (webhooks can arrive out of order). */
+    dodoEventAt: tz('dodo_event_at'),
     ...timestamps,
   },
-  (t) => [uniqueIndex('subscriptions_workspace_uq').on(t.workspaceId)],
+  (t) => [
+    uniqueIndex('subscriptions_workspace_uq').on(t.workspaceId),
+    index('subscriptions_dodo_subscription_idx').on(t.dodoSubscriptionId),
+    index('subscriptions_dodo_customer_idx').on(t.dodoCustomerId),
+  ],
 )
 
 export const usageCounters = pgTable(
@@ -385,4 +396,20 @@ export const usageCounters = pgTable(
     ...timestamps,
   },
   (t) => [uniqueIndex('usage_counters_workspace_period_uq').on(t.workspaceId, t.period)],
+)
+
+// ---------- compliance ----------
+
+/** Meta data-deletion callbacks (spec §5.3). The confirmation code is what Meta shows the person. */
+export const dataDeletionRequests = pgTable(
+  'data_deletion_requests',
+  {
+    id: id(),
+    confirmationCode: text('confirmation_code').notNull(),
+    platform: platformEnum('platform').notNull(),
+    metaUserId: text('meta_user_id').notNull(),
+    accountsDeleted: integer('accounts_deleted').notNull(),
+    createdAt: tz('created_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('data_deletion_requests_code_uq').on(t.confirmationCode)],
 )
