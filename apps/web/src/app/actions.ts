@@ -21,6 +21,7 @@ export async function createAutomation(templateKey: string | null) {
 }
 
 export async function saveDraft(id: string, name: string, flow: unknown) {
+  await requireWorkspace()
   // Drafts may be incomplete, but they must still be well-formed JSON of the right shape.
   const parsed = FlowDefinitionSchema.safeParse(flow)
   if (!parsed.success) return { ok: false as const, error: 'Fix the highlighted fields before saving' }
@@ -30,6 +31,7 @@ export async function saveDraft(id: string, name: string, flow: unknown) {
 }
 
 export async function publishAutomation(id: string, name: string, flow: unknown) {
+  await requireWorkspace()
   const saved = await saveDraft(id, name, flow)
   if (!saved.ok) return { ok: false as const, errors: [saved.error] }
   const result = await data.publishAutomation(id)
@@ -39,11 +41,13 @@ export async function publishAutomation(id: string, name: string, flow: unknown)
 }
 
 export async function setAutomationStatus(id: string, status: 'active' | 'paused') {
+  await requireWorkspace()
   await data.setAutomationStatus(id, status)
   revalidatePath('/automations')
 }
 
 export async function deleteAutomation(id: string) {
+  await requireWorkspace()
   await data.deleteAutomation(id)
   revalidatePath('/automations')
 }
@@ -55,6 +59,7 @@ export async function disconnectAccount(id: string) {
 }
 
 export async function inviteMember(formData: FormData) {
+  await requireWorkspace()
   const email = String(formData.get('email') ?? '').trim()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return
   await data.inviteMember(email)
@@ -62,11 +67,13 @@ export async function inviteMember(formData: FormData) {
 }
 
 export async function removeMember(id: string) {
+  await requireWorkspace()
   await data.removeMember(id)
   revalidatePath('/settings')
 }
 
 export async function deleteWorkspace(formData: FormData) {
+  await requireWorkspace()
   const workspace = await data.getWorkspace()
   if (String(formData.get('confirm') ?? '').trim() !== workspace.name) return
   await data.deleteWorkspaceData()
