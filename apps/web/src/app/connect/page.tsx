@@ -3,8 +3,12 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { FacebookIcon, InstagramIcon } from '@/components/brand-icons'
 import { Logo, cx } from '@/components/ui'
+import { signOut } from '@/app/auth-actions'
+import { WorkspaceList } from '@/components/workspace-list'
 import { listAccounts } from '@/lib/data'
+import { db } from '@/lib/db'
 import { requireWorkspace } from '@/lib/session'
+import { listWorkspaces } from '@/lib/workspaces'
 
 export const metadata: Metadata = { title: 'Connect an account' }
 
@@ -38,8 +42,12 @@ const ERRORS: Record<string, string> = {
 }
 
 export default async function ConnectPage({ searchParams }: { searchParams: Promise<{ platform?: string; error?: string }> }) {
-  const { workspaceId } = await requireWorkspace()
-  const [{ platform: highlight, error }, accounts] = await Promise.all([searchParams, listAccounts(workspaceId)])
+  const { workspaceId, user } = await requireWorkspace()
+  const [{ platform: highlight, error }, accounts, workspaces] = await Promise.all([
+    searchParams,
+    listAccounts(workspaceId),
+    listWorkspaces(db(), user.id),
+  ])
 
   return (
     <div className="min-h-screen bg-sand">
@@ -47,11 +55,21 @@ export default async function ConnectPage({ searchParams }: { searchParams: Prom
         <Link href={accounts.length ? '/home' : '/'}>
           <Logo />
         </Link>
-        {accounts.length > 0 && (
-          <Link href="/home" className="text-[13.5px] font-medium text-muted hover:text-ink">
-            Skip for now
+        <div className="flex items-center gap-5 text-[13.5px] font-medium text-muted">
+          {accounts.length > 0 && (
+            <Link href="/home" className="hover:text-ink">
+              Skip for now
+            </Link>
+          )}
+          <Link href="/settings" className="hover:text-ink">
+            Settings
           </Link>
-        )}
+          <form action={signOut}>
+            <button type="submit" className="font-medium hover:text-ink">
+              Log out
+            </button>
+          </form>
+        </div>
       </header>
       <main className="mx-auto max-w-[760px] px-6 pt-8 pb-20 text-center">
         <span className="eyebrow">Step 2 of 3</span>
@@ -98,6 +116,14 @@ export default async function ConnectPage({ searchParams }: { searchParams: Prom
             )
           })}
         </div>
+
+        {workspaces.length > 1 && (
+          <section className="mx-auto mt-12 max-w-md">
+            <h2 className="text-[15px] font-semibold">Switch workspace</h2>
+            <p className="mt-0.5 mb-3 text-[13px] text-muted">Looking for your other accounts? They live in another workspace.</p>
+            <WorkspaceList workspaces={workspaces} currentId={workspaceId} />
+          </section>
+        )}
 
         <p className="mt-8 inline-flex items-center gap-2 text-[13px] text-subtle">
           <ShieldCheck className="size-4" /> Tokens are encrypted at rest. Personal Instagram accounts need to switch to

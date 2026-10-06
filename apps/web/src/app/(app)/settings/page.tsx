@@ -7,8 +7,8 @@ import {
   inviteMember,
   removeMember,
   revokeInvitation,
-  switchWorkspace,
 } from '@/app/actions'
+import { WorkspaceList } from '@/components/workspace-list'
 import { PlatformIcon } from '@/components/sidebar'
 import { Avatar, ButtonLink, Card, PageHeader, buttonClass, cx, formatCompact, formatNumber } from '@/components/ui'
 import { getSubscription, listAccounts, listInvitations, listMembers } from '@/lib/data'
@@ -49,27 +49,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       {workspaces.length > 1 && (
         <SettingsSection id="workspaces" title="Workspaces" description="Workspaces you belong to.">
-          <Card className="divide-y divide-line">
-            {workspaces.map((w) => (
-              <div key={w.id} className="flex items-center gap-3 p-4">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[14px] font-semibold">{w.name}</div>
-                  <div className="text-[12.5px] capitalize text-subtle">{w.role}</div>
-                </div>
-                {w.id === workspace.workspaceId ? (
-                  <span className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-green">
-                    <Check className="size-3.5" /> Current
-                  </span>
-                ) : (
-                  <form action={switchWorkspace.bind(null, w.id)}>
-                    <button type="submit" className={buttonClass('secondary', 'sm')}>
-                      Switch
-                    </button>
-                  </form>
-                )}
-              </div>
-            ))}
-          </Card>
+          <WorkspaceList workspaces={workspaces} currentId={workspace.workspaceId} />
         </SettingsSection>
       )}
 

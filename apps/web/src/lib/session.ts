@@ -35,12 +35,18 @@ export const requireWorkspace = cache(async (): Promise<WorkspaceContext> => {
   )
 })
 
-/** The connected account the dashboard is scoped to (account switcher). */
-export async function getCurrentAccount() {
+/** Workspace + its accounts, with `account` null when none is connected (no redirect). */
+export async function getAccountContext() {
   const workspace = await requireWorkspace()
   const accounts = await listAccounts(workspace.workspaceId)
   const selected = (await cookies()).get(ACCOUNT_COOKIE)?.value
-  const account = accounts.find((a) => a.id === selected) ?? accounts[0]
+  const account = accounts.find((a) => a.id === selected) ?? accounts[0] ?? null
+  return { workspace, account, accounts }
+}
+
+/** The connected account the dashboard is scoped to (account switcher). */
+export async function getCurrentAccount() {
+  const { workspace, account, accounts } = await getAccountContext()
   if (!account) redirect('/connect')
   return { workspace, account, accounts }
 }
