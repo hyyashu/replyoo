@@ -35,6 +35,7 @@ function instagramHappyPath(tokenResponse: unknown) {
     http.get('https://graph.instagram.com/v24.0/me', ({ request }) => {
       expect(request.headers.get('authorization')).toBe('Bearer IG_LONG')
       return HttpResponse.json({
+        id: 'IGSU_1',
         user_id: '17841400000000001',
         username: 'maya.makes',
         name: 'Maya Makes',
@@ -80,6 +81,7 @@ describe('Instagram Login', () => {
       accountType: 'MEDIA_CREATOR',
       accessToken: 'IG_LONG',
       expiresAt: new Date('2026-12-05T10:00:00.000Z'),
+      metaUserId: 'IGSU_1',
     })
   })
 
@@ -130,6 +132,10 @@ describe('Facebook Login for Business', () => {
         })
         return HttpResponse.json({ access_token: 'FB_SHORT', token_type: 'bearer', expires_in: 3600 })
       }),
+      http.get('https://graph.facebook.com/v24.0/me', ({ request }) => {
+        expect(request.headers.get('authorization')).toBe('Bearer FB_LONG_USER')
+        return HttpResponse.json({ id: 'FBU_1' })
+      }),
       http.get('https://graph.facebook.com/v24.0/me/accounts', ({ request }) => {
         expect(request.headers.get('authorization')).toBe('Bearer FB_LONG_USER')
         return HttpResponse.json({
@@ -140,15 +146,18 @@ describe('Facebook Login for Business', () => {
         })
       }),
     )
-    expect(await exchangeFacebookCode(fbApp, 'FBCODE')).toEqual([
-      {
-        externalId: 'page_1',
-        username: 'mayamakeskitchen',
-        displayName: 'Maya Makes Kitchen',
-        avatarUrl: 'https://cdn.test/p1.jpg',
-        followersCount: 38200,
-        accessToken: 'PAGE_1',
-      },
-    ])
+    expect(await exchangeFacebookCode(fbApp, 'FBCODE')).toEqual({
+      metaUserId: 'FBU_1',
+      pages: [
+        {
+          externalId: 'page_1',
+          username: 'mayamakeskitchen',
+          displayName: 'Maya Makes Kitchen',
+          avatarUrl: 'https://cdn.test/p1.jpg',
+          followersCount: 38200,
+          accessToken: 'PAGE_1',
+        },
+      ],
+    })
   })
 })

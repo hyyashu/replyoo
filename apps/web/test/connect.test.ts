@@ -25,6 +25,7 @@ function instagram(profile: Partial<{ account_type: string; followers_count: num
     ),
     http.get('https://graph.instagram.com/v24.0/me', () =>
       HttpResponse.json({
+        id: `IGSU_${IG_ID}`,
         user_id: IG_ID,
         username: 'maya.makes',
         name: 'Maya Makes',
@@ -70,6 +71,7 @@ describe('connecting Instagram', () => {
       followersCount: 412000,
       status: 'active',
       connectedByUserId: user.id,
+      metaUserId: `IGSU_${IG_ID}`,
     })
     expect(account && decryptToken(account.accessTokenEnc, TOKEN_KEY)).toBe('IG_LONG')
     expect(account?.tokenExpiresAt).toBeInstanceOf(Date)
@@ -167,6 +169,7 @@ describe('connecting Facebook Pages', () => {
           access_token: new URL(request.url).searchParams.get('grant_type') === 'fb_exchange_token' ? 'FB_LONG' : 'FB_SHORT',
         }),
       ),
+      http.get('https://graph.facebook.com/v24.0/me', () => HttpResponse.json({ id: 'FBU_42' })),
       http.get('https://graph.facebook.com/v24.0/me/accounts', () => HttpResponse.json({ data: pages })),
       http.post('https://graph.facebook.com/v24.0/:pageId/subscribed_apps', ({ params }) => {
         subscribed.push(String(params.pageId))
@@ -189,6 +192,7 @@ describe('connecting Facebook Pages', () => {
     expect(result.ok && result.accountIds).toHaveLength(1)
     const rows = await accountsFor(workspaceId)
     expect(rows.map((r) => [r.externalId, r.tokenExpiresAt])).toEqual([['page_a', null]])
+    expect(rows[0]?.metaUserId).toBe('FBU_42')
     expect(subscribed).toEqual(['page_a'])
   })
 

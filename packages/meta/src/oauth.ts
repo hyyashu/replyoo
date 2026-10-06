@@ -39,6 +39,8 @@ export interface InstagramConnection {
   accountType: string | null
   accessToken: string
   expiresAt: Date
+  /** `id` from /me: the app-scoped user ID Meta's deauthorize and data-deletion callbacks name. */
+  metaUserId: string | null
 }
 
 export interface FacebookPageConnection {
@@ -49,6 +51,12 @@ export interface FacebookPageConnection {
   followersCount: number | null
   /** Page token derived from a long-lived user token; it doesn't expire. */
   accessToken: string
+}
+
+export interface FacebookConnection {
+  /** App-scoped ID of the Facebook user who granted the Pages. */
+  metaUserId: string
+  pages: FacebookPageConnection[]
 }
 
 export function instagramAuthorizeUrl(app: Pick<OAuthApp, 'appId' | 'redirectUri'>, state: string): string {
@@ -82,6 +90,7 @@ export async function exchangeInstagramCode(app: OAuthApp, code: string, now = n
   })
 
   const me = await graphRequest<{
+    id?: string | number
     user_id?: string | number
     username?: string
     name?: string
@@ -92,7 +101,7 @@ export async function exchangeInstagramCode(app: OAuthApp, code: string, now = n
     baseUrl: `${IG_GRAPH}/${app.graphVersion ?? GRAPH_API_VERSION}`,
     path: 'me',
     token: long.access_token,
-    query: { fields: 'user_id,username,name,profile_picture_url,account_type,followers_count' },
+    query: { fields: 'id,user_id,username,name,profile_picture_url,account_type,followers_count' },
   })
   if (me.user_id === undefined || !me.username) {
     throw new MetaError('permanent', 'Instagram profile is missing user_id or username', { reason: 'invalid_request' })
@@ -107,6 +116,7 @@ export async function exchangeInstagramCode(app: OAuthApp, code: string, now = n
     accountType: me.account_type ?? null,
     accessToken: long.access_token,
     expiresAt: new Date(now.getTime() + long.expires_in * 1000),
+    metaUserId: me.id === undefined ? null : String(me.id),
   }
 }
 
@@ -123,7 +133,7 @@ export function facebookAuthorizeUrl(
   return url.toString()
 }
 
-export async function exchangeFacebookCode(app: OAuthApp, code: string): Promise<FacebookPageConnection[]> {
+export async function exchangeFacebookCode(app: OAuthApp, code: string): Promise<FacebookConnection> {
   const baseUrl = `${FB_GRAPH}/${app.graphVersion ?? GRAPH_API_VERSION}`
   const short = await graphRequest<{ access_token: string }>({
     baseUrl,
@@ -140,6 +150,7 @@ export async function exchangeFacebookCode(app: OAuthApp, code: string): Promise
       fb_exchange_token: short.access_token,
     },
   })
+  const me = await graphRequest<{ id: string | number }>({ baseUrl, path: 'me', token: long.access_token, query: { fields: 'id' } })
   const pages = await graphRequest<{
     data: {
       id: string
@@ -155,20 +166,23 @@ export async function exchangeFacebookCode(app: OAuthApp, code: string): Promise
     token: long.access_token,
     query: { fields: 'id,name,username,access_token,followers_count,picture{url}', limit: '100' },
   })
-  return pages.data.flatMap((page) =>
-    page.access_token
-      ? [
-          {
-            externalId: page.id,
-            username: page.username ?? page.name,
-            displayName: page.name,
-            avatarUrl: page.picture?.data?.url ?? null,
-            followersCount: page.followers_count ?? null,
-            accessToken: page.access_token,
-          },
-        ]
-      : [],
-  )
+  return {
+    metaUserId: String(me.id),
+    pages: pages.data.flatMap((page) =>
+      page.access_token
+        ? [
+            {
+              externalId: page.id,
+              username: page.username ?? page.name,
+              displayName: page.name,
+              avatarUrl: page.picture?.data?.url ?? null,
+              followersCount: page.followers_count ?? null,
+              accessToken: page.access_token,
+            },
+          ]
+        : [],
+    ),
+  }
 }
 
 /** api.instagram.com answers with `{ error_type, code, error_message }` instead of Graph's `{ error }`. */

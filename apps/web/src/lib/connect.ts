@@ -60,6 +60,8 @@ interface AccountInput {
   followersCount: number | null
   accessToken: string
   expiresAt: Date | null
+  /** App-scoped Meta user who granted access; Meta's deauthorize/data-deletion callbacks name this ID. */
+  metaUserId: string | null
 }
 
 async function ownedElsewhere(db: Db, workspaceId: string, platform: Platform, externalId: string): Promise<boolean> {
@@ -101,6 +103,7 @@ export async function saveConnectedAccount(db: Db, workspaceId: string, userId: 
     tokenExpiresAt: input.expiresAt,
     status: 'active' as const,
     connectedByUserId: userId,
+    metaUserId: input.metaUserId,
   }
   const [row] = await db
     .insert(connectedAccounts)
@@ -126,7 +129,7 @@ async function connectInstagram(db: Db, workspaceId: string, userId: string, cod
 }
 
 async function connectFacebook(db: Db, workspaceId: string, userId: string, code: string): Promise<ConnectResult> {
-  const pages = await exchangeFacebookCode(oauthApp('facebook'), code)
+  const { metaUserId, pages } = await exchangeFacebookCode(oauthApp('facebook'), code)
   if (pages.length === 0) return { ok: false, error: 'no_pages' }
 
   const accountIds: string[] = []
@@ -138,7 +141,7 @@ async function connectFacebook(db: Db, workspaceId: string, userId: string, code
       continue
     }
     await adapterFor('facebook').subscribeWebhooks({ externalId: page.externalId, accessToken: page.accessToken })
-    const id = await saveConnectedAccount(db, workspaceId, userId, { platform: 'facebook', ...page, expiresAt: null })
+    const id = await saveConnectedAccount(db, workspaceId, userId, { platform: 'facebook', ...page, metaUserId, expiresAt: null })
     if (id) accountIds.push(id)
   }
   if (accountIds.length > 0) return { ok: true, accountIds, limited }
