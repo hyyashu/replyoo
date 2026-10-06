@@ -5,10 +5,12 @@ import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import * as data from '@/lib/data'
-import { ACCOUNT_COOKIE, getCurrentAccount } from '@/lib/session'
+import { ACCOUNT_COOKIE, COOKIE_OPTIONS, getCurrentAccount, requireWorkspace } from '@/lib/session'
 
 export async function switchAccount(accountId: string) {
-  ;(await cookies()).set(ACCOUNT_COOKIE, accountId, { path: '/', sameSite: 'lax', httpOnly: true })
+  const { workspaceId } = await requireWorkspace()
+  if (!(await data.getAccount(workspaceId, accountId))) return
+  ;(await cookies()).set(ACCOUNT_COOKIE, accountId, COOKIE_OPTIONS)
   revalidatePath('/', 'layout')
 }
 
@@ -47,7 +49,8 @@ export async function deleteAutomation(id: string) {
 }
 
 export async function disconnectAccount(id: string) {
-  await data.setAccountStatus(id, 'disconnected')
+  const { workspaceId } = await requireWorkspace()
+  await data.disconnectAccount(workspaceId, id)
   revalidatePath('/', 'layout')
 }
 
@@ -69,14 +72,4 @@ export async function deleteWorkspace(formData: FormData) {
   await data.deleteWorkspaceData()
   ;(await cookies()).delete(ACCOUNT_COOKIE)
   redirect('/')
-}
-
-/**
- * Stand-in for the Meta OAuth round trip (GET /api/meta/oauth/{platform}/start → callback),
- * which lands in Plan 3 together with token storage and webhook subscription.
- */
-export async function connectAccount(platform: 'instagram' | 'facebook') {
-  const account = await data.connectDemoAccount(platform)
-  ;(await cookies()).set(ACCOUNT_COOKIE, account.id, { path: '/', sameSite: 'lax', httpOnly: true })
-  redirect('/automations/new')
 }

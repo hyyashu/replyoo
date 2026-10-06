@@ -4,8 +4,8 @@ export interface ConnectedAccount {
   id: string
   platform: Platform
   username: string
-  displayName: string
-  followers: number
+  displayName: string | null
+  followers: number | null
   status: 'active' | 'reauth_required' | 'disconnected'
 }
 

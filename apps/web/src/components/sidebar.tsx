@@ -1,9 +1,10 @@
 'use client'
 
-import { Check, ChevronsUpDown, CircleHelp, House, Plus, Settings, Users, Zap } from 'lucide-react'
+import { Check, ChevronsUpDown, CircleHelp, House, LogOut, Plus, Settings, Users, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { signOut } from '@/app/auth-actions'
 import { switchAccount } from '@/app/actions'
 import type { ConnectedAccount, Subscription } from '@/lib/data/types'
 import { FacebookIcon, InstagramIcon } from './brand-icons'
@@ -73,20 +74,26 @@ export function Sidebar({
           <CircleHelp className="size-[18px]" strokeWidth={1.75} />
           Help
         </NavLink>
+        <form action={signOut}>
+          <button type="submit" className={navItemClass(false)}>
+            <LogOut className="size-[18px]" strokeWidth={1.75} />
+            Log out
+          </button>
+        </form>
       </div>
     </aside>
   )
 }
 
+const navItemClass = (active: boolean) =>
+  cx(
+    'flex h-[38px] w-full items-center gap-3 rounded-[10px] px-3 text-[14.5px] transition-colors',
+    active ? 'border border-line bg-white font-semibold text-ink shadow-[0_1px_2px_rgba(21,19,16,0.04)]' : 'text-muted hover:bg-white/60 hover:text-ink',
+  )
+
 function NavLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
   return (
-    <Link
-      href={href}
-      className={cx(
-        'flex h-[38px] items-center gap-3 rounded-[10px] px-3 text-[14.5px] transition-colors',
-        active ? 'border border-line bg-white font-semibold text-ink shadow-[0_1px_2px_rgba(21,19,16,0.04)]' : 'text-muted hover:bg-white/60 hover:text-ink',
-      )}
-    >
+    <Link href={href} className={navItemClass(active)}>
       {children}
     </Link>
   )
@@ -126,7 +133,11 @@ function AccountSwitcher({ account, accounts }: { account: ConnectedAccount; acc
           <span className="block truncate text-[13.5px] font-semibold">@{account.username}</span>
           <span className="flex items-center gap-1 text-[11.5px] text-subtle">
             <PlatformIcon platform={account.platform} className="size-3" />
-            {formatCompact(account.followers)} followers
+            {account.followers !== null
+              ? `${formatCompact(account.followers)} followers`
+              : account.platform === 'instagram'
+                ? 'Instagram'
+                : 'Facebook Page'}
           </span>
         </span>
         <ChevronsUpDown className="size-4 text-subtle" />

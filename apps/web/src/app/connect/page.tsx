@@ -1,10 +1,10 @@
 import { Check, ShieldCheck } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { connectAccount } from '@/app/actions'
 import { FacebookIcon, InstagramIcon } from '@/components/brand-icons'
 import { Logo, cx } from '@/components/ui'
 import { listAccounts } from '@/lib/data'
+import { requireWorkspace } from '@/lib/session'
 
 export const metadata: Metadata = { title: 'Connect an account' }
 
@@ -28,7 +28,8 @@ const OPTIONS = [
 ] as const
 
 export default async function ConnectPage({ searchParams }: { searchParams: Promise<{ platform?: string }> }) {
-  const [{ platform: highlight }, accounts] = await Promise.all([searchParams, listAccounts()])
+  const { workspaceId } = await requireWorkspace()
+  const [{ platform: highlight }, accounts] = await Promise.all([searchParams, listAccounts(workspaceId)])
 
   return (
     <div className="min-h-screen bg-sand">
@@ -53,9 +54,8 @@ export default async function ConnectPage({ searchParams }: { searchParams: Prom
           {OPTIONS.map((option) => {
             const Icon = option.icon
             return (
-              <form
+              <div
                 key={option.platform}
-                action={connectAccount.bind(null, option.platform)}
                 className={cx(
                   'flex flex-col rounded-[22px] border bg-white p-6',
                   highlight === option.platform ? 'border-ink ring-1 ring-ink' : 'border-line',
@@ -73,13 +73,13 @@ export default async function ConnectPage({ searchParams }: { searchParams: Prom
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="submit"
-                  className="mt-6 h-11 rounded-full bg-ink text-[14px] font-semibold text-white transition-colors hover:bg-ink-2"
+                <a
+                  href={`/api/meta/oauth/${option.platform}/start`}
+                  className="mt-6 grid h-11 place-items-center rounded-full bg-ink text-[14px] font-semibold text-white transition-colors hover:bg-ink-2"
                 >
                   Continue with {option.platform === 'instagram' ? 'Instagram' : 'Facebook'}
-                </button>
-              </form>
+                </a>
+              </div>
             )
           })}
         </div>

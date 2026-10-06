@@ -4,6 +4,7 @@ import { deleteWorkspace, disconnectAccount, inviteMember, removeMember } from '
 import { PlatformIcon } from '@/components/sidebar'
 import { Avatar, ButtonLink, Card, PageHeader, buttonClass, cx, formatCompact, formatNumber } from '@/components/ui'
 import { getSubscription, getWorkspace, listAccounts, listMembers } from '@/lib/data'
+import { requireWorkspace } from '@/lib/session'
 
 export const metadata: Metadata = { title: 'Settings' }
 
@@ -14,9 +15,10 @@ const PLANS = [
 ] as const
 
 export default async function SettingsPage() {
+  const { workspaceId } = await requireWorkspace()
   const [workspace, accounts, members, subscription] = await Promise.all([
     getWorkspace(),
-    listAccounts(),
+    listAccounts(workspaceId),
     listMembers(),
     getSubscription(),
   ])
@@ -35,7 +37,8 @@ export default async function SettingsPage() {
                 <div className="text-[14.5px] font-semibold">@{account.username}</div>
                 <div className="flex items-center gap-1.5 text-[12.5px] text-subtle">
                   <PlatformIcon platform={account.platform} className="size-3" />
-                  {account.platform === 'instagram' ? 'Instagram' : 'Facebook Page'} · {formatCompact(account.followers)} followers
+                  {account.platform === 'instagram' ? 'Instagram' : 'Facebook Page'}
+                  {account.followers !== null && <> · {formatCompact(account.followers)} followers</>}
                 </div>
               </div>
               {account.status === 'reauth_required' ? (
