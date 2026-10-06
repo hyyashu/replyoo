@@ -1,6 +1,8 @@
 import 'server-only'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { cache } from 'react'
+import { auth } from './auth'
 import { listAccounts } from './data'
 
 export const ACCOUNT_COOKIE = 'replyooo_account'
@@ -13,3 +15,10 @@ export async function getCurrentAccount() {
   if (!account) redirect('/connect')
   return { account, accounts }
 }
+
+/** The Better Auth user for this request, or null. Cached per request. */
+export const getSessionUser = cache(async () => {
+  const requestHeaders = await headers() // first, so the page is dynamic before auth() reads env
+  const session = await auth().api.getSession({ headers: requestHeaders })
+  return session?.user ?? null
+})

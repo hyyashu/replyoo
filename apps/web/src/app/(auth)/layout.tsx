@@ -1,7 +1,10 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { Logo } from '@/components/ui'
+import { getSessionUser } from '@/lib/session'
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  if (await getSessionUser()) redirect('/home')
   return (
     <div className="grid min-h-screen bg-sand lg:grid-cols-2">
       <div className="flex flex-col px-8 py-8 sm:px-14">

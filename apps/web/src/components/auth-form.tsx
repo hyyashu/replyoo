@@ -1,11 +1,27 @@
+'use client'
+
 import Link from 'next/link'
+import { useActionState } from 'react'
+import type { AuthState } from '@/app/auth-actions'
 import { buttonClass, cx } from './ui'
 
 const field =
   'h-11 w-full rounded-xl border border-line bg-white px-3.5 text-[14px] outline-none transition-colors placeholder:text-faint focus:border-ink'
 
-export function AuthForm({ mode, action }: { mode: 'login' | 'signup'; action: (formData: FormData) => Promise<void> }) {
+export function AuthForm({
+  mode,
+  action,
+  googleAction,
+  next,
+}: {
+  mode: 'login' | 'signup'
+  action: (state: AuthState, formData: FormData) => Promise<AuthState>
+  googleAction?: (formData: FormData) => Promise<void>
+  next?: string
+}) {
   const signup = mode === 'signup'
+  const [state, formAction, pending] = useActionState(action, null)
+
   return (
     <>
       <h1 className="font-display text-[34px] leading-tight font-bold tracking-[-0.04em]">
@@ -14,13 +30,23 @@ export function AuthForm({ mode, action }: { mode: 'login' | 'signup'; action: (
       <p className="mt-1.5 text-[15px] text-muted">
         {signup ? '1,000 contacts a month free. No card needed.' : 'Log in to your Replyooo workspace.'}
       </p>
-      <form action={action} className="mt-8 flex flex-col gap-3">
-        <button type="submit" className={cx(buttonClass('secondary'), 'h-11 w-full')}>
-          <GoogleIcon /> Continue with Google
-        </button>
-        <div className="my-2 flex items-center gap-3 text-[12px] text-subtle">
-          <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
-        </div>
+
+      {googleAction && (
+        <>
+          <form action={googleAction} className="mt-8">
+            {next && <input type="hidden" name="next" value={next} />}
+            <button type="submit" className={cx(buttonClass('secondary'), 'h-11 w-full')}>
+              <GoogleIcon /> Continue with Google
+            </button>
+          </form>
+          <div className="my-4 flex items-center gap-3 text-[12px] text-subtle">
+            <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
+
+      <form action={formAction} className={cx('flex flex-col gap-3', !googleAction && 'mt-8')}>
+        {next && <input type="hidden" name="next" value={next} />}
         {signup && <input name="name" placeholder="Your name" autoComplete="name" className={field} />}
         <input name="email" type="email" required placeholder="you@example.com" autoComplete="email" className={field} />
         <input
@@ -32,7 +58,12 @@ export function AuthForm({ mode, action }: { mode: 'login' | 'signup'; action: (
           autoComplete={signup ? 'new-password' : 'current-password'}
           className={field}
         />
-        <button type="submit" className={cx(buttonClass('primary'), 'mt-2 h-11 w-full')}>
+        {state?.error && (
+          <p role="alert" className="text-[13px] font-medium text-[#c2330e]">
+            {state.error}
+          </p>
+        )}
+        <button type="submit" disabled={pending} className={cx(buttonClass('primary'), 'mt-2 h-11 w-full', pending && 'opacity-60')}>
           {signup ? 'Create account' : 'Log in'}
         </button>
       </form>

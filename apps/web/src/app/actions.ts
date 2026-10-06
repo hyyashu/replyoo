@@ -80,12 +80,3 @@ export async function connectAccount(platform: 'instagram' | 'facebook') {
   ;(await cookies()).set(ACCOUNT_COOKIE, account.id, { path: '/', sameSite: 'lax', httpOnly: true })
   redirect('/automations/new')
 }
-
-/** Placeholder until Better Auth is wired up (Plan 3): any submission lands in the dashboard. */
-export async function signIn(_formData: FormData) {
-  redirect('/home')
-}
-
-export async function signUp(_formData: FormData) {
-  redirect('/connect')
-}
