@@ -1,0 +1,144 @@
+# Production stack for a single VPS. See docs/deploy.md.
+#   cp deploy/.env.example .env   # then fill it in
+#   docker compose -f docker-compose.prod.yml up -d --build
+name: replyooo
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: replyooo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: replyooo
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U replyooo -d replyooo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    <<: *restart
+    image: redis:7-alpine
+    # BullMQ needs noeviction, or Redis may silently drop queued jobs under memory pressure.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Applies pending SQL migrations, then exits. Runs on every `up`; already-applied ones are skipped.
+  migrate:
+    build: { context: ., target: worker }
+    image: replyooo-worker
+    working_dir: /app/packages/db
+    command: ["node_modules/.bin/drizzle-kit", "migrate"]
+    environment:
+      DATABASE_URL: postgres://replyooo:${POSTGRES_PASSWORD}@postgres:5432/replyooo
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  web:
+    <<: *restart
+    build: { context: ., target: web }
+    image: replyooo-web
+    environment:
+      DATABASE_URL: postgres://replyooo:${POSTGRES_PASSWORD}@postgres:5432/replyooo
+      APP_URL: https://${DOMAIN:?set DOMAIN in .env}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?set TOKEN_ENCRYPTION_KEY in .env}
+      META_APP_ID: ${META_APP_ID:?set META_APP_ID in .env}
+      META_APP_SECRET: ${META_APP_SECRET:?set META_APP_SECRET in .env}
+      META_LOGIN_CONFIG_ID: ${META_LOGIN_CONFIG_ID:-}
+      INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID:?set INSTAGRAM_APP_ID in .env}
+      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET:?set INSTAGRAM_APP_SECRET in .env}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v24.0}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DODO_API_KEY: ${DODO_API_KEY:-}
+      DODO_WEBHOOK_SECRET: ${DODO_WEBHOOK_SECRET:-}
+      DODO_ENVIRONMENT: ${DODO_ENVIRONMENT:-test_mode}
+      DODO_PRODUCT_PRO: ${DODO_PRODUCT_PRO:-}
+      DODO_PRODUCT_BUSINESS: ${DODO_PRODUCT_BUSINESS:-}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:?set EMAIL_PROVIDER (resend or smtp) in .env}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    <<: *restart
+    build: { context: ., target: worker }
+    image: replyooo-worker
+    environment:
+      DATABASE_URL: postgres://replyooo:${POSTGRES_PASSWORD}@postgres:5432/replyooo
+      REDIS_URL: redis://redis:6379
+      APP_URL: https://${DOMAIN}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
+      META_APP_SECRET: ${META_APP_SECRET}
+      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:?set META_WEBHOOK_VERIFY_TOKEN in .env}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v24.0}
+      OUTBOUND_RATE_PER_SECOND: ${OUTBOUND_RATE_PER_SECOND:-10}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: "3001"
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  caddy:
+    <<: *restart
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - worker
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  caddy_data: {}
+  caddy_config: {}

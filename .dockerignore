@@ -1,0 +1,12 @@
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/coverage
+.git
+.env
+.env*.local
+.superpowers
+docs
+deploy
+*.md

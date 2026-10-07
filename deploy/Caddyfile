@@ -1,0 +1,14 @@
+# Caddy gets and renews the HTTPS certificate for {$DOMAIN} by itself.
+# Meta's webhooks go to the worker; everything else is the web app.
+{$DOMAIN} {
+	encode zstd gzip
+
+	@meta_webhook path /webhooks/meta
+	handle @meta_webhook {
+		reverse_proxy worker:3001
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+}
