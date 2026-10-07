@@ -26,13 +26,19 @@ export function matchAutomation(
   const anyDm = () => find((c) => c.trigger.type === 'any_dm')
 
   switch (event.kind) {
-    case 'comment':
-      return find(
-        (c) =>
-          c.trigger.type === 'comment_keyword' &&
-          postMatches(c, c.trigger, event) &&
-          matchesAnyKeyword(event.text, c.trigger.keywords, c.trigger.match),
+    case 'comment': {
+      const onPost = (c: TriggerCandidate) => c.trigger.type === 'comment_keyword' && postMatches(c, c.trigger, event)
+      // An automation with keywords beats a catch-all one, however new the catch-all is.
+      return (
+        find(
+          (c) =>
+            c.trigger.type === 'comment_keyword' &&
+            c.trigger.keywords.length > 0 &&
+            onPost(c) &&
+            matchesAnyKeyword(event.text, c.trigger.keywords, c.trigger.match),
+        ) ?? find((c) => c.trigger.type === 'comment_keyword' && c.trigger.keywords.length === 0 && onPost(c))
       )
+    }
     case 'dm':
       return dmKeyword(event.text) ?? anyDm()
     case 'story': {

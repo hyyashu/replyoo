@@ -123,3 +123,13 @@ describe('links and images', () => {
     expect(issues.length).toBeGreaterThan(0)
   })
 })
+
+describe('any-comment trigger', () => {
+  it('accepts a comment recipe with no keywords', () => {
+    const base = DEFAULT_RECIPE.trigger
+    if (base.type !== 'comment_keyword') throw new Error('default trigger changed')
+    const { issues, flow } = checkRecipe(recipe({ trigger: { ...base, keywords: [] } }), 'instagram')
+    expect(issues).toEqual([])
+    expect(flow.trigger).toMatchObject({ type: 'comment_keyword', keywords: [] })
+  })
+})

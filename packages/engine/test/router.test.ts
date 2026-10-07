@@ -56,6 +56,19 @@ describe('matchAutomation: comments', () => {
     ).toBe(newer)
   })
 
+  it('an empty keyword list matches every comment', () => {
+    const c = candidate(commentAny([]))
+    expect(matchAutomation({ kind: 'comment', text: '🔥', mediaId: 'm1', mediaPublishedAt: null }, [c])).toBe(c)
+  })
+
+  it('a keyword automation beats a newer catch-all one, which still gets other comments', () => {
+    const keyword = candidate(commentAny(['guide']), '2026-01-01')
+    const catchAll = candidate(commentAny([]), '2026-02-01')
+    const event = (text: string) => ({ kind: 'comment' as const, text, mediaId: 'm1', mediaPublishedAt: null })
+    expect(matchAutomation(event('guide pls'), [keyword, catchAll])).toBe(keyword)
+    expect(matchAutomation(event('nice post'), [keyword, catchAll])).toBe(catchAll)
+  })
+
   it('does not let DM automations match comments', () => {
     const dm = candidate({ type: 'any_dm' })
     expect(matchAutomation({ kind: 'comment', text: 'hi', mediaId: 'm1', mediaPublishedAt: null }, [dm])).toBeNull()

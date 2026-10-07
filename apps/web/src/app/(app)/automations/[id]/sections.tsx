@@ -102,7 +102,7 @@ export function TriggerSection({
 }) {
   const { trigger } = recipe
   const subtitle = {
-    comment_keyword: 'Someone comments a keyword on your post',
+    comment_keyword: 'Someone comments on your post — with a keyword, or any comment',
     dm_keyword: 'Someone sends you a DM with a keyword',
     story_reply: 'Someone replies to or reacts to your story',
     any_dm: 'Any DM that no other automation answers',
@@ -189,12 +189,18 @@ export function TriggerSection({
           </Label>
           <KeywordInput
             value={trigger.keywords}
+            placeholder={trigger.type === 'comment_keyword' ? 'Any comment' : undefined}
             onChange={(keywords) =>
               update((d) => {
                 if (d.trigger.type === 'comment_keyword' || d.trigger.type === 'dm_keyword') d.trigger.keywords = keywords
               })
             }
           />
+          {trigger.type === 'comment_keyword' && trigger.keywords.length === 0 && (
+            <p className="mt-1.5 text-[12.5px] text-subtle">
+              No keywords: replies to every comment on these posts, unless another automation matches its keyword first.
+            </p>
+          )}
         </div>
       )}
 

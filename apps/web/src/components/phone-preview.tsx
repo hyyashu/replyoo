@@ -35,7 +35,7 @@ export function conversation(recipe: Recipe): Bubble[] {
   const keyword = 'keywords' in trigger ? (trigger.keywords[0] ?? 'Hi') : 'Hi'
   switch (trigger.type) {
     case 'comment_keyword':
-      bubbles.push({ kind: 'context', text: `sam.eats commented “${keyword}” on your post` })
+      bubbles.push({ kind: 'context', text: `sam.eats commented “${trigger.keywords[0] ?? 'Love this!'}” on your post` })
       break
     case 'story_reply':
       bubbles.push({ kind: 'context', text: 'sam.eats replied to your story' })

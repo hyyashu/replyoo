@@ -22,7 +22,8 @@ export const TriggerSchema = z.discriminatedUnion('type', [
       z.object({ mode: z.literal('any') }),
       z.object({ mode: z.literal('next') }),
     ]),
-    keywords: Keywords,
+    /** Empty = every comment on the matching posts. */
+    keywords: z.array(Keyword).max(20),
     match: KeywordMatchSchema,
     publicReplies: z.array(z.string().trim().min(1).max(500)).max(10).optional(),
   }),

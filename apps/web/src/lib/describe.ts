@@ -21,6 +21,7 @@ export function triggerLabel(trigger: Trigger): string {
 export function triggerChips(trigger: Trigger): string[] {
   switch (trigger.type) {
     case 'comment_keyword':
+      return trigger.keywords.length > 0 ? trigger.keywords : ['Any comment']
     case 'dm_keyword':
       return trigger.keywords
     case 'story_reply':
