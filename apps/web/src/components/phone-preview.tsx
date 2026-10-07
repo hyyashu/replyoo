@@ -11,7 +11,11 @@ const SAMPLE: ContactState = { username: 'sam.eats', name: 'Sam Rivera', email: 
 type Bubble =
   | { kind: 'context'; text: string }
   | { kind: 'them'; text: string }
-  | { kind: 'us'; text: string; replyButton?: string; link?: { label: string; url: string } }
+  | { kind: 'us'; text: string; replyButton?: string; links?: { label: string; url: string }[] }
+
+function previewLinks(links: { label: string; url: string }[]) {
+  return links.length > 0 ? { links: links.map((link) => ({ label: link.label || 'Open', url: link.url })) } : {}
+}
 
 export function conversation(recipe: Recipe): Bubble[] {
   const { trigger } = recipe
@@ -23,7 +27,7 @@ export function conversation(recipe: Recipe): Bubble[] {
     if (item) {
       bubbles.push({ kind: 'context', text: 'sam.eats tapped a conversation starter' })
       bubbles.push({ kind: 'them', text: item.question || '…' })
-      bubbles.push({ kind: 'us', text: render(item.answer) })
+      bubbles.push({ kind: 'us', text: render(item.answer), ...previewLinks(item.links) })
     }
     return bubbles
   }
@@ -56,10 +60,11 @@ export function conversation(recipe: Recipe): Bubble[] {
     bubbles.push({ kind: 'them', text: answer })
     contact = { ...SAMPLE, [recipe.collect.kind]: answer }
   }
+  if (recipe.message.imageUrl) bubbles.push({ kind: 'us', text: '🖼 Image' })
   bubbles.push({
     kind: 'us',
     text: render(recipe.message.text, contact),
-    ...(recipe.message.link.enabled ? { link: { label: recipe.message.link.label || 'Open', url: recipe.message.link.url } } : {}),
+    ...previewLinks(recipe.message.links),
   })
   return bubbles
 }
@@ -115,7 +120,7 @@ function DmView({ recipe }: { recipe: Recipe }) {
               <div
                 className={cx(
                   'rounded-[18px] bg-violet px-3 py-2 text-[12.5px] leading-snug whitespace-pre-line text-white',
-                  bubble.link && 'rounded-b-md',
+                  bubble.links && 'rounded-b-md',
                 )}
               >
                 {bubble.text}
@@ -125,12 +130,16 @@ function DmView({ recipe }: { recipe: Recipe }) {
                   {bubble.replyButton}
                 </div>
               )}
-              {bubble.link && (
+              {bubble.links && (
                 <div className="overflow-hidden rounded-[14px] rounded-t-md border border-line">
-                  <div className="truncate px-3 pt-2 text-[10.5px] text-subtle">{hostOf(bubble.link.url)}</div>
-                  <div className="m-2 mt-1.5 flex items-center justify-center gap-1 rounded-lg bg-cream py-1.5 text-[12px] font-semibold text-[#3b5bdb]">
-                    {bubble.link.label} <ExternalLink className="size-3" />
-                  </div>
+                  {bubble.links.map((link, linkIndex) => (
+                    <div key={linkIndex} className={cx(linkIndex > 0 && 'border-t border-line')}>
+                      <div className="truncate px-3 pt-2 text-[10.5px] text-subtle">{hostOf(link.url)}</div>
+                      <div className="m-2 mt-1.5 flex items-center justify-center gap-1 rounded-lg bg-cream py-1.5 text-[12px] font-semibold text-[#3b5bdb]">
+                        {link.label} <ExternalLink className="size-3" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -53,7 +53,7 @@ describe('compileRecipe', () => {
     const { issues } = checkRecipe(
       recipe({
         trigger: changeTriggerType(DEFAULT_RECIPE.trigger, 'dm_keyword'),
-        message: { text: 'Hi', link: { enabled: true, label: 'Open', url: 'not a url' } },
+        message: { text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'not a url' }] },
       }),
       'instagram',
     )
@@ -78,7 +78,7 @@ describe('recipeFromFlow', () => {
     const followGate = recipeFromFlow(TEMPLATES.find((t) => t.key === 'follow_gate')!.flow)
     expect(followGate.opener.enabled).toBe(true)
     expect(followGate.followGate).toMatchObject({ enabled: true, buttonLabel: 'I followed ✓' })
-    expect(followGate.message.link).toMatchObject({ enabled: true, url: 'https://example.com/freebie' })
+    expect(followGate.message.links).toMatchObject([{ url: 'https://example.com/freebie' }])
 
     const email = recipeFromFlow(TEMPLATES.find((t) => t.key === 'email_list')!.flow)
     expect(email.collect.kind).toBe('email')
@@ -93,5 +93,33 @@ describe('recipeFromFlow', () => {
     })
     const flow = compileRecipe(original)
     expect(compileRecipe(recipeFromFlow(flow))).toEqual(flow)
+  })
+})
+
+describe('links and images', () => {
+  it('keeps the conversation-starters template pricing button through a save', () => {
+    const template = TEMPLATES.find((t) => t.key === 'conversation_starters')!
+    const recipe = recipeFromFlow(template.flow)
+    expect(recipe.trigger).toMatchObject({ items: [{ links: [] }, { links: [{ label: 'See pricing' }] }, { links: [] }] })
+    expect(compileRecipe(recipe).steps.answer_1).toEqual(template.flow.steps.pricing)
+  })
+
+  it('compiles up to three delivery links and an image, and reads them back', () => {
+    const original = recipe({
+      message: {
+        text: 'Here',
+        imageUrl: 'https://cdn.example.com/a.jpg',
+        links: [1, 2, 3].map((n) => ({ label: `Link ${n}`, url: `https://example.com/${n}` })),
+      },
+    })
+    const flow = compileRecipe(original)
+    expect(flow.steps.deliver).toMatchObject({ imageUrl: 'https://cdn.example.com/a.jpg' })
+    expect(recipeFromFlow(flow).message).toEqual(original.message)
+  })
+
+  it('rejects a fourth link', () => {
+    const links = [1, 2, 3, 4].map((n) => ({ label: `L${n}`, url: `https://example.com/${n}` }))
+    const { issues } = checkRecipe(recipe({ message: { text: 'Hi', imageUrl: '', links } }), 'instagram')
+    expect(issues.length).toBeGreaterThan(0)
   })
 })

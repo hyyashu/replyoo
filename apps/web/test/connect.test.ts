@@ -163,7 +163,7 @@ describe('connecting Instagram', () => {
   it('puts the live conversation starters back after a reconnect', async () => {
     const { workspaceId, user } = await createWorkspace('Restore')
     const existing = await createAccount(workspaceId, 'instagram', { externalId: IG_ID, status: 'disconnected' })
-    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Prices?', answer: 'From $9' }] } })
+    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Prices?', answer: 'From $9', links: [] }] } })
     const [automation] = await db()
       .insert(automations)
       .values({ workspaceId, connectedAccountId: existing.id, name: 'Starters', status: 'active', triggerType: 'ice_breaker', definition: flow })
@@ -189,8 +189,8 @@ describe('connecting Instagram', () => {
   it('a restore never overwrites starters published while it was in flight', async () => {
     const { workspaceId, user } = await createWorkspace('RestoreRace')
     const existing = await createAccount(workspaceId, 'instagram', { externalId: IG_ID, status: 'disconnected' })
-    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Old?', answer: 'Old' }] } })
-    const newer = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'New?', answer: 'New' }] } })
+    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Old?', answer: 'Old', links: [] }] } })
+    const newer = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'New?', answer: 'New', links: [] }] } })
     const [automation] = await db()
       .insert(automations)
       .values({ workspaceId, connectedAccountId: existing.id, name: 'Starters', status: 'active', triggerType: 'ice_breaker', definition: flow })
@@ -222,7 +222,7 @@ describe('connecting Instagram', () => {
   it('a failed restore doesn’t fail the connect', async () => {
     const { workspaceId, user } = await createWorkspace('RestoreFails')
     const existing = await createAccount(workspaceId, 'instagram', { externalId: IG_ID, status: 'disconnected' })
-    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Hours?', answer: '9–5' }] } })
+    const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: 'Hours?', answer: '9–5', links: [] }] } })
     const [automation] = await db()
       .insert(automations)
       .values({ workspaceId, connectedAccountId: existing.id, name: 'Starters', status: 'active', triggerType: 'ice_breaker', definition: flow })
@@ -307,7 +307,7 @@ describe('connecting Facebook Pages', () => {
     const pages = [`page_${randomUUID()}`, `page_${randomUUID()}`]
     for (const [i, externalId] of pages.entries()) {
       const existing = await createAccount(workspaceId, 'facebook', { externalId, status: 'disconnected' })
-      const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: `Q${i}?`, answer: 'A' }] } })
+      const flow = compileRecipe({ ...DEFAULT_RECIPE, trigger: { type: 'ice_breaker', items: [{ question: `Q${i}?`, answer: 'A', links: [] }] } })
       const [automation] = await db()
         .insert(automations)
         .values({ workspaceId, connectedAccountId: existing.id, name: 'Starters', status: 'active', triggerType: 'ice_breaker', definition: flow })

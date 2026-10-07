@@ -42,7 +42,7 @@ describe('iceBreakerItems', () => {
   it('maps each question to an ice-breaker postback and ignores other triggers', () => {
     const flow = compileRecipe({
       ...DEFAULT_RECIPE,
-      trigger: { type: 'ice_breaker', items: [{ question: 'Prices?', answer: 'From $9' }, { question: 'Hours?', answer: '9–5' }] },
+      trigger: { type: 'ice_breaker', items: [{ question: 'Prices?', answer: 'From $9', links: [] }, { question: 'Hours?', answer: '9–5', links: [] }] },
     })
     expect(iceBreakerItems('aut-1', flow)).toEqual([
       { question: 'Prices?', payload: encodePostback({ kind: 'ice_breaker', automationId: 'aut-1', itemIndex: 0 }) },

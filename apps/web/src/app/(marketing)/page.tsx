@@ -22,7 +22,8 @@ const HERO_RECIPE: Recipe = {
   collect: { ...DEFAULT_RECIPE.collect, kind: 'none' },
   message: {
     text: "Here you go! 🎉 Save it so you don't lose it.",
-    link: { enabled: true, label: 'Get the guide', url: 'https://mayamakes.co/7day' },
+    imageUrl: '',
+    links: [{ label: 'Get the guide', url: 'https://mayamakes.co/7day' }],
   },
 }
 

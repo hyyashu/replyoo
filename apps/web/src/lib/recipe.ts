@@ -16,7 +16,15 @@ export type RecipeTrigger =
   | { type: 'dm_keyword'; keywords: string[]; match: 'contains' | 'exact' }
   | { type: 'story_reply'; includeReactions: boolean; keywords: string[] }
   | { type: 'any_dm' }
-  | { type: 'ice_breaker'; items: { question: string; answer: string }[] }
+  | { type: 'ice_breaker'; items: { question: string; answer: string; links: LinkButton[] }[] }
+
+export interface LinkButton {
+  label: string
+  url: string
+}
+
+/** Meta allows three buttons per message. */
+export const MAX_LINKS = 3
 
 type TriggerOfType<T extends Trigger['type']> = Extract<Trigger, { type: T }>
 
@@ -26,7 +34,8 @@ export interface Recipe {
   opener: { enabled: boolean; text: string; buttonLabel: string }
   followGate: { enabled: boolean; text: string; buttonLabel: string }
   collect: { kind: 'none' | 'email' | 'phone'; question: string; retryText: string }
-  message: { text: string; link: { enabled: boolean; label: string; url: string } }
+  /** `imageUrl` is sent as its own picture message just before the text; '' means none. */
+  message: { text: string; imageUrl: string; links: LinkButton[] }
   tags: string[]
 }
 
@@ -49,7 +58,7 @@ export const DEFAULT_RECIPE: Recipe = {
     question: "What's your email? I'll send a copy there too.",
     retryText: "Hmm, that doesn't look right. Mind trying again?",
   },
-  message: { text: 'Here you go! 🎉', link: { enabled: true, label: 'Open link', url: 'https://example.com' } },
+  message: { text: 'Here you go! 🎉', imageUrl: '', links: [{ label: 'Open link', url: 'https://example.com' }] },
   tags: [],
 }
 
@@ -74,7 +83,7 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
   if (trigger.type === 'ice_breaker') {
     const steps: Record<string, Step> = {}
     trigger.items.forEach((item, index) => {
-      steps[`answer_${index}`] = { type: 'send_message', text: item.answer }
+      steps[`answer_${index}`] = { type: 'send_message', text: item.answer, ...withLinks(item.links) }
     })
     return {
       trigger: {
@@ -95,13 +104,11 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
     head = 'tag'
   }
 
-  const buttons: Button[] = recipe.message.link.enabled
-    ? [{ type: 'url', label: recipe.message.link.label, url: recipe.message.link.url }]
-    : []
   steps.deliver = {
     type: 'send_message',
     text: recipe.message.text,
-    ...(buttons.length > 0 ? { buttons } : {}),
+    ...(recipe.message.imageUrl ? { imageUrl: recipe.message.imageUrl } : {}),
+    ...withLinks(recipe.message.links),
     ...(head ? { next: head } : {}),
   }
   head = 'deliver'
@@ -146,6 +153,14 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
   return { trigger: compileTrigger(trigger), start: head, steps }
 }
 
+function withLinks(links: LinkButton[]): { buttons?: Button[] } {
+  return links.length > 0 ? { buttons: links.map((link) => ({ type: 'url', label: link.label, url: link.url })) } : {}
+}
+
+function linksOf(step: StepOf<'send_message'> | undefined): LinkButton[] {
+  return (step?.buttons ?? []).flatMap((button) => (button.type === 'url' ? [{ label: button.label, url: button.url }] : []))
+}
+
 function compileTrigger(trigger: Exclude<RecipeTrigger, { type: 'ice_breaker' }>): Trigger {
   switch (trigger.type) {
     case 'comment_keyword': {
@@ -175,7 +190,7 @@ function compileTrigger(trigger: Exclude<RecipeTrigger, { type: 'ice_breaker' }>
 export function recipeFromFlow(flow: FlowDefinition): Recipe {
   const recipe: Recipe = structuredClone(DEFAULT_RECIPE)
   recipe.opener.enabled = false
-  recipe.message.link.enabled = false
+  recipe.message.links = []
 
   const { trigger } = flow
   if (trigger.type === 'ice_breaker') {
@@ -183,7 +198,11 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
       type: 'ice_breaker',
       items: trigger.items.map((item) => {
         const step = flow.steps[item.startStep]
-        return { question: item.question, answer: step?.type === 'send_message' ? step.text : '' }
+        return {
+          question: item.question,
+          answer: step?.type === 'send_message' ? step.text : '',
+          links: step?.type === 'send_message' ? linksOf(step) : [],
+        }
       }),
     }
     return recipe
@@ -207,10 +226,8 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
         } else {
           messageFound = true
           recipe.message.text = step.text
-          const link = (step.buttons ?? []).find((button) => button.type === 'url')
-          recipe.message.link = link
-            ? { enabled: true, label: link.label, url: link.url }
-            : { ...recipe.message.link, enabled: false }
+          recipe.message.imageUrl = step.imageUrl ?? ''
+          recipe.message.links = linksOf(step)
           id = step.next
         }
         break
@@ -291,6 +308,6 @@ export function changeTriggerType(current: RecipeTrigger, type: RecipeTrigger['t
     case 'any_dm':
       return { type }
     case 'ice_breaker':
-      return { type, items: [{ question: 'What do you offer?', answer: "Here's what we offer: …" }] }
+      return { type, items: [{ question: 'What do you offer?', answer: "Here's what we offer: …", links: [] }] }
   }
 }

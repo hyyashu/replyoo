@@ -4,7 +4,15 @@ import type { Platform } from '@replyooo/shared'
 import { AtSign, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Toggle, cx } from '@/components/ui'
-import { COLLECT_DEFAULTS, changeTriggerType, openerRequired, type Recipe, type RecipeTrigger } from '@/lib/recipe'
+import {
+  COLLECT_DEFAULTS,
+  MAX_LINKS,
+  changeTriggerType,
+  openerRequired,
+  type LinkButton,
+  type Recipe,
+  type RecipeTrigger,
+} from '@/lib/recipe'
 import type { RecipeIssue, RecipeSection } from '@/lib/validation'
 import { KeywordInput, Label, MessageInput, Segmented, TextInput } from './fields'
 
@@ -249,13 +257,23 @@ export function TriggerSection({
                     if (d.trigger.type === 'ice_breaker' && d.trigger.items[index]) d.trigger.items[index].answer = answer
                   })
                 }
+                footer={
+                  <LinkButtons
+                    links={item.links}
+                    onChange={(links) =>
+                      update((d) => {
+                        if (d.trigger.type === 'ice_breaker' && d.trigger.items[index]) d.trigger.items[index].links = links
+                      })
+                    }
+                  />
+                }
               />
             </div>
           ))}
           {trigger.items.length < 4 && (
             <AddButton
               onClick={() =>
-                update((d) => d.trigger.type === 'ice_breaker' && void d.trigger.items.push({ question: '', answer: '' }))
+                update((d) => d.trigger.type === 'ice_breaker' && void d.trigger.items.push({ question: '', answer: '', links: [] }))
               }
             >
               Add question ({trigger.items.length}/4)
@@ -330,13 +348,13 @@ export function DmSection({
   if (recipe.trigger.type === 'ice_breaker') return null
   const required = openerRequired(recipe.trigger)
   const opener = recipe.opener.enabled || required
-  const { link } = recipe.message
+  const { links } = recipe.message
 
   return (
     <Section
       index={index}
       title="Send this DM"
-      subtitle={[opener && 'Opener + tap to continue', 'Message', link.enabled && '1 link button'].filter(Boolean).join(' · ')}
+      subtitle={[opener && 'Opener + tap to continue', 'Message', links.length > 0 && `${links.length} link button${links.length > 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
       issues={issues('dm')}
     >
       <div>
@@ -376,44 +394,17 @@ export function DmSection({
         <Label hint={opener ? 'Sent after they tap' : undefined}>{opener ? 'Then send' : 'Message'}</Label>
         <MessageInput
           value={recipe.message.text}
-          maxLength={link.enabled ? 640 : 1000}
+          maxLength={links.length > 0 ? 640 : 1000}
           onChange={(text) => update((d) => void (d.message.text = text))}
-          footer={
-            link.enabled ? (
-              <div className="flex items-center gap-2">
-                <ButtonField
-                  icon={<Link2 className="size-3.5 text-brand" />}
-                  value={link.label}
-                  placeholder="Button label"
-                  onChange={(label) => update((d) => void (d.message.link.label = label))}
-                />
-                <span className="text-faint">→</span>
-                <input
-                  value={link.url}
-                  placeholder="https://"
-                  onChange={(e) => update((d) => void (d.message.link.url = e.target.value))}
-                  className="min-w-0 flex-1 bg-transparent text-[13px] text-muted outline-none placeholder:text-faint"
-                />
-                <button
-                  type="button"
-                  aria-label="Remove link"
-                  className="text-faint hover:text-ink"
-                  onClick={() => update((d) => void (d.message.link.enabled = false))}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted hover:text-ink"
-                onClick={() => update((d) => void (d.message.link.enabled = true))}
-              >
-                <Plus className="size-3.5" /> Add link button
-              </button>
-            )
-          }
+          footer={<LinkButtons links={links} onChange={(next) => update((d) => void (d.message.links = next))} />}
         />
+        <div className="mt-2">
+          <TextInput
+            value={recipe.message.imageUrl}
+            placeholder="Image link (optional) — sent just before the message"
+            onChange={(imageUrl) => update((d) => void (d.message.imageUrl = imageUrl.trim()))}
+          />
+        </div>
       </div>
     </Section>
   )
@@ -550,6 +541,49 @@ function Booster({
         <span className="block truncate text-[12px] text-muted">{body}</span>
       </span>
       <Toggle label={title} checked={checked} disabled={disabled} onChange={onChange} />
+    </div>
+  )
+}
+
+function LinkButtons({ links, onChange }: { links: LinkButton[]; onChange: (links: LinkButton[]) => void }) {
+  const change = (index: number, patch: Partial<LinkButton>) =>
+    onChange(links.map((link, i) => (i === index ? { ...link, ...patch } : link)))
+  return (
+    <div className="flex flex-col gap-2">
+      {links.map((link, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <ButtonField
+            icon={<Link2 className="size-3.5 text-brand" />}
+            value={link.label}
+            placeholder="Button label"
+            onChange={(label) => change(index, { label })}
+          />
+          <span className="text-faint">→</span>
+          <input
+            value={link.url}
+            placeholder="https://"
+            onChange={(e) => change(index, { url: e.target.value })}
+            className="min-w-0 flex-1 bg-transparent text-[13px] text-muted outline-none placeholder:text-faint"
+          />
+          <button
+            type="button"
+            aria-label="Remove link"
+            className="text-faint hover:text-ink"
+            onClick={() => onChange(links.filter((_, i) => i !== index))}
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
+      ))}
+      {links.length < MAX_LINKS && (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium text-muted hover:text-ink"
+          onClick={() => onChange([...links, { label: '', url: '' }])}
+        >
+          <Plus className="size-3.5" /> Add link button{links.length > 0 ? ` (${links.length}/${MAX_LINKS})` : ''}
+        </button>
+      )}
     </div>
   )
 }
