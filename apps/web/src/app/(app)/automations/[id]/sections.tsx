@@ -406,10 +406,11 @@ export function DmSection({
           onChange={(text) => update((d) => void (d.message.text = text))}
           footer={<LinkButtons links={links} onChange={(next) => update((d) => void (d.message.links = next))} />}
         />
-        <div className="mt-2">
+        <div className="mt-3">
+          <Label hint="Sent as a picture just before the message">Image (optional)</Label>
           <TextInput
             value={recipe.message.imageUrl}
-            placeholder="Image link (optional) — sent just before the message"
+            placeholder="https://… link to a .jpg or .png"
             onChange={(imageUrl) => update((d) => void (d.message.imageUrl = imageUrl.trim()))}
           />
         </div>
@@ -538,10 +539,15 @@ export function BoostersSection({
 
       {canNudge && recipe.nudge.enabled && (
         <div>
-          <Label
-            hint={
-              <span className="flex items-center gap-1.5">
-                after
+          <Label hint={`Sent once · max ${MAX_NUDGE_HOURS}h, inside Meta's 24h messaging window`}>Reminder message</Label>
+          <MessageInput
+            value={recipe.nudge.text}
+            maxLength={1000}
+            rows={2}
+            onChange={(text) => update((d) => void (d.nudge.text = text))}
+            footer={
+              <span className="flex items-center gap-2 text-[13px] text-muted">
+                Send after
                 <input
                   type="number"
                   min={1}
@@ -555,13 +561,10 @@ export function BoostersSection({
                   }
                   className="h-7 w-14 rounded-lg border border-line bg-white px-2 text-center text-[13px] text-ink outline-none focus:border-ink"
                 />
-                hours of silence · sent once · max {MAX_NUDGE_HOURS}h (Meta's 24h messaging window)
+                hours without a reply
               </span>
             }
-          >
-            Reminder message
-          </Label>
-          <MessageInput value={recipe.nudge.text} maxLength={1000} rows={2} onChange={(text) => update((d) => void (d.nudge.text = text))} />
+          />
         </div>
       )}
 
