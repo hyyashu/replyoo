@@ -11,6 +11,9 @@ Internet ── Caddy :80/:443 ──┬─ /webhooks/meta ─▶ worker :3001 �
 
 Files: `Dockerfile`, `docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/.env.example`.
 
+Using Dokploy instead? Its Traefik already owns ports 80/443, so skip Caddy and follow
+[Deploying with Dokploy](#deploying-with-dokploy) below. Everything else here (env values, Meta setup, first test) still applies.
+
 ## 1. Server and DNS
 
 1. Create an Ubuntu 24.04 (or similar) VPS and note its public IP.
@@ -40,6 +43,7 @@ openssl rand -hex 16      # META_WEBHOOK_VERIFY_TOKEN
 ```
 
 - Set `DOMAIN` to the hostname from step 1 (no `https://`).
+- Keep `COMPOSE_PROFILES=caddy`: it is what starts the Caddy container. Without it nothing serves HTTPS.
 - Set a real `EMAIL_PROVIDER` (`resend` or `smtp`), `EMAIL_FROM`, and the matching credentials (`RESEND_API_KEY`
   or `SMTP_HOST` and friends). The worker refuses to start with `EMAIL_PROVIDER=log` in production, because it
   only prints emails and never delivers them.
@@ -121,3 +125,33 @@ holds only queued jobs and rate-limit counters, so it isn't part of the backup.
 - **Meta can't verify the webhook:** the verify token in the dashboard must match `.env` exactly. Run the `curl`
   check above first.
 - **`migrate` fails:** `docker compose ... logs migrate`. The web app and worker won't start until it succeeds.
+
+## Deploying with Dokploy
+
+Dokploy runs its own Traefik on ports 80/443, which does the HTTPS certificates and routing that Caddy does above.
+The Caddy container would fail to bind those ports, so it stays off: it is only started by `COMPOSE_PROFILES=caddy`,
+which you leave out.
+
+1. **DNS:** point an A record for your hostname (for example `replyoo.sitebackend.com`) at the Dokploy server.
+2. **Create the app:** Project → Create Service → **Compose**. Source: this Git repository, branch `main`.
+   Compose type **Docker Compose**, compose path `./docker-compose.prod.yml`.
+3. **Environment tab:** paste the contents of `deploy/.env.example`, fill it in (see step 2 above for generating the
+   secrets), and **delete the `COMPOSE_PROFILES=caddy` line**. Dokploy saves this as the `.env` the compose file reads.
+4. **Advanced tab:** turn on **Isolated Deployment**, so Dokploy connects the services to Traefik's network itself.
+5. **Domains tab:** add two entries for the same host, both with HTTPS on and certificate type Let's Encrypt:
+
+   | Host | Path | Service | Port |
+   | --- | --- | --- | --- |
+   | `replyoo.sitebackend.com` | `/webhooks/meta` | `worker` | 3001 |
+   | `replyoo.sitebackend.com` | `/` | `web` | 3000 |
+
+   "Preview Compose" shows the generated Traefik labels if you want to check them.
+6. **Deploy.** The first build takes several minutes. `migrate` runs first and exits; `web` and `worker` wait for it.
+7. **Check** from your own machine, as in step 3 above:
+   `curl "https://replyoo.sitebackend.com/webhooks/meta?hub.mode=subscribe&hub.verify_token=<token>&hub.challenge=ok"`
+   must print `ok`, and `https://replyoo.sitebackend.com/login` must load. If the webhook URL returns the web app's
+   404 page instead, the `/webhooks/meta` domain entry isn't taking priority: re-check its path and service.
+
+Then continue with "Configure the Meta app" and "First live test". Updates are a redeploy from Dokploy. Postgres data
+lives in the named volume `pgdata`; back it up with `pg_dump` as above (run it through `docker exec` on the
+postgres container) or Dokploy's volume backups. Never delete the compose service's volumes from the UI.

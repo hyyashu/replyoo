@@ -1,6 +1,8 @@
-# Production stack for a single VPS. See docs/deploy.md.
+# Production stack. See docs/deploy.md.
 #   cp deploy/.env.example .env   # then fill it in
 #   docker compose -f docker-compose.prod.yml up -d --build
+# Caddy (HTTPS + routing) is in the "caddy" profile, enabled by COMPOSE_PROFILES=caddy in .env.
+# Leave it off when a platform such as Dokploy already provides HTTPS and routing.
 name: replyooo
 
 x-restart: &restart
@@ -122,6 +124,7 @@ services:
 
   caddy:
     <<: *restart
+    profiles: ["caddy"]
     image: caddy:2-alpine
     ports:
       - "80:80"
