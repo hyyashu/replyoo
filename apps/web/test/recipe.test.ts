@@ -179,3 +179,32 @@ describe('reminder (nudge)', () => {
     expect(JSON.stringify(compileRecipe(DEFAULT_RECIPE))).not.toContain('nudge')
   })
 })
+
+describe('follow reminder', () => {
+  const gated = () => recipe({ followGate: { ...DEFAULT_RECIPE.followGate, enabled: true, reminderText: 'Still not following 👀' } })
+
+  it('sends a separate reminder after a second failed check', () => {
+    const flow = compileRecipe(gated())
+    expect(validateFlow(flow, 'instagram')).toEqual([])
+    expect(flow.steps.ask_follow).toMatchObject({ text: DEFAULT_RECIPE.followGate.text })
+    expect(flow.steps.ask_follow).toMatchObject({ buttons: [{ next: 'recheck' }] })
+    expect(flow.steps.recheck).toMatchObject({ following: 'deliver', notFollowing: 'remind_follow' })
+    expect(flow.steps.remind_follow).toMatchObject({ text: 'Still not following 👀', buttons: [{ next: 'recheck' }] })
+  })
+
+  it('round-trips the reminder text and stays stable', () => {
+    const flow = compileRecipe(gated())
+    const back = recipeFromFlow(flow)
+    expect(back.followGate.reminderText).toBe('Still not following 👀')
+    expect(compileRecipe(back)).toEqual(flow)
+  })
+
+  it('gives flows from before the reminder existed the default text', () => {
+    const old = structuredClone(TEMPLATES.find((t) => t.key === 'follow_gate')!.flow)
+    delete old.steps.recheck
+    delete old.steps.remind_follow
+    const ask = old.steps.ask_follow
+    if (ask?.type === 'send_message' && ask.buttons?.[0]?.type === 'reply') ask.buttons[0].next = 'check'
+    expect(recipeFromFlow(old).followGate.reminderText).toBe(DEFAULT_RECIPE.followGate.reminderText)
+  })
+})

@@ -498,6 +498,15 @@ export function BoostersSection({
               />
             }
           />
+          <div className="mt-3">
+            <Label hint="Sent if they tap the button but still aren't following">Follow reminder</Label>
+            <MessageInput
+              value={recipe.followGate.reminderText}
+              maxLength={640}
+              rows={2}
+              onChange={(text) => update((d) => void (d.followGate.reminderText = text))}
+            />
+          </div>
         </div>
       )}
 

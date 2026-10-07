@@ -13,6 +13,8 @@ const STEP_SECTION: Record<string, RecipeSection> = {
   deliver: 'dm',
   check: 'boosters',
   ask_follow: 'boosters',
+  recheck: 'boosters',
+  remind_follow: 'boosters',
   ask: 'boosters',
   has_contact: 'boosters',
   tag: 'boosters',

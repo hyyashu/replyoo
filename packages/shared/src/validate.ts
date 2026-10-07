@@ -65,6 +65,7 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
   const issues: ValidationIssue[] = []
   const { steps, trigger } = flow
   const entries = entryStepIds(flow)
+  let followCheckReported = false
 
   for (const entry of entries) {
     if (!steps[entry]) {
@@ -126,7 +127,8 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
         message: 'Answers saved to email/phone must use matching validation',
       })
     }
-    if (step.type === 'check_follow' && platform === 'facebook') {
+    if (step.type === 'check_follow' && platform === 'facebook' && !followCheckReported) {
+      followCheckReported = true
       issues.push({
         code: 'platform_unsupported',
         stepId,

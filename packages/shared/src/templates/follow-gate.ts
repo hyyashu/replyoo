@@ -25,7 +25,13 @@ export const followGate: FlowTemplate = {
       ask_follow: {
         type: 'send_message',
         text: "Looks like you're not following yet 👀 Follow me, then tap the button below.",
-        buttons: [{ type: 'reply', id: 'followed', label: 'I followed ✓', next: 'check' }],
+        buttons: [{ type: 'reply', id: 'followed', label: 'I followed ✓', next: 'recheck' }],
+      },
+      recheck: { type: 'check_follow', following: 'deliver', notFollowing: 'remind_follow' },
+      remind_follow: {
+        type: 'send_message',
+        text: "Hmm, I still don't see the follow 🤔 Follow me, then tap the button again.",
+        buttons: [{ type: 'reply', id: 'followed_again', label: 'I followed ✓', next: 'recheck' }],
       },
       deliver: {
         type: 'send_message',

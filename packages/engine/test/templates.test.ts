@@ -56,6 +56,23 @@ describe('template: follow_gate', () => {
     const deliver = driver.effects.find((e) => e.type === 'send')
     expect(deliver?.type === 'send' && deliver.message.buttons?.[0]?.type).toBe('url')
   })
+
+  it('sends a different reminder when they tap again without following', () => {
+    const driver = new Driver(template('follow_gate').flow)
+    driver.startComment('c1', 'FREEBIE')
+    driver.send({ type: 'postback', stepId: 'opener', buttonId: 'want' })
+    driver.send({ type: 'follow_result', following: false })
+    const first = driver.sentTexts()
+
+    driver.send({ type: 'postback', stepId: 'ask_follow', buttonId: 'followed' })
+    driver.send({ type: 'follow_result', following: false })
+    expect(driver.run.currentStepId).toBe('remind_follow')
+    expect(driver.sentTexts()).not.toEqual(first)
+
+    driver.send({ type: 'postback', stepId: 'remind_follow', buttonId: 'followed_again' })
+    driver.send({ type: 'follow_result', following: true })
+    expect(driver.run.status).toBe('completed')
+  })
 })
 
 describe('template: phone_numbers', () => {

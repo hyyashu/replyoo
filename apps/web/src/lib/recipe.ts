@@ -32,7 +32,8 @@ export interface Recipe {
   trigger: RecipeTrigger
   /** Message with a reply button sent first. Required for comment triggers (one private reply until they respond). */
   opener: { enabled: boolean; text: string; buttonLabel: string }
-  followGate: { enabled: boolean; text: string; buttonLabel: string }
+  /** `reminderText` is sent when they tap the button but still aren't following. */
+  followGate: { enabled: boolean; text: string; buttonLabel: string; reminderText: string }
   collect: { kind: 'none' | 'email' | 'phone'; question: string; retryText: string }
   /** `imageUrl` is sent as its own picture message just before the text; '' means none. */
   message: { text: string; imageUrl: string; links: LinkButton[] }
@@ -54,6 +55,7 @@ export const DEFAULT_RECIPE: Recipe = {
     enabled: false,
     text: "Looks like you're not following yet 👀 Follow me, then tap the button below.",
     buttonLabel: 'I followed ✓',
+    reminderText: "Hmm, I still don't see the follow 🤔 Follow me, then tap the button again.",
   },
   collect: {
     kind: 'none',
@@ -152,11 +154,19 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
   }
 
   if (recipe.followGate.enabled) {
+    // First miss sends the request; every later miss sends the separate reminder.
     steps.check = { type: 'check_follow', following: head, notFollowing: 'ask_follow' }
     steps.ask_follow = {
       type: 'send_message',
       text: recipe.followGate.text,
-      buttons: [{ type: 'reply', id: 'followed', label: recipe.followGate.buttonLabel, next: 'check' }],
+      buttons: [{ type: 'reply', id: 'followed', label: recipe.followGate.buttonLabel, next: 'recheck' }],
+      ...nudge,
+    }
+    steps.recheck = { type: 'check_follow', following: head, notFollowing: 'remind_follow' }
+    steps.remind_follow = {
+      type: 'send_message',
+      text: recipe.followGate.reminderText,
+      buttons: [{ type: 'reply', id: 'followed_again', label: recipe.followGate.buttonLabel, next: 'recheck' }],
       ...nudge,
     }
     head = 'check'
@@ -259,7 +269,16 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
       case 'check_follow': {
         const gate = step.notFollowing ? flow.steps[step.notFollowing] : undefined
         if (gate?.type === 'send_message') {
-          recipe.followGate = { enabled: true, text: gate.text, buttonLabel: replyButton(gate)?.label ?? 'I followed ✓' }
+          const button = replyButton(gate)
+          const recheck = button?.next && button.next !== id ? flow.steps[button.next] : undefined
+          const reminder = recheck?.type === 'check_follow' && recheck.notFollowing ? flow.steps[recheck.notFollowing] : undefined
+          recipe.followGate = {
+            enabled: true,
+            text: gate.text,
+            buttonLabel: button?.label ?? 'I followed ✓',
+            // Older flows loop straight back to the first check, so they get the default reminder.
+            reminderText: reminder?.type === 'send_message' ? reminder.text : DEFAULT_RECIPE.followGate.reminderText,
+          }
           readNudge(recipe, gate)
         } else {
           recipe.followGate.enabled = true
