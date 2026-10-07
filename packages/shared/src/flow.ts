@@ -9,6 +9,14 @@ const Keywords = z.array(Keyword).min(1).max(20)
 const MessageText = z.string().trim().min(1).max(1000)
 const ButtonLabel = z.string().trim().min(1).max(20)
 const FieldKey = z.string().regex(/^[a-z][a-z0-9_]{0,31}$/)
+/** Meta only lets us message someone within 24h of their last message, so a nudge must land well inside that. */
+export const MAX_NUDGE_MINUTES = 23 * 60
+export const NudgeSchema = z.object({
+  afterMinutes: z.number().int().min(5).max(MAX_NUDGE_MINUTES),
+  text: z.string().trim().min(1).max(1000),
+})
+export type Nudge = z.infer<typeof NudgeSchema>
+
 const Tag = z.string().trim().min(1).max(50)
 const Minutes = z.number().int().min(1).max(10080)
 
@@ -67,6 +75,8 @@ export const StepSchema = z.discriminatedUnion('type', [
     text: MessageText,
     imageUrl: z.url().optional(),
     buttons: z.array(ButtonSchema).max(3).optional(),
+    /** One reminder if they haven't tapped a reply button yet. Only used on steps with reply buttons. */
+    nudge: NudgeSchema.optional(),
     next: StepIdSchema.optional(),
   }),
   z.object({
@@ -77,6 +87,8 @@ export const StepSchema = z.discriminatedUnion('type', [
     retryText: MessageText,
     maxAttempts: z.number().int().min(1).max(5),
     timeoutMinutes: Minutes,
+    /** One reminder if they haven't answered yet. */
+    nudge: NudgeSchema.optional(),
     answered: StepIdSchema.optional(),
     invalid: StepIdSchema.optional(),
     timeout: StepIdSchema.optional(),

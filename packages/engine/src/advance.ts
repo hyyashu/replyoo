@@ -143,7 +143,7 @@ function onReply(ctx: Ctx, text: string): boolean {
     runFrom(ctx, step.invalid)
     return true
   }
-  ctx.run.wait = { kind: 'reply', attempts }
+  ctx.run.wait = { ...current, attempts }
   ctx.effects.push({
     type: 'send',
     message: { text: renderText(step.retryText, ctx.contact, ctx.run.vars) },
@@ -154,6 +154,9 @@ function onReply(ctx: Ctx, text: string): boolean {
 function onTimeout(ctx: Ctx): boolean {
   const { wait: current, waitUntil } = ctx.run
   if (!current || !waitUntil || ctx.now.getTime() < waitUntil.getTime()) return false
+  if ((current.kind === 'postback' || current.kind === 'reply') && current.nudgeDeadline) {
+    return onNudge(ctx, current)
+  }
   switch (current.kind) {
     case 'postback':
       ctx.run.status = 'expired'
@@ -176,6 +179,23 @@ function onTimeout(ctx: Ctx): boolean {
       fail(ctx, 'follow_check_timeout')
       return true
   }
+}
+
+/** Sends the reminder (when we're still allowed to) and keeps waiting until the original deadline. */
+function onNudge(ctx: Ctx, current: Extract<Wait, { kind: 'postback' | 'reply' }>): boolean {
+  const step = currentStep(ctx, 'send_message') ?? currentStep(ctx, 'ask')
+  const nudge = step?.nudge
+  if (!nudge || !current.nudgeDeadline) return false
+  // After a comment's private reply nobody can be messaged until they respond.
+  if (ctx.run.outbound === 'dm') {
+    ctx.effects.push({ type: 'send', message: { text: renderText(nudge.text, ctx.contact, ctx.run.vars) } })
+  }
+  const { nudgeDeadline, ...rest } = current
+  const at = new Date(nudgeDeadline)
+  ctx.run.wait = rest
+  ctx.run.waitUntil = at
+  ctx.effects.push({ type: 'schedule_timeout', at })
+  return true
 }
 
 function onFollowResult(ctx: Ctx, following: boolean): boolean {
@@ -211,14 +231,14 @@ function execute(ctx: Ctx, stepId: string, step: Step): StepOutcome {
     case 'send_message': {
       if (!send(ctx, buildMessage(ctx, stepId, step))) return 'stop'
       if (hasReplyButtons(step)) {
-        wait(ctx, { kind: 'postback' }, POSTBACK_WAIT_MINUTES)
+        wait(ctx, { kind: 'postback' }, POSTBACK_WAIT_MINUTES, step.nudge)
         return 'stop'
       }
       return { next: step.next }
     }
     case 'ask': {
       if (!send(ctx, { text: renderText(step.question, ctx.contact, ctx.run.vars) })) return 'stop'
-      wait(ctx, { kind: 'reply', attempts: 0 }, step.timeoutMinutes)
+      wait(ctx, { kind: 'reply', attempts: 0 }, step.timeoutMinutes, step.nudge)
       return 'stop'
     }
     case 'check_follow':
@@ -285,8 +305,13 @@ function send(ctx: Ctx, message: OutboundMessage): boolean {
   }
 }
 
-function wait(ctx: Ctx, kind: Wait, minutes: number): void {
-  const at = new Date(ctx.now.getTime() + minutes * 60_000)
+function wait(ctx: Ctx, kind: Wait, minutes: number, nudge?: { afterMinutes: number }): void {
+  const deadline = new Date(ctx.now.getTime() + minutes * 60_000)
+  let at = deadline
+  if (nudge && nudge.afterMinutes < minutes && (kind.kind === 'postback' || kind.kind === 'reply')) {
+    at = new Date(ctx.now.getTime() + nudge.afterMinutes * 60_000)
+    kind = { ...kind, nudgeDeadline: deadline.toISOString() }
+  }
   ctx.run.status = 'waiting'
   ctx.run.wait = kind
   ctx.run.waitUntil = at

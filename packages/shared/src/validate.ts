@@ -13,6 +13,9 @@ export type ValidationCode =
   | 'save_type_mismatch'
   | 'buttons_text_too_long'
   | 'comment_first_message_image'
+  | 'nudge_without_wait'
+  | 'nudge_after_private_reply'
+  | 'nudge_too_late'
 
 export interface ValidationIssue {
   code: ValidationCode
@@ -92,6 +95,25 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
         stepId,
         message: `Messages with buttons can be at most ${MAX_BUTTON_TEMPLATE_TEXT} characters`,
       })
+    }
+    if ((step.type === 'send_message' || step.type === 'ask') && step.nudge) {
+      if (step.type === 'send_message' && !hasReplyButtons(step)) {
+        issues.push({ code: 'nudge_without_wait', stepId, message: 'A reminder needs a reply button to wait on' })
+      }
+      if (step.type === 'ask' && step.nudge.afterMinutes >= step.timeoutMinutes) {
+        issues.push({
+          code: 'nudge_too_late',
+          stepId,
+          message: 'The reminder must come before the question times out',
+        })
+      }
+      if (trigger.type === 'comment_keyword' && stepId === flow.start) {
+        issues.push({
+          code: 'nudge_after_private_reply',
+          stepId,
+          message: 'Meta allows only one message after a comment until the person replies, so this step cannot send a reminder',
+        })
+      }
     }
     if (
       step.type === 'ask' &&

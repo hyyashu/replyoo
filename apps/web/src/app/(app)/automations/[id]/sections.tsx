@@ -1,13 +1,15 @@
 'use client'
 
 import type { Platform } from '@replyooo/shared'
-import { AtSign, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
+import { AtSign, BellRing, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Toggle, cx } from '@/components/ui'
 import {
   COLLECT_DEFAULTS,
   MAX_LINKS,
+  MAX_NUDGE_HOURS,
   changeTriggerType,
+  nudgeApplies,
   openerRequired,
   type LinkButton,
   type Recipe,
@@ -440,7 +442,13 @@ export function BoostersSection({
       }
     })
 
-  const active = [recipe.followGate.enabled && 'Follow gate', collect !== 'none' && `Ask for ${collect}`, recipe.tags.length > 0 && 'Tags']
+  const canNudge = nudgeApplies(recipe)
+  const active = [
+    recipe.followGate.enabled && 'Follow gate',
+    collect !== 'none' && `Ask for ${collect}`,
+    canNudge && recipe.nudge.enabled && 'Reminder',
+    recipe.tags.length > 0 && 'Tags',
+  ]
   return (
     <Section
       index={index}
@@ -503,6 +511,48 @@ export function BoostersSection({
             <Label hint="2 tries · waits 24h">If the answer isn't valid</Label>
             <TextInput value={recipe.collect.retryText} maxLength={1000} onChange={(t) => update((d) => void (d.collect.retryText = t))} />
           </div>
+        </div>
+      )}
+
+      <Booster
+        icon={<BellRing className="size-4" />}
+        title="Remind them once"
+        body={
+          canNudge
+            ? 'Nudge people who stop before tapping or answering'
+            : 'Needs an opener, follow gate or email/phone question (comments allow no reminder on the first message)'
+        }
+        checked={canNudge && recipe.nudge.enabled}
+        disabled={!canNudge}
+        onChange={(v) => update((d) => void (d.nudge.enabled = v))}
+      />
+
+      {canNudge && recipe.nudge.enabled && (
+        <div>
+          <Label
+            hint={
+              <span className="flex items-center gap-1.5">
+                after
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_NUDGE_HOURS}
+                  value={recipe.nudge.afterHours}
+                  onChange={(e) =>
+                    update((d) => {
+                      const hours = Math.round(Number(e.target.value))
+                      d.nudge.afterHours = Number.isFinite(hours) ? Math.min(MAX_NUDGE_HOURS, Math.max(1, hours)) : 1
+                    })
+                  }
+                  className="h-7 w-14 rounded-lg border border-line bg-white px-2 text-center text-[13px] text-ink outline-none focus:border-ink"
+                />
+                hours of silence · sent once · max {MAX_NUDGE_HOURS}h (Meta's 24h messaging window)
+              </span>
+            }
+          >
+            Reminder message
+          </Label>
+          <MessageInput value={recipe.nudge.text} maxLength={1000} rows={2} onChange={(text) => update((d) => void (d.nudge.text = text))} />
         </div>
       )}
 

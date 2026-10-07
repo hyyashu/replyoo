@@ -9,9 +9,13 @@ export type RunStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'expire
 /** How the next outbound message may be delivered. */
 export type OutboundMode = 'dm' | 'private_reply' | 'blocked'
 
+/**
+ * `nudgeDeadline` is set while a reminder is still pending: the run wakes at the reminder
+ * time (`waitUntil`), sends it once, then keeps waiting until this ISO deadline.
+ */
 export type Wait =
-  | { kind: 'postback' }
-  | { kind: 'reply'; attempts: number }
+  | { kind: 'postback'; nudgeDeadline?: string }
+  | { kind: 'reply'; attempts: number; nudgeDeadline?: string }
   | { kind: 'delay' }
   | { kind: 'follow_check' }
 

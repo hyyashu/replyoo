@@ -36,6 +36,8 @@ export interface Recipe {
   collect: { kind: 'none' | 'email' | 'phone'; question: string; retryText: string }
   /** `imageUrl` is sent as its own picture message just before the text; '' means none. */
   message: { text: string; imageUrl: string; links: LinkButton[] }
+  /** One reminder if they go quiet at a tap/answer step. Needs an open DM window, so never the first message after a comment. */
+  nudge: { enabled: boolean; afterHours: number; text: string }
   tags: string[]
 }
 
@@ -59,8 +61,15 @@ export const DEFAULT_RECIPE: Recipe = {
     retryText: "Hmm, that doesn't look right. Mind trying again?",
   },
   message: { text: 'Here you go! 🎉', imageUrl: '', links: [{ label: 'Open link', url: 'https://example.com' }] },
+  nudge: {
+    enabled: false,
+    afterHours: 4,
+    text: "Just a quick reminder 👋 Tap the button above or reply here whenever you're ready and I'll send it over!",
+  },
   tags: [],
 }
+
+export const MAX_NUDGE_HOURS = 23
 
 export const COLLECT_DEFAULTS = {
   email: {
@@ -75,6 +84,13 @@ export const COLLECT_DEFAULTS = {
 
 export function openerRequired(trigger: RecipeTrigger): boolean {
   return trigger.type === 'comment_keyword'
+}
+
+/** Whether the recipe has a step where a reminder can be sent. */
+export function nudgeApplies(recipe: Recipe): boolean {
+  if (recipe.trigger.type === 'ice_breaker') return false
+  const firstDmIsOpener = recipe.opener.enabled && !openerRequired(recipe.trigger)
+  return firstDmIsOpener || recipe.followGate.enabled || recipe.collect.kind !== 'none'
 }
 
 export function compileRecipe(recipe: Recipe): FlowDefinition {
@@ -104,6 +120,9 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
     head = 'tag'
   }
 
+  const nudge = recipe.nudge.enabled
+    ? { nudge: { afterMinutes: Math.round(recipe.nudge.afterHours * 60), text: recipe.nudge.text } }
+    : {}
   steps.deliver = {
     type: 'send_message',
     text: recipe.message.text,
@@ -123,6 +142,7 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
       retryText: recipe.collect.retryText,
       maxAttempts: 2,
       timeoutMinutes: 1440,
+      ...nudge,
       answered: head,
       invalid: head,
     }
@@ -137,6 +157,7 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
       type: 'send_message',
       text: recipe.followGate.text,
       buttons: [{ type: 'reply', id: 'followed', label: recipe.followGate.buttonLabel, next: 'check' }],
+      ...nudge,
     }
     head = 'check'
   }
@@ -146,6 +167,8 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
       type: 'send_message',
       text: recipe.opener.text,
       buttons: [{ type: 'reply', id: 'go', label: recipe.opener.buttonLabel, next: head }],
+      // After a comment the opener is a one-shot private reply: Meta won't let us follow it up.
+      ...(openerRequired(trigger) ? {} : nudge),
     }
     head = 'opener'
   }
@@ -222,6 +245,7 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
         const reply = replyButton(step)
         if (reply && !messageFound && !recipe.opener.enabled && !recipe.followGate.enabled) {
           recipe.opener = { enabled: true, text: step.text, buttonLabel: reply.label }
+          readNudge(recipe, step)
           id = reply.next
         } else {
           messageFound = true
@@ -236,6 +260,7 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
         const gate = step.notFollowing ? flow.steps[step.notFollowing] : undefined
         if (gate?.type === 'send_message') {
           recipe.followGate = { enabled: true, text: gate.text, buttonLabel: replyButton(gate)?.label ?? 'I followed ✓' }
+          readNudge(recipe, gate)
         } else {
           recipe.followGate.enabled = true
         }
@@ -248,6 +273,7 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
       case 'ask':
         if (step.saveTo === 'email' || step.saveTo === 'phone') {
           recipe.collect = { kind: step.saveTo, question: step.question, retryText: step.retryText }
+          readNudge(recipe, step)
         }
         id = step.answered
         break
@@ -261,6 +287,15 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
     }
   }
   return recipe
+}
+
+function readNudge(recipe: Recipe, step: StepOf<'send_message'> | StepOf<'ask'>): void {
+  if (!step.nudge || recipe.nudge.enabled) return
+  recipe.nudge = {
+    enabled: true,
+    afterHours: Math.min(MAX_NUDGE_HOURS, Math.max(1, Math.round(step.nudge.afterMinutes / 60))),
+    text: step.nudge.text,
+  }
 }
 
 function replyButton(step: StepOf<'send_message'>) {

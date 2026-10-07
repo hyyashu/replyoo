@@ -199,3 +199,49 @@ describe('validateFlow', () => {
     expect(codes(flow)).toEqual(['save_type_mismatch'])
   })
 })
+
+describe('validateFlow: nudges', () => {
+  const nudge = { afterMinutes: 60, text: 'Still there?' }
+  const withOpenerNudge = (flow: FlowDefinition): FlowDefinition => ({
+    ...flow,
+    steps: { ...flow.steps, opener: { ...flow.steps.opener!, nudge } as never },
+  })
+
+  it('rejects a reminder on the opener of a comment flow', () => {
+    expect(codes(withOpenerNudge(validCommentFlow))).toContain('nudge_after_private_reply')
+  })
+
+  it('accepts a reminder on a DM opener', () => {
+    const flow = withOpenerNudge({ ...validCommentFlow, trigger: { type: 'any_dm' } })
+    expect(validateFlow(flow, 'instagram')).toEqual([])
+  })
+
+  it('rejects a reminder on a message without reply buttons', () => {
+    const flow: FlowDefinition = {
+      trigger: { type: 'any_dm' },
+      start: 's1',
+      steps: { s1: { type: 'send_message', text: 'Hi', nudge } },
+    }
+    expect(codes(flow)).toContain('nudge_without_wait')
+  })
+
+  it('rejects a reminder that is not before the question times out', () => {
+    const flow: FlowDefinition = {
+      trigger: { type: 'any_dm' },
+      start: 's1',
+      steps: {
+        s1: {
+          type: 'ask',
+          question: 'Email?',
+          saveTo: 'email',
+          validate: 'email',
+          retryText: 'Again',
+          maxAttempts: 2,
+          timeoutMinutes: 60,
+          nudge,
+        },
+      },
+    }
+    expect(codes(flow)).toContain('nudge_too_late')
+  })
+})

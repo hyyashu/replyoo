@@ -133,3 +133,49 @@ describe('any-comment trigger', () => {
     expect(flow.trigger).toMatchObject({ type: 'comment_keyword', keywords: [] })
   })
 })
+
+describe('reminder (nudge)', () => {
+  const nudge = { enabled: true, afterHours: 3, text: 'Still there?' }
+  const expected = { afterMinutes: 180, text: 'Still there?' }
+
+  it('goes on the opener, follow gate and question of a DM flow', () => {
+    const flow = compileRecipe(
+      recipe({
+        trigger: { type: 'any_dm' },
+        followGate: { ...DEFAULT_RECIPE.followGate, enabled: true },
+        collect: { ...DEFAULT_RECIPE.collect, kind: 'email' },
+        nudge,
+      }),
+    )
+    expect(flow.steps.opener).toMatchObject({ nudge: expected })
+    expect(flow.steps.ask_follow).toMatchObject({ nudge: expected })
+    expect(flow.steps.ask).toMatchObject({ nudge: expected })
+    expect(flow.steps.deliver).not.toHaveProperty('nudge')
+  })
+
+  it("skips a comment flow's opener, because Meta allows only one private reply", () => {
+    const { issues, flow } = checkRecipe(
+      recipe({ followGate: { ...DEFAULT_RECIPE.followGate, enabled: true }, nudge }),
+      'instagram',
+    )
+    expect(issues).toEqual([])
+    expect(flow.steps.opener).not.toHaveProperty('nudge')
+    expect(flow.steps.ask_follow).toMatchObject({ nudge: expected })
+  })
+
+  it('round-trips and stays stable', () => {
+    const original = recipe({
+      trigger: { type: 'any_dm' },
+      collect: { ...DEFAULT_RECIPE.collect, kind: 'phone' },
+      nudge,
+    })
+    const flow = compileRecipe(original)
+    const back = recipeFromFlow(flow)
+    expect(back.nudge).toEqual(nudge)
+    expect(compileRecipe(back)).toEqual(flow)
+  })
+
+  it('is off by default', () => {
+    expect(JSON.stringify(compileRecipe(DEFAULT_RECIPE))).not.toContain('nudge')
+  })
+})
