@@ -17,6 +17,9 @@ function lookup(key: string, contact: ContactState, vars: Record<string, string>
   switch (key) {
     case 'first_name':
       return contact.name?.trim().split(/\s+/)[0] ?? null
+    /** First name when we have one, otherwise the @username — a safe greeting for a comment reply. */
+    case 'display_name':
+      return contact.name?.trim().split(/\s+/)[0] || contact.username
     case 'name':
       return contact.name
     case 'username':

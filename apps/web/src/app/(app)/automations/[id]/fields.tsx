@@ -12,6 +12,12 @@ const VARIABLES = [
   { token: '{{phone}}', label: 'Phone' },
 ]
 
+/** All a public reply can know: someone who just commented hasn't given an email or phone yet. */
+export const COMMENT_VARIABLES = [
+  { token: '{{display_name}}', label: 'Name' },
+  { token: '{{username}}', label: 'Username' },
+]
+
 export function Label({ children, hint }: { children: ReactNode; hint?: ReactNode }) {
   return (
     <div className="mb-1.5 flex items-baseline justify-between gap-3">
@@ -69,6 +75,7 @@ export function MessageInput({
   placeholder,
   footer,
   label,
+  variables = VARIABLES,
 }: {
   value: string
   onChange: (value: string) => void
@@ -78,6 +85,8 @@ export function MessageInput({
   footer?: ReactNode
   /** Accessible name; pass the visible label text. */
   label?: string
+  /** Which variables the Variables menu offers. */
+  variables?: typeof VARIABLES
 }) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -136,7 +145,7 @@ export function MessageInput({
           </button>
           {menu && (
             <div className="absolute right-0 bottom-full z-20 mb-1 w-44 rounded-xl border border-line bg-white p-1 shadow-[0_12px_32px_rgba(21,19,16,0.12)]">
-              {VARIABLES.map((v) => (
+              {variables.map((v) => (
                 <button
                   key={v.token}
                   type="button"

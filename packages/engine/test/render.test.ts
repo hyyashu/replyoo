@@ -15,6 +15,11 @@ describe('renderText', () => {
     expect(renderText('Hey {{ first_name | there }}!', contact, {})).toBe('Hey there!')
   })
 
+  it('display_name is the first name, or the username when the name is unknown', () => {
+    expect(renderText('{{display_name}}', makeContact(), {})).toBe('Priya')
+    expect(renderText('{{display_name}}', makeContact({ name: null }), {})).toBe('priya')
+  })
+
   it('renders an empty string for unknown or missing values without fallback', () => {
     expect(renderText('[{{phone}}][{{nope}}]', makeContact(), {})).toBe('[][]')
   })

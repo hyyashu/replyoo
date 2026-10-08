@@ -4,14 +4,15 @@ import { stepTargets, type Platform } from '@replyooo/shared'
 import { ArrowLeft, Check, CircleAlert, Eye, LoaderCircle, Pause, Pencil, Play, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { publishAutomation, saveDraft, setAutomationStatus } from '@/app/actions'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { listPosts, listStories, publishAutomation, saveDraft, setAutomationStatus } from '@/app/actions'
 import { Button, StatusPill, cx, formatNumber, formatPercent, timeAgo } from '@/components/ui'
+import type { RecentPost } from '@/lib/data'
 import type { Automation } from '@/lib/data/types'
 import { recipeFromFlow, type Recipe } from '@/lib/recipe'
 import { checkRecipe, type RecipeSection } from '@/lib/validation'
 import { Segmented } from './fields'
-import { PhonePreview } from '@/components/phone-preview'
+import { PhonePreview, previewModes, type PreviewMode } from '@/components/phone-preview'
 import { Accordion, BoostersSection, DmSection, ProgressCue, PublicReplySection, TriggerSection, type Update } from './sections'
 
 type SaveState = { kind: 'saved'; at: string } | { kind: 'saving' } | { kind: 'error'; message: string }
@@ -47,8 +48,29 @@ export function Editor({
   const [save, setSave] = useState<SaveState>({ kind: 'saved', at: automation.updatedAt })
   const [publishErrors, setPublishErrors] = useState<string[]>([])
   const [published, setPublished] = useState(false)
-  const [preview, setPreview] = useState<'comment' | 'dm'>('dm')
+  const [preview, setPreview] = useState<PreviewMode>('dm')
   const [previewOpen, setPreviewOpen] = useState(false)
+  // Posts and stories the picker (or the first load below) has seen, so the preview can show the chosen one.
+  const [media, setMedia] = useState<Record<string, RecentPost>>({})
+  const rememberMedia = useCallback(
+    (posts: RecentPost[]) => setMedia((current) => ({ ...current, ...Object.fromEntries(posts.map((post) => [post.id, post])) })),
+    [],
+  )
+  useEffect(() => {
+    const t = recipe.trigger
+    const wantsStory = t.type === 'story_reply' && t.stories.mode === 'specific' && t.stories.mediaIds.length > 0
+    const wantsPost = t.type === 'comment_keyword' && t.posts.mode === 'specific' && t.posts.mediaIds.length > 0
+    if (!wantsStory && !wantsPost) return
+    let cancelled = false
+    ;(wantsStory ? listStories : listPosts)(automation.accountId)
+      .then((result) => !cancelled && result.ok && rememberMedia(result.posts))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+    // Once on open: the picker reports anything chosen afterwards.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => {
     if (!previewOpen) return
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setPreviewOpen(false)
@@ -295,6 +317,15 @@ export function Editor({
   ]
   const isIceBreaker = recipe.trigger.type === 'ice_breaker'
   const hasPublicReply = recipe.trigger.type === 'comment_keyword'
+  const chosenId =
+    recipe.trigger.type === 'comment_keyword' && recipe.trigger.posts.mode === 'specific'
+      ? recipe.trigger.posts.mediaIds[0]
+      : recipe.trigger.type === 'story_reply' && recipe.trigger.stories?.mode === 'specific'
+        ? recipe.trigger.stories.mediaIds[0]
+        : undefined
+  const previewMedia = chosenId ? media[chosenId] : undefined
+  const previewTabs = previewModes(recipe.trigger)
+  const previewMode = previewTabs.some((tab) => tab.value === preview) ? preview : 'dm'
   const stepCount = Object.keys(flow.steps).length
   const branchCount = Object.values(flow.steps).filter((step) => new Set(stepTargets(step)).size > 1).length
   const canPublish = issues.length === 0 && !publishing && !conflict && (unpublished || status === 'draft')
@@ -304,19 +335,10 @@ export function Editor({
     <>
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-semibold">Live preview</h2>
-        {hasPublicReply && (
-          <Segmented
-            value={preview}
-            onChange={setPreview}
-            options={[
-              { value: 'comment', label: 'Comment' },
-              { value: 'dm', label: 'DM' },
-            ]}
-          />
-        )}
+        {previewTabs.length > 1 && <Segmented value={previewMode} onChange={setPreview} options={previewTabs} />}
       </div>
       <div className="mt-6">
-        <PhonePreview recipe={recipe} mode={hasPublicReply ? preview : 'dm'} username={username} />
+        <PhonePreview recipe={recipe} mode={previewMode} username={username} media={previewMedia} />
       </div>
       <p className="mx-auto mt-5 max-w-[290px] text-center text-[12.5px] leading-relaxed text-subtle">
         This is what @sam.eats sees. Variables like {'{{first_name}}'} fill in automatically.
@@ -424,7 +446,7 @@ export function Editor({
           )}
 
           <Accordion>
-            <TriggerSection recipe={recipe} update={update} platform={platform} accountId={automation.accountId} issues={sectionIssues} />
+            <TriggerSection recipe={recipe} update={update} platform={platform} accountId={automation.accountId} onMedia={rememberMedia} issues={sectionIssues} />
             <PublicReplySection recipe={recipe} update={update} issues={sectionIssues} />
             <DmSection index={hasPublicReply ? 3 : 2} recipe={recipe} update={update} issues={sectionIssues} />
             <BoostersSection index={hasPublicReply ? 4 : 3} recipe={recipe} update={update} platform={platform} issues={sectionIssues} />

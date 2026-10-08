@@ -14,11 +14,14 @@ export function PostPicker({
   accountId,
   selected,
   onChange,
+  onLoaded,
   source = 'posts',
 }: {
   accountId: string
   selected: string[]
   onChange: (mediaIds: string[]) => void
+  /** Hands the fetched media up so the live preview can show the chosen one. */
+  onLoaded?: (posts: RecentPost[]) => void
   source?: 'posts' | 'stories'
 }) {
   const noun = source === 'stories' ? 'stories' : 'posts'
@@ -30,7 +33,9 @@ export function PostPicker({
     setLoaded({ kind: 'loading' })
     ;(source === 'stories' ? listStories : listPosts)(accountId)
       .then((result) => {
-        if (!cancelled) setLoaded(result.ok ? { kind: 'ready', posts: result.posts } : { kind: 'error', message: result.error })
+        if (cancelled) return
+        setLoaded(result.ok ? { kind: 'ready', posts: result.posts } : { kind: 'error', message: result.error })
+        if (result.ok) onLoaded?.(result.posts)
       })
       .catch(() => {
         if (!cancelled) setLoaded({ kind: 'error', message: "Couldn't reach Replyooo. Check your connection and try again." })
@@ -38,6 +43,7 @@ export function PostPicker({
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onLoaded is a fresh closure each render; refetching on it would loop
   }, [accountId, attempt, source])
 
   const toggle = (id: string) =>
@@ -120,11 +126,13 @@ export function PostPickerDialog({
   selected,
   onChange,
   onClose,
+  onLoaded,
   source = 'posts',
 }: {
   accountId: string
   selected: string[]
   onChange: (mediaIds: string[]) => void
+  onLoaded?: (posts: RecentPost[]) => void
   onClose: () => void
   source?: 'posts' | 'stories'
 }) {
@@ -150,7 +158,7 @@ export function PostPickerDialog({
           </button>
         </div>
         <div className="overflow-y-auto px-5 pb-4">
-          <PostPicker accountId={accountId} selected={selected} onChange={onChange} source={source} />
+          <PostPicker accountId={accountId} selected={selected} onChange={onChange} onLoaded={onLoaded} source={source} />
         </div>
         <div className="flex justify-end border-t border-line px-5 py-3">
           <Button onClick={onClose}>Done</Button>

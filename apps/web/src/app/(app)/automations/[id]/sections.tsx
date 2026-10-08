@@ -17,7 +17,8 @@ import {
   type RecipeTrigger,
 } from '@/lib/recipe'
 import type { RecipeIssue, RecipeSection } from '@/lib/validation'
-import { KeywordInput, Label, MessageInput, Segmented, TextInput } from './fields'
+import { COMMENT_VARIABLES, KeywordInput, Label, MessageInput, Segmented, TextInput } from './fields'
+import type { RecentPost } from '@/lib/data'
 import { PostPickerDialog } from './post-picker'
 
 export type Update = (fn: (draft: Recipe) => void) => void
@@ -128,12 +129,14 @@ export function TriggerSection({
   update,
   platform,
   accountId,
+  onMedia,
   issues,
 }: {
   recipe: Recipe
   update: Update
   platform: Platform
   accountId: string
+  onMedia?: (posts: RecentPost[]) => void
   issues: (section: RecipeSection) => RecipeIssue[]
 }) {
   const { trigger } = recipe
@@ -244,6 +247,7 @@ export function TriggerSection({
               {pickingPosts && (
                 <PostPickerDialog
                   accountId={accountId}
+                  onLoaded={onMedia}
                   selected={trigger.posts.mediaIds}
                   onChange={(mediaIds) =>
                     update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.posts = { mode: 'specific', mediaIds }))
@@ -354,6 +358,7 @@ export function TriggerSection({
                   <PostPickerDialog
                     source="stories"
                     accountId={accountId}
+                    onLoaded={onMedia}
                     selected={trigger.stories.mediaIds}
                     onChange={(mediaIds) =>
                       update((d) => d.trigger.type === 'story_reply' && void (d.trigger.stories = { mode: 'specific', mediaIds }))
@@ -522,14 +527,16 @@ export function PublicReplySection({
       action={<Toggle label="Reply publicly" checked={enabled} onChange={(value) => set((p) => void (p.enabled = value))} />}
     >
       {enabled && (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2">
           {replies.map((reply, index) => (
-            <div key={index} className="flex items-center gap-1">
+            <div key={index} className="flex items-start gap-1">
               <div className="flex-1">
-                <TextInput
+                <MessageInput
                   label={`Public reply ${index + 1}`}
                   value={reply}
+                  rows={2}
                   maxLength={500}
+                  variables={COMMENT_VARIABLES}
                   onChange={(value) => set((p) => void (p.replies[index] = value))}
                 />
               </div>
@@ -537,7 +544,7 @@ export function PublicReplySection({
                 <button
                   type="button"
                   aria-label="Remove reply"
-                  className="grid size-9 place-items-center rounded-lg text-faint hover:text-ink"
+                  className="mt-1 grid size-9 place-items-center rounded-lg text-faint hover:text-ink"
                   onClick={() => set((p) => void p.replies.splice(index, 1))}
                 >
                   <Trash2 className="size-3.5" />
