@@ -59,11 +59,16 @@ export interface Contact {
   phone: string | null
   tags: string[]
   fields: Record<string, string>
+  avatarUrl: string | null
+  /** Null when Instagram hasn't told us yet. */
+  followsYou: boolean | null
+  youFollow: boolean | null
   firstSeenAt: string
   lastInboundAt: string
 }
 
 export interface ContactDetail extends Contact {
+  messageCount: number
   messages: ContactMessage[]
   runs: ContactRun[]
 }
@@ -110,7 +115,15 @@ export interface Subscription {
 export interface ContactFilters {
   q?: string
   tag?: string
-  has?: 'email' | 'phone'
+  has?: 'email' | 'phone' | 'lead'
+  rel?: 'follows_you' | 'mutual'
+}
+
+export interface ContactStats {
+  total: number
+  leads: number
+  followsYou: number
+  mutual: number
 }
 
 export type PublishResult = { ok: true; version: number } | { ok: false; errors: string[] }

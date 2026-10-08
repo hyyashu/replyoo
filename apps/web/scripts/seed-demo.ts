@@ -85,6 +85,9 @@ async function main() {
         email: index % 3 === 0 ? `${username.replace('.', '')}@example.com` : null,
         phone: index % 5 === 1 ? `+91 98765 ${String(43210 + index).slice(-5)}` : null,
         tags: index % 4 === 0 ? ['email-lead', 'vip'] : index % 3 === 0 ? ['email-lead'] : [],
+        followsYou: index % 3 !== 2,
+        youFollow: index % 4 === 0 || index % 3 === 0,
+        followCheckedAt: minutesAgo(index * 37 + 2),
         lastInboundAt: minutesAgo(index * 37 + 2),
         firstSeenAt: minutesAgo(index * 600 + 60),
       })

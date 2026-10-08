@@ -17,6 +17,7 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
     if (value) next.set(key, value)
     else next.delete(key)
     next.delete('contact')
+    next.delete('page')
     router.replace(`${pathname}?${next}`, { scroll: false })
   }
 
@@ -27,7 +28,7 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
-  const active = Boolean(filters.q || filters.tag || filters.has)
+  const active = Boolean(filters.q || filters.tag || filters.has || filters.rel)
 
   return (
     <div className="flex flex-wrap items-center gap-2.5 p-4">
@@ -40,6 +41,26 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
           className="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-subtle"
         />
       </label>
+      <button
+        type="button"
+        onClick={() => set('has', filters.has === 'lead' ? undefined : 'lead')}
+        className={cx(
+          'h-10 rounded-xl border px-3.5 text-[13.5px] font-medium transition-colors',
+          filters.has === 'lead' ? 'border-ink bg-ink text-white' : 'border-line text-muted hover:text-ink',
+        )}
+      >
+        Leads only
+      </button>
+      <button
+        type="button"
+        onClick={() => set('rel', filters.rel === 'follows_you' ? undefined : 'follows_you')}
+        className={cx(
+          'h-10 rounded-xl border px-3.5 text-[13.5px] font-medium transition-colors',
+          filters.rel === 'follows_you' ? 'border-ink bg-ink text-white' : 'border-line text-muted hover:text-ink',
+        )}
+      >
+        Follows you
+      </button>
       {(['email', 'phone'] as const).map((kind) => (
         <button
           key={kind}

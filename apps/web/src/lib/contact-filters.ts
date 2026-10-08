@@ -8,5 +8,11 @@ export function parseContactFilters(params: Params): ContactFilters {
     return typeof value === 'string' && value !== '' ? value : undefined
   }
   const has = one('has')
-  return { q: one('q'), tag: one('tag'), has: has === 'email' || has === 'phone' ? has : undefined }
+  const rel = one('rel')
+  return {
+    q: one('q'),
+    tag: one('tag'),
+    has: has === 'email' || has === 'phone' || has === 'lead' ? has : undefined,
+    rel: rel === 'follows_you' || rel === 'mutual' ? rel : undefined,
+  }
 }

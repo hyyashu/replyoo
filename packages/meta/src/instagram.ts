@@ -42,10 +42,22 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
     },
 
     async getProfile(account, userId) {
-      const res = await call<{ name?: string; username?: string; profile_pic?: string }>(account, userId, {
-        query: { fields: 'name,username,profile_pic' },
+      const res = await call<{
+        name?: string
+        username?: string
+        profile_pic?: string
+        is_user_follow_business?: boolean
+        is_business_follow_user?: boolean
+      }>(account, userId, {
+        query: { fields: 'name,username,profile_pic,is_user_follow_business,is_business_follow_user' },
       })
-      return { name: res.name ?? null, username: res.username ?? null, avatarUrl: res.profile_pic ?? null }
+      return {
+        name: res.name ?? null,
+        username: res.username ?? null,
+        avatarUrl: res.profile_pic ?? null,
+        followsYou: res.is_user_follow_business ?? null,
+        youFollow: res.is_business_follow_user ?? null,
+      }
     },
 
     async getMediaPublishedAt(account, mediaId) {

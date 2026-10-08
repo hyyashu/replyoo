@@ -4,9 +4,10 @@ import { and, arrayContains, desc, eq, gte, ilike, inArray, isNotNull, or, type 
 import { db } from '../db'
 import { DM_KINDS, statsSince } from './automations'
 import { isUuid } from './ids'
-import type { Contact, ContactDetail, ContactFilters, HomeStats } from './types'
+import type { Contact, ContactDetail, ContactFilters, ContactStats, HomeStats } from './types'
 
-export const CONTACTS_PAGE_SIZE = 200
+export const CONTACT_PAGE_SIZES = [10, 25, 50] as const
+export const DEFAULT_CONTACT_PAGE_SIZE = 25
 const MESSAGE_LIMIT = 50
 const RUN_LIMIT = 20
 
@@ -20,6 +21,9 @@ const columns = {
   phone: contacts.phone,
   tags: contacts.tags,
   fields: contacts.fields,
+  avatarUrl: contacts.avatarUrl,
+  followsYou: contacts.followsYou,
+  youFollow: contacts.youFollow,
   firstSeenAt: contacts.firstSeenAt,
   lastInboundAt: contacts.lastInboundAt,
 }
@@ -34,6 +38,9 @@ interface ContactRow {
   phone: string | null
   tags: string[]
   fields: Record<string, string>
+  avatarUrl: string | null
+  followsYou: boolean | null
+  youFollow: boolean | null
   firstSeenAt: Date
   lastInboundAt: Date | null
 }
@@ -52,6 +59,9 @@ function toContact(row: ContactRow): Contact {
     phone: row.phone,
     tags: row.tags,
     fields: row.fields,
+    avatarUrl: row.avatarUrl,
+    followsYou: row.followsYou,
+    youFollow: row.youFollow,
     firstSeenAt: row.firstSeenAt.toISOString(),
     lastInboundAt: (row.lastInboundAt ?? row.firstSeenAt).toISOString(),
   }
@@ -76,6 +86,9 @@ function scope(workspaceId: string, accountId: string, filters: ContactFilters =
     filters.tag ? arrayContains(contacts.tags, [filters.tag]) : undefined,
     filters.has === 'email' ? isNotNull(contacts.email) : undefined,
     filters.has === 'phone' ? isNotNull(contacts.phone) : undefined,
+    filters.has === 'lead' ? LEAD : undefined,
+    filters.rel === 'follows_you' ? eq(contacts.followsYou, true) : undefined,
+    filters.rel === 'mutual' ? and(eq(contacts.followsYou, true), eq(contacts.youFollow, true)) : undefined,
   )
 }
 
@@ -83,7 +96,7 @@ export async function listContacts(
   workspaceId: string,
   accountId: string,
   filters: ContactFilters = {},
-  options: { limit?: number } = {},
+  options: { limit?: number; offset?: number } = {},
 ): Promise<Contact[]> {
   if (!isUuid(accountId)) return []
   const query = db()
@@ -92,8 +105,30 @@ export async function listContacts(
     .where(scope(workspaceId, accountId, filters))
     .orderBy(sql`${contacts.lastInboundAt} desc nulls last`, desc(contacts.firstSeenAt))
     .$dynamic()
-  const rows = options.limit ? await query.limit(options.limit) : await query
+  const rows = options.limit ? await query.limit(options.limit).offset(options.offset ?? 0) : await query
   return rows.map(toContact)
+}
+
+/** How many contacts match the filters (for pagination). */
+export async function countMatchingContacts(workspaceId: string, accountId: string, filters: ContactFilters = {}): Promise<number> {
+  if (!isUuid(accountId)) return 0
+  const [row] = await db().select({ total: count() }).from(contacts).where(scope(workspaceId, accountId, filters))
+  return row?.total ?? 0
+}
+
+/** Headline numbers for the contacts page. Follow counts only include people Instagram has told us about. */
+export async function contactStats(workspaceId: string, accountId: string): Promise<ContactStats> {
+  if (!isUuid(accountId)) return { total: 0, leads: 0, followsYou: 0, mutual: 0 }
+  const [row] = await db()
+    .select({
+      total: count(),
+      leads: sql<number>`count(*) filter (where ${LEAD})`.mapWith(Number),
+      followsYou: sql<number>`count(*) filter (where ${contacts.followsYou})`.mapWith(Number),
+      mutual: sql<number>`count(*) filter (where ${contacts.followsYou} and ${contacts.youFollow})`.mapWith(Number),
+    })
+    .from(contacts)
+    .where(scope(workspaceId, accountId))
+  return row ?? { total: 0, leads: 0, followsYou: 0, mutual: 0 }
 }
 
 export async function countContacts(workspaceId: string, accountId: string): Promise<{ total: number; leads: number }> {
@@ -145,7 +180,8 @@ export async function getContactDetail(workspaceId: string, accountId: string, i
     .where(and(scope(workspaceId, accountId), eq(contacts.id, id)))
   if (!row) return null
 
-  const [recent, runs] = await Promise.all([
+  const [[messageTotal], recent, runs] = await Promise.all([
+    db().select({ total: count() }).from(messages).where(eq(messages.contactId, id)),
     db()
       .select({ direction: messages.direction, body: messages.body, at: messages.createdAt })
       .from(messages)
@@ -163,6 +199,7 @@ export async function getContactDetail(workspaceId: string, accountId: string, i
 
   return {
     ...toContact(row),
+    messageCount: messageTotal?.total ?? 0,
     messages: recent
       .reverse()
       .map((m) => ({ direction: m.direction, text: messageText(m.body), at: m.at.toISOString() }))

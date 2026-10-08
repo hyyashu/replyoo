@@ -147,6 +147,9 @@ export async function handleFollowCheck(deps: Deps, job: FollowCheckJobData): Pr
       return
     }
   }
+  if (adapter.isFollower) {
+    await deps.db.update(contacts).set({ followsYou: following, followCheckedAt: deps.now() }).where(eq(contacts.id, contact.id))
+  }
   await deps.jobs.flow({
     runId: run.id,
     event: { type: 'follow_result', following },

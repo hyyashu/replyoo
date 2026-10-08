@@ -67,7 +67,13 @@ describe('createInstagramAdapter', () => {
       http.get(`${base}/igsid_1`, ({ request }) => {
         const fields = new URL(request.url).searchParams.get('fields')
         if (fields === 'is_user_follow_business') return HttpResponse.json({ is_user_follow_business: true })
-        return HttpResponse.json({ name: 'Priya Sharma', username: 'priya', profile_pic: 'https://pic' })
+        return HttpResponse.json({
+          name: 'Priya Sharma',
+          username: 'priya',
+          profile_pic: 'https://pic',
+          is_user_follow_business: true,
+          is_business_follow_user: false,
+        })
       }),
       http.get(`${base}/media1`, () => HttpResponse.json({ timestamp: '2026-10-01T09:00:00+0000' })),
     )
@@ -75,6 +81,8 @@ describe('createInstagramAdapter', () => {
       name: 'Priya Sharma',
       username: 'priya',
       avatarUrl: 'https://pic',
+      followsYou: true,
+      youFollow: false,
     })
     expect(await adapter.isFollower?.(account, 'igsid_1')).toBe(true)
     expect((await adapter.getMediaPublishedAt(account, 'media1'))?.toISOString()).toBe('2026-10-01T09:00:00.000Z')

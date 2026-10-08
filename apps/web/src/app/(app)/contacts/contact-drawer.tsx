@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
 import { Avatar, Keyword, cx, timeAgo } from '@/components/ui'
 import type { ContactDetail, ContactRun } from '@/lib/data/types'
+import { RelationshipBadges } from './relationship'
 
 const RUN_STATUS: Record<ContactRun['status'], string> = {
   running: 'bg-sky-soft text-[#1f5f99]',
@@ -37,14 +38,28 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
       <button type="button" aria-label="Close" onClick={close} className="absolute inset-0 bg-ink/20" />
       <aside className="relative flex h-full w-[440px] flex-col overflow-y-auto bg-white shadow-[-12px_0_40px_rgba(21,19,16,0.12)]">
         <div className="flex items-start gap-3 border-b border-line p-6">
-          <Avatar name={contact.username} size={48} />
+          <Avatar name={contact.username} size={48} src={contact.avatarUrl} />
           <div className="min-w-0 flex-1">
             <h2 className="text-[18px] font-semibold">{contact.name}</h2>
             <p className="text-[13.5px] text-subtle">@{contact.username}</p>
+            <RelationshipBadges followsYou={contact.followsYou} youFollow={contact.youFollow} className="mt-2" />
           </div>
           <button type="button" onClick={close} aria-label="Close" className="grid size-8 place-items-center rounded-lg hover:bg-sand">
             <X className="size-4" />
           </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 border-b border-line p-6">
+          {[
+            ['Messages', String(contact.messageCount)],
+            ['First interaction', new Date(contact.firstSeenAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })],
+            ['Last activity', timeAgo(contact.lastInboundAt)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-line px-3 py-2.5">
+              <div className="eyebrow text-[10.5px]">{label}</div>
+              <div className="mt-1 text-[14px] font-semibold">{value}</div>
+            </div>
+          ))}
         </div>
 
         <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-3 border-b border-line p-6 text-[13.5px]">
@@ -78,8 +93,6 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
           <dd className="flex flex-wrap gap-1">
             {contact.tags.length ? contact.tags.map((tag) => <Keyword key={tag}>{tag}</Keyword>) : <span className="text-faint">—</span>}
           </dd>
-          <dt className="text-subtle">First seen</dt>
-          <dd>{new Date(contact.firstSeenAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</dd>
         </dl>
 
         <section className="border-b border-line p-6">

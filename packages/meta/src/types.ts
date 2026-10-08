@@ -23,6 +23,9 @@ export interface Profile {
   name: string | null
   username: string | null
   avatarUrl: string | null
+  /** Instagram only: whether the person follows the account / the account follows them. */
+  followsYou?: boolean | null
+  youFollow?: boolean | null
 }
 
 /** A published post or reel, as shown in the dashboard's post picker. `id` matches the webhook's `mediaId`. */

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import * as automationData from '@/lib/data/automations'
 import {
+  contactStats,
   countContacts,
+  countMatchingContacts,
   getContactDetail,
   getHomeStats,
   listContacts,
@@ -76,6 +78,24 @@ describe('countContacts, listTags and listLatestLeads', () => {
     expect(await countContacts(workspaceId, accountId)).toEqual({ total: 3, leads: 2 })
     expect(await listTags(workspaceId, accountId)).toEqual(['a-tag', 'b-tag'])
     expect(await listLatestLeads(workspaceId, accountId)).toHaveLength(2)
+  })
+})
+
+describe('follow relationship and paging', () => {
+  it('counts followers and mutuals, filters by relationship, and pages', async () => {
+    const { workspaceId, accountId } = await setup()
+    await createContact(workspaceId, accountId, { username: 'mutual', followsYou: true, youFollow: true, lastInboundAt: minutesAgo(1) })
+    await createContact(workspaceId, accountId, { username: 'fan', followsYou: true, youFollow: false, lastInboundAt: minutesAgo(2) })
+    await createContact(workspaceId, accountId, { username: 'stranger', followsYou: false, lastInboundAt: minutesAgo(3) })
+    await createContact(workspaceId, accountId, { username: 'unknown', lastInboundAt: minutesAgo(4), email: 'u@example.com' })
+
+    expect(await contactStats(workspaceId, accountId)).toEqual({ total: 4, leads: 1, followsYou: 2, mutual: 1 })
+    const names = async (filters = {}) => (await listContacts(workspaceId, accountId, filters)).map((c) => c.username)
+    expect(await names({ rel: 'follows_you' })).toEqual(['mutual', 'fan'])
+    expect(await names({ rel: 'mutual' })).toEqual(['mutual'])
+    expect(await names({ has: 'lead' })).toEqual(['unknown'])
+    expect(await countMatchingContacts(workspaceId, accountId, { rel: 'follows_you' })).toBe(2)
+    expect((await listContacts(workspaceId, accountId, {}, { limit: 2, offset: 2 })).map((c) => c.username)).toEqual(['stranger', 'unknown'])
   })
 })
 

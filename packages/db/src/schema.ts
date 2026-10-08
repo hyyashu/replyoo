@@ -203,6 +203,10 @@ export const contacts = pgTable(
     tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
     fields: jsonb('fields').$type<Record<string, string>>().notNull().default({}),
     lastInboundAt: tz('last_inbound_at'),
+    /** Whether they follow the account, and whether the account follows them. Null until Instagram tells us. */
+    followsYou: boolean('follows_you'),
+    youFollow: boolean('you_follow'),
+    followCheckedAt: tz('follow_checked_at'),
     /** `YYYY-MM` of the last period this contact was counted in usage_counters. */
     lastCountedPeriod: text('last_counted_period'),
     firstSeenAt: tz('first_seen_at').notNull().defaultNow(),

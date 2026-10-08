@@ -123,15 +123,20 @@ export function Toggle({
 
 const AVATAR_COLORS = ['#FFB59A', '#D8F25A', '#CDE9FF', '#DED8FF', '#FFD7C4', '#E6F6B5']
 
-export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
+export function Avatar({ name, size = 36, src }: { name: string; size?: number; src?: string | null }) {
   const hash = [...name].reduce((total, char) => total + char.charCodeAt(0), 0)
   return (
     <span
-      className="inline-grid shrink-0 place-items-center rounded-full text-[12px] font-semibold text-ink/70"
+      className="inline-grid shrink-0 place-items-center overflow-hidden rounded-full text-[12px] font-semibold text-ink/70"
       style={{ width: size, height: size, background: AVATAR_COLORS[hash % AVATAR_COLORS.length] }}
       aria-hidden
     >
       {name.replace(/[^a-zA-Z]/g, '').slice(0, 1).toUpperCase()}
+      {/* Sits over the initial; a photo that fails to load (Instagram links expire) simply doesn't show. */}
+      {src && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" referrerPolicy="no-referrer" loading="lazy" className="col-start-1 row-start-1 size-full rounded-full object-cover" />
+      )}
     </span>
   )
 }

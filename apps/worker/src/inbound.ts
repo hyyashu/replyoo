@@ -189,6 +189,9 @@ async function upsertContact(
       username: initial.username,
       name: initial.name,
       avatarUrl: profile?.avatarUrl ?? null,
+      followsYou: profile?.followsYou ?? null,
+      youFollow: profile?.youFollow ?? null,
+      followCheckedAt: profile?.followsYou != null || profile?.youFollow != null ? now : null,
       lastInboundAt: messaging ? new Date(event.occurredAt) : null,
     })
     .onConflictDoUpdate({

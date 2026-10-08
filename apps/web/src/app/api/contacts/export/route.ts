@@ -3,14 +3,16 @@ import { csvContentDisposition, toCsv } from '@/lib/csv'
 import { listContacts } from '@/lib/data'
 import { getCurrentAccount } from '@/lib/session'
 
-const COLUMNS = ['username', 'name', 'email', 'phone', 'tags', 'first_seen_at', 'last_active_at'] as const
+const COLUMNS = ['username', 'name', 'email', 'phone', 'tags', 'follows_you', 'you_follow', 'first_seen_at', 'last_active_at'] as const
+
+const yesNo = (value: boolean | null) => (value === null ? '' : value ? 'yes' : 'no')
 
 export async function GET(request: Request) {
   const { workspace, account } = await getCurrentAccount()
   const contacts = await listContacts(workspace.workspaceId, account.id, parseContactFilters(new URL(request.url).searchParams))
   const csv = toCsv(
     COLUMNS,
-    contacts.map((c) => [c.username, c.name, c.email ?? '', c.phone ?? '', c.tags.join(' '), c.firstSeenAt, c.lastInboundAt]),
+    contacts.map((c) => [c.username, c.name, c.email ?? '', c.phone ?? '', c.tags.join(' '), yesNo(c.followsYou), yesNo(c.youFollow), c.firstSeenAt, c.lastInboundAt]),
   )
   return new Response(csv, {
     headers: {
