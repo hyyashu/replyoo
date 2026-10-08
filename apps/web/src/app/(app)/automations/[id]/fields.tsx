@@ -162,6 +162,7 @@ export function KeywordInput({
   max = KEYWORD_LIMITS.max,
   maxLength = KEYWORD_LIMITS.maxLength,
   label,
+  ignoresCase = false,
 }: {
   value: string[]
   onChange: (value: string[]) => void
@@ -171,6 +172,8 @@ export function KeywordInput({
   maxLength?: number
   /** Accessible name; pass the visible label text. */
   label?: string
+  /** Keywords that are matched against messages: say that capitalisation doesn't matter. */
+  ignoresCase?: boolean
 }) {
   const [draft, setDraft] = useState('')
   const [dropped, setDropped] = useState(0)
@@ -214,6 +217,13 @@ export function KeywordInput({
           className="min-w-[120px] flex-1 bg-transparent px-1 text-[14px] outline-none placeholder:text-faint"
         />
       </div>
+      {ignoresCase && (
+        <p className="mt-1.5 text-[12.5px] text-subtle">
+          Capital letters don’t matter: <span className="font-medium text-ink">LINK</span>,{' '}
+          <span className="font-medium text-ink">Link</span> and <span className="font-medium text-ink">link</span> all
+          match.
+        </p>
+      )}
       {dropped > 0 && (
         <p className="mt-1.5 text-[12.5px] text-brand">
           {dropped} not added (max {max})

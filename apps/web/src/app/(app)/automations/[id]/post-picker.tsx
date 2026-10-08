@@ -1,8 +1,8 @@
 'use client'
 
-import { Check, CircleAlert, ImageOff, Loader2 } from 'lucide-react'
+import { Check, CircleAlert, ImageOff, Loader2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { cx } from '@/components/ui'
+import { Button, cx } from '@/components/ui'
 import { listPosts } from '@/app/actions'
 import type { RecentPost } from '@/lib/data'
 
@@ -101,6 +101,50 @@ export function PostPicker({
         {selected.length} selected{hidden > 0 && ` (${hidden} older than the posts shown)`}
         {selected.length >= MAX_POSTS && ` — the limit is ${MAX_POSTS}`}
       </p>
+    </div>
+  )
+}
+
+/** The picker in a centred popup; the posts are only fetched while it is open. */
+export function PostPickerDialog({
+  accountId,
+  selected,
+  onChange,
+  onClose,
+}: {
+  accountId: string
+  selected: string[]
+  onChange: (mediaIds: string[]) => void
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal="true" aria-label="Choose posts">
+      <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
+      <div className="relative flex max-h-[85vh] w-full max-w-[560px] flex-col rounded-2xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <h2 className="text-[15px] font-semibold">Choose posts</h2>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="grid size-8 place-items-center rounded-lg text-muted hover:bg-sand"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto px-5 pb-4">
+          <PostPicker accountId={accountId} selected={selected} onChange={onChange} />
+        </div>
+        <div className="flex justify-end border-t border-line px-5 py-3">
+          <Button onClick={onClose}>Done</Button>
+        </div>
+      </div>
     </div>
   )
 }

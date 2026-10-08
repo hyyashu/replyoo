@@ -18,7 +18,7 @@ import {
 } from '@/lib/recipe'
 import type { RecipeIssue, RecipeSection } from '@/lib/validation'
 import { KeywordInput, Label, MessageInput, Segmented, TextInput } from './fields'
-import { PostPicker } from './post-picker'
+import { PostPickerDialog } from './post-picker'
 
 export type Update = (fn: (draft: Recipe) => void) => void
 
@@ -101,6 +101,7 @@ export function TriggerSection({
   const { trigger } = recipe
   // Switching trigger type keeps what was entered, so switching back restores it.
   const previous = useRef<Partial<Record<RecipeTrigger['type'], RecipeTrigger>>>({})
+  const [pickingPosts, setPickingPosts] = useState(false)
   const subtitle = {
     comment_keyword: 'Someone comments on your post — with a keyword, or any comment',
     dm_keyword: 'Someone sends you a DM with a keyword',
@@ -134,13 +135,14 @@ export function TriggerSection({
                 key={mode}
                 type="button"
                 aria-pressed={trigger.posts.mode === mode}
-                onClick={() =>
+                onClick={() => {
                   update((d) => {
                     if (d.trigger.type !== 'comment_keyword') return
                     const mediaIds = d.trigger.posts.mode === 'specific' ? d.trigger.posts.mediaIds : []
                     d.trigger.posts = mode === 'specific' ? { mode, mediaIds } : { mode }
                   })
-                }
+                  if (mode === 'specific') setPickingPosts(true)
+                }}
                 className={cx(
                   'h-14 rounded-xl border px-4 text-[13px] font-medium transition-colors',
                   trigger.posts.mode === mode ? 'border-brand bg-brand-tint text-ink' : 'border-line text-muted hover:border-faint',
@@ -151,13 +153,26 @@ export function TriggerSection({
             ))}
           </div>
           {trigger.posts.mode === 'specific' && (
-            <PostPicker
-              accountId={accountId}
-              selected={trigger.posts.mediaIds}
-              onChange={(mediaIds) =>
-                update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.posts = { mode: 'specific', mediaIds }))
-              }
-            />
+            <>
+              <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
+                {trigger.posts.mediaIds.length === 0
+                  ? 'No posts chosen yet.'
+                  : `${trigger.posts.mediaIds.length} ${trigger.posts.mediaIds.length === 1 ? 'post' : 'posts'} chosen.`}
+                <button type="button" className="font-medium text-ink underline" onClick={() => setPickingPosts(true)}>
+                  {trigger.posts.mediaIds.length === 0 ? 'Choose posts' : 'Change'}
+                </button>
+              </p>
+              {pickingPosts && (
+                <PostPickerDialog
+                  accountId={accountId}
+                  selected={trigger.posts.mediaIds}
+                  onChange={(mediaIds) =>
+                    update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.posts = { mode: 'specific', mediaIds }))
+                  }
+                  onClose={() => setPickingPosts(false)}
+                />
+              )}
+            </>
           )}
         </div>
       )}
@@ -186,6 +201,7 @@ export function TriggerSection({
           </Label>
           <KeywordInput
             label="Keywords"
+            ignoresCase
             value={trigger.keywords}
             placeholder={trigger.type === 'comment_keyword' ? 'Any comment' : undefined}
             onChange={(keywords) =>
@@ -216,6 +232,7 @@ export function TriggerSection({
             <Label hint="Leave empty to reply to every story reply">Only when the reply contains</Label>
             <KeywordInput
               label="Only when the reply contains"
+              ignoresCase
               value={trigger.keywords}
               placeholder="Any reply"
               onChange={(keywords) => update((d) => d.trigger.type === 'story_reply' && void (d.trigger.keywords = keywords))}

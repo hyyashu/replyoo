@@ -49,3 +49,18 @@ describe('matchesAnyKeyword', () => {
     expect(matchesAnyKeyword('hello', ['guide', 'link'], 'contains')).toBe(false)
   })
 })
+
+describe('capitalisation never matters', () => {
+  const spellings = ['link', 'LINK', 'Link', 'lInK']
+
+  it.each(spellings)('keyword "%s" matches every spelling in the text, contains and exact', (keyword) => {
+    for (const text of spellings) {
+      expect(matchesKeyword(text, keyword, 'exact')).toBe(true)
+      expect(matchesKeyword(`send me the ${text}!`, keyword, 'contains')).toBe(true)
+    }
+  })
+
+  it('still respects word boundaries after lowercasing', () => {
+    expect(matchesKeyword('LINKEDIN', 'link', 'contains')).toBe(false)
+  })
+})
