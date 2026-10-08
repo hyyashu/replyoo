@@ -157,6 +157,10 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
     issues.push({ code: 'platform_unsupported', message: 'Story replies are only available on Instagram' })
   }
 
+  if (trigger.type === 'story_reply' && trigger.stories?.mode === 'specific' && trigger.stories.mediaIds.length === 0) {
+    issues.push({ code: 'no_posts_selected', message: 'Pick at least one story' })
+  }
+
   const keywords =
     trigger.type === 'comment_keyword' || trigger.type === 'dm_keyword' || trigger.type === 'story_reply'
       ? (trigger.keywords ?? [])

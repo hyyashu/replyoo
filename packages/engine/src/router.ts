@@ -12,7 +12,7 @@ export interface TriggerCandidate {
 export type InboundForMatch =
   | { kind: 'comment'; text: string; mediaId: string; mediaPublishedAt: Date | null }
   | { kind: 'dm'; text: string }
-  | { kind: 'story'; text: string | null; isReaction: boolean }
+  | { kind: 'story'; storyId: string | null; text: string | null; isReaction: boolean }
 
 export function matchAutomation(
   event: InboundForMatch,
@@ -42,7 +42,10 @@ export function matchAutomation(
     case 'dm':
       return dmKeyword(event.text) ?? anyDm()
     case 'story': {
-      const story = find((c) => c.trigger.type === 'story_reply' && storyMatches(c.trigger, event))
+      // An automation pinned to this story beats one for any story, however new the catch-all is.
+      const story =
+        find((c) => c.trigger.type === 'story_reply' && c.trigger.stories?.mode === 'specific' && storyMatches(c.trigger, event)) ??
+        find((c) => c.trigger.type === 'story_reply' && c.trigger.stories?.mode !== 'specific' && storyMatches(c.trigger, event))
       if (story) return story
       if (event.isReaction || event.text === null) return null
       return dmKeyword(event.text) ?? anyDm()
@@ -73,6 +76,7 @@ function storyMatches(
   trigger: TriggerOf<'story_reply'>,
   event: Extract<InboundForMatch, { kind: 'story' }>,
 ): boolean {
+  if (trigger.stories?.mode === 'specific' && (event.storyId === null || !trigger.stories.mediaIds.includes(event.storyId))) return false
   if (event.isReaction) return trigger.includeReactions
   if (!trigger.keywords || trigger.keywords.length === 0) return true
   return event.text !== null && matchesAnyKeyword(event.text, trigger.keywords, 'contains')

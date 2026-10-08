@@ -51,7 +51,7 @@ describe('normalizeInstagramWebhook', () => {
 
   it('detects story replies and emoji-only reactions', () => {
     expect(normalizeInstagramWebhook(ig.storyReply)).toMatchObject([
-      { type: 'story_reply', text: 'I want this', isReaction: false },
+      { type: 'story_reply', storyId: 'story1', text: 'I want this', isReaction: false },
     ])
     expect(normalizeInstagramWebhook(ig.storyReaction)).toMatchObject([
       { type: 'story_reply', text: '😍🔥', isReaction: true },

@@ -16,6 +16,7 @@ const story = (text: string | null, isReaction: boolean): NormalizedEvent => ({
   type: 'story_reply',
   dedupKey: 'd',
   messageId: 'm',
+  storyId: null,
   text,
   isReaction,
 })

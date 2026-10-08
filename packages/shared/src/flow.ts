@@ -43,6 +43,15 @@ export const TriggerSchema = z.discriminatedUnion('type', [
     type: z.literal('story_reply'),
     includeReactions: z.boolean(),
     keywords: z.array(Keyword).max(20).optional(),
+    /** Missing = any story. A story's media id is what Meta reports in `reply_to.story.id`. */
+    stories: z
+      .discriminatedUnion('mode', [
+        z.object({ mode: z.literal('any') }),
+        z.object({ mode: z.literal('specific'), mediaIds: z.array(z.string().min(1)).max(50) }),
+      ])
+      .optional(),
+    /** React to their reply with a ❤️ (Instagram only supports the heart). */
+    reactWithHeart: z.boolean().optional(),
   }),
   z.object({
     type: z.literal('ice_breaker'),
@@ -152,6 +161,13 @@ const DraftTrigger = z.discriminatedUnion('type', [
     type: z.literal('story_reply'),
     includeReactions: z.boolean(),
     keywords: DraftKeywords.optional(),
+    stories: z
+      .discriminatedUnion('mode', [
+        z.looseObject({ mode: z.literal('any') }),
+        z.looseObject({ mode: z.literal('specific'), mediaIds: z.array(z.string()) }),
+      ])
+      .optional(),
+    reactWithHeart: z.boolean().optional(),
   }),
   z.looseObject({
     type: z.literal('ice_breaker'),

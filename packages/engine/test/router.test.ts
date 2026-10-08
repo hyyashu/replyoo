@@ -103,16 +103,28 @@ describe('matchAutomation: stories', () => {
   const fallback = candidate({ type: 'any_dm' })
 
   it('matches story replies by keyword', () => {
-    expect(matchAutomation({ kind: 'story', text: 'I want this', isReaction: false }, [story])).toBe(story)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: 'I want this', isReaction: false }, [story])).toBe(story)
   })
 
   it('only matches reactions when includeReactions is on', () => {
-    expect(matchAutomation({ kind: 'story', text: null, isReaction: true }, [story])).toBeNull()
-    expect(matchAutomation({ kind: 'story', text: null, isReaction: true }, [story, reactions])).toBe(reactions)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: null, isReaction: true }, [story])).toBeNull()
+    expect(matchAutomation({ kind: 'story', storyId: null, text: null, isReaction: true }, [story, reactions])).toBe(reactions)
+  })
+
+  it('only matches the chosen story, and prefers it over an any-story automation', () => {
+    const pinned = candidate({
+      type: 'story_reply',
+      includeReactions: true,
+      stories: { mode: 'specific', mediaIds: ['s1'] },
+    })
+    const older = { ...reactions, publishedAt: new Date(0) }
+    expect(matchAutomation({ kind: 'story', storyId: 's2', text: 'hi', isReaction: false }, [pinned, older])).toBe(older)
+    expect(matchAutomation({ kind: 'story', storyId: 's1', text: 'hi', isReaction: false }, [pinned, older])).toBe(pinned)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: null, isReaction: true }, [pinned])).toBeNull()
   })
 
   it('falls back to DM automations for text story replies, never for reactions', () => {
-    expect(matchAutomation({ kind: 'story', text: 'nice', isReaction: false }, [story, fallback])).toBe(fallback)
-    expect(matchAutomation({ kind: 'story', text: null, isReaction: true }, [fallback])).toBeNull()
+    expect(matchAutomation({ kind: 'story', storyId: null, text: 'nice', isReaction: false }, [story, fallback])).toBe(fallback)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: null, isReaction: true }, [fallback])).toBeNull()
   })
 })

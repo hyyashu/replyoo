@@ -14,7 +14,13 @@ export type RecipeTrigger =
       publicReplies: { enabled: boolean; replies: string[] }
     }
   | { type: 'dm_keyword'; keywords: string[]; match: 'contains' | 'exact' }
-  | { type: 'story_reply'; includeReactions: boolean; keywords: string[] }
+  | {
+      type: 'story_reply'
+      includeReactions: boolean
+      keywords: string[]
+      stories: { mode: 'any' } | { mode: 'specific'; mediaIds: string[] }
+      reactWithHeart: boolean
+    }
   | { type: 'any_dm' }
   | { type: 'ice_breaker'; items: { question: string; answer: string; links: LinkButton[] }[] }
 
@@ -253,6 +259,8 @@ function compileTrigger(trigger: Exclude<RecipeTrigger, { type: 'ice_breaker' }>
         type: 'story_reply',
         includeReactions: trigger.includeReactions,
         ...(trigger.keywords.length > 0 ? { keywords: trigger.keywords } : {}),
+        ...(trigger.stories.mode === 'specific' ? { stories: trigger.stories } : {}),
+        ...(trigger.reactWithHeart ? { reactWithHeart: true } : {}),
       }
     case 'any_dm':
       return { type: 'any_dm' }
@@ -379,7 +387,13 @@ function triggerToRecipe(trigger: Exclude<Trigger, { type: 'ice_breaker' }>): Re
     case 'dm_keyword':
       return { type: 'dm_keyword', keywords: trigger.keywords, match: trigger.match }
     case 'story_reply':
-      return { type: 'story_reply', includeReactions: trigger.includeReactions, keywords: trigger.keywords ?? [] }
+      return {
+        type: 'story_reply',
+        includeReactions: trigger.includeReactions,
+        keywords: trigger.keywords ?? [],
+        stories: trigger.stories ?? { mode: 'any' },
+        reactWithHeart: trigger.reactWithHeart ?? false,
+      }
     case 'any_dm':
       return { type: 'any_dm' }
   }
@@ -400,7 +414,7 @@ export function changeTriggerType(current: RecipeTrigger, type: RecipeTrigger['t
     case 'dm_keyword':
       return { type, keywords, match: 'contains' }
     case 'story_reply':
-      return { type, includeReactions: true, keywords: [] }
+      return { type, includeReactions: true, keywords: [], stories: { mode: 'any' }, reactWithHeart: false }
     case 'any_dm':
       return { type }
     case 'ice_breaker':

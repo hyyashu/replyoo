@@ -40,6 +40,7 @@ export function conversation(recipe: Recipe): Bubble[] {
     case 'story_reply':
       bubbles.push({ kind: 'context', text: 'sam.eats replied to your story' })
       bubbles.push({ kind: 'them', text: trigger.keywords[0] ?? '🔥🔥' })
+      if (trigger.reactWithHeart) bubbles.push({ kind: 'context', text: 'You reacted ❤️ to their reply' })
       break
     default:
       bubbles.push({ kind: 'them', text: trigger.type === 'any_dm' ? 'Hey! Quick question 👋' : keyword })

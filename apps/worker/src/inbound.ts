@@ -78,13 +78,35 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
   })
   if (route.kind === 'ignore') deps.log.debug({ reason: route.reason, eventRowId }, 'inbound event not routed')
 
-  return db.transaction(async (tx) => {
+  const job = await db.transaction(async (tx) => {
     const contact = await upsertContact(tx, account, event, profile, now)
     const job = await applyRoute(tx, { account, contact, route, candidates, event, now, log: deps.log })
     await tx.insert(messages).values(inboundMessage(account, contact, event, job?.runId ?? null))
     await markProcessed(tx)
     return job
   })
+  if (job && route.kind === 'start' && event.type === 'story_reply') {
+    await reactToStoryReply(deps, adapter, creds, candidates, route.automationId, event)
+  }
+  return job
+}
+
+/** The ❤️ is a nicety: if Meta refuses it, the DM still goes out. */
+async function reactToStoryReply(
+  deps: Deps,
+  adapter: PlatformAdapter,
+  creds: AccountCredentials,
+  candidates: readonly Candidate[],
+  automationId: string,
+  event: Extract<NormalizedEvent, { type: 'story_reply' }>,
+): Promise<void> {
+  const trigger = candidates.find((c) => c.automationId === automationId)?.trigger
+  if (trigger?.type !== 'story_reply' || !trigger.reactWithHeart || !adapter.reactToMessage) return
+  try {
+    await adapter.reactToMessage(creds, event.senderId, event.messageId)
+  } catch (error) {
+    deps.log.warn({ err: error, automationId }, 'story reply reaction failed')
+  }
 }
 
 export async function loadCandidates(db: Db, accountId: string): Promise<Candidate[]> {

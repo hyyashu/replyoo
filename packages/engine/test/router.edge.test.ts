@@ -154,37 +154,37 @@ describe('matchAutomation edge: DMs, stories and ice breakers', () => {
   it('ice breakers never match via matchAutomation', () => {
     const ib = candidate({ type: 'ice_breaker', items: [{ question: 'Hi?', startStep: 's1' }] })
     expect(matchAutomation({ kind: 'dm', text: 'Hi?' }, [ib])).toBeNull()
-    expect(matchAutomation({ kind: 'story', text: 'Hi?', isReaction: false }, [ib])).toBeNull()
+    expect(matchAutomation({ kind: 'story', storyId: null, text: 'Hi?', isReaction: false }, [ib])).toBeNull()
     expect(matchAutomation(onComment('Hi?'), [ib])).toBeNull()
   })
 
   it('story reactions only match includeReactions and never fall back to DM triggers', () => {
     const noReact = candidate({ type: 'story_reply', includeReactions: false })
     const any = candidate({ type: 'any_dm' })
-    expect(matchAutomation({ kind: 'story', text: '🔥', isReaction: true }, [noReact, any])).toBeNull()
+    expect(matchAutomation({ kind: 'story', storyId: null, text: '🔥', isReaction: true }, [noReact, any])).toBeNull()
     const react = candidate({ type: 'story_reply', includeReactions: true, keywords: ['price'] })
-    expect(matchAutomation({ kind: 'story', text: '🔥', isReaction: true }, [react])).toBe(react)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: '🔥', isReaction: true }, [react])).toBe(react)
   })
 
   it('story keywords use contains; unmatched story text falls back to DM triggers', () => {
     const story = candidate({ type: 'story_reply', includeReactions: false, keywords: ['price'] })
     const kw = candidate(dmKw(['hours']))
     const any = candidate({ type: 'any_dm' })
-    expect(matchAutomation({ kind: 'story', text: 'what price', isReaction: false }, [story, kw, any])).toBe(story)
-    expect(matchAutomation({ kind: 'story', text: 'your hours?', isReaction: false }, [story, kw, any])).toBe(kw)
-    expect(matchAutomation({ kind: 'story', text: 'nice', isReaction: false }, [story, kw, any])).toBe(any)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: 'what price', isReaction: false }, [story, kw, any])).toBe(story)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: 'your hours?', isReaction: false }, [story, kw, any])).toBe(kw)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: 'nice', isReaction: false }, [story, kw, any])).toBe(any)
   })
 
   it('story with null text: keywordless story automation matches, keyworded does not, no DM fallback', () => {
     const open = candidate({ type: 'story_reply', includeReactions: false })
     const kwd = candidate({ type: 'story_reply', includeReactions: false, keywords: ['x'] })
     const any = candidate({ type: 'any_dm' })
-    expect(matchAutomation({ kind: 'story', text: null, isReaction: false }, [open])).toBe(open)
-    expect(matchAutomation({ kind: 'story', text: null, isReaction: false }, [kwd, any])).toBeNull()
+    expect(matchAutomation({ kind: 'story', storyId: null, text: null, isReaction: false }, [open])).toBe(open)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: null, isReaction: false }, [kwd, any])).toBeNull()
   })
 
   it('story_reply with empty keyword list acts as catch-all', () => {
     const open = candidate({ type: 'story_reply', includeReactions: false, keywords: [] })
-    expect(matchAutomation({ kind: 'story', text: 'anything', isReaction: false }, [open])).toBe(open)
+    expect(matchAutomation({ kind: 'story', storyId: null, text: 'anything', isReaction: false }, [open])).toBe(open)
   })
 })

@@ -140,6 +140,9 @@ export function TriggerSection({
   // Switching trigger type keeps what was entered, so switching back restores it.
   const previous = useRef<Partial<Record<RecipeTrigger['type'], RecipeTrigger>>>({})
   const [pickingPosts, setPickingPosts] = useState(false)
+  const [pickingStories, setPickingStories] = useState(false)
+  // Same idea as anyComment: no keywords means any reply, and this remembers a choice of "specific keywords" before any are typed.
+  const [storyAnyWord, setStoryAnyWord] = useState(() => trigger.type === 'story_reply' && trigger.keywords.length === 0)
   // An empty keyword list means "any comment"; this remembers an explicit choice of "specific keywords" before any are typed.
   const [anyComment, setAnyComment] = useState(() => trigger.type === 'comment_keyword' && trigger.keywords.length === 0)
   const commentsAny = trigger.type === 'comment_keyword' && trigger.keywords.length === 0 && anyComment
@@ -174,7 +177,13 @@ export function TriggerSection({
     dm_keyword: trigger.type === 'dm_keyword' ? keywordSummary(trigger.keywords, 'Any DM') : '',
     story_reply:
       trigger.type === 'story_reply'
-        ? [trigger.includeReactions ? 'Replies and reactions' : 'Replies only', keywordSummary(trigger.keywords, 'Any reply')].join(' · ')
+        ? [
+            trigger.stories.mode === 'any'
+              ? 'Any story'
+              : `${trigger.stories.mediaIds.length} chosen ${trigger.stories.mediaIds.length === 1 ? 'story' : 'stories'}`,
+            trigger.includeReactions ? 'Replies and reactions' : 'Replies only',
+            keywordSummary(trigger.keywords, 'Any word'),
+          ].join(' · ')
         : '',
     any_dm: 'Any DM that no other automation answers',
     ice_breaker: trigger.type === 'ice_breaker' ? `${trigger.items.length} question${trigger.items.length === 1 ? '' : 's'}` : '',
@@ -313,6 +322,79 @@ export function TriggerSection({
 
       {trigger.type === 'story_reply' && (
         <>
+          <div>
+            <Label>Which stories</Label>
+            <Segmented
+              value={trigger.stories.mode}
+              onChange={(mode) => {
+                update((d) => {
+                  if (d.trigger.type !== 'story_reply') return
+                  const mediaIds = d.trigger.stories.mode === 'specific' ? d.trigger.stories.mediaIds : []
+                  d.trigger.stories = mode === 'specific' ? { mode, mediaIds } : { mode }
+                })
+                if (mode === 'specific') setPickingStories(true)
+              }}
+              options={[
+                { value: 'any', label: 'Any story' },
+                { value: 'specific', label: 'A specific story' },
+              ]}
+            />
+            {trigger.stories.mode === 'specific' && (
+              <>
+                <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
+                  {trigger.stories.mediaIds.length === 0
+                    ? 'No story chosen yet.'
+                    : `${trigger.stories.mediaIds.length} ${trigger.stories.mediaIds.length === 1 ? 'story' : 'stories'} chosen.`}
+                  <button type="button" className="font-medium text-ink underline" onClick={() => setPickingStories(true)}>
+                    {trigger.stories.mediaIds.length === 0 ? 'Choose a story' : 'Change'}
+                  </button>
+                </p>
+                <p className="mt-1 text-[12.5px] text-subtle">Only your live stories can be picked, and this stops matching once the story expires after 24 hours.</p>
+                {pickingStories && (
+                  <PostPickerDialog
+                    source="stories"
+                    accountId={accountId}
+                    selected={trigger.stories.mediaIds}
+                    onChange={(mediaIds) =>
+                      update((d) => d.trigger.type === 'story_reply' && void (d.trigger.stories = { mode: 'specific', mediaIds }))
+                    }
+                    onClose={() => setPickingStories(false)}
+                  />
+                )}
+              </>
+            )}
+            {trigger.stories.mode === 'any' && (
+              <p className="mt-2 text-[12.5px] text-subtle">A story you pick specifically wins over this one when both match.</p>
+            )}
+          </div>
+
+          <div>
+            <Label>And this reply has</Label>
+            <Segmented
+              value={storyAnyWord ? 'any' : 'keywords'}
+              onChange={(mode) => {
+                setStoryAnyWord(mode === 'any')
+                if (mode === 'any') update((d) => d.trigger.type === 'story_reply' && void (d.trigger.keywords = []))
+              }}
+              options={[
+                { value: 'any', label: 'Any word or reaction' },
+                { value: 'keywords', label: 'Specific keywords' },
+              ]}
+            />
+            {!storyAnyWord && (
+              <div className="mt-2.5">
+                <KeywordInput
+                  label="Only when the reply contains"
+                  ignoresCase
+                  value={trigger.keywords}
+                  placeholder="Add a keyword"
+                  onChange={(keywords) => update((d) => d.trigger.type === 'story_reply' && void (d.trigger.keywords = keywords))}
+                />
+                {trigger.keywords.length === 0 && <p className="mt-1.5 text-[12.5px] text-subtle">Add a keyword, or choose “Any word or reaction”.</p>}
+              </div>
+            )}
+          </div>
+
           <label className="flex items-center gap-3 text-[14px]">
             <Toggle
               label="Include reactions"
@@ -321,16 +403,14 @@ export function TriggerSection({
             />
             Also trigger on emoji reactions
           </label>
-          <div>
-            <Label hint="Leave empty to reply to every story reply">Only when the reply contains</Label>
-            <KeywordInput
-              label="Only when the reply contains"
-              ignoresCase
-              value={trigger.keywords}
-              placeholder="Any reply"
-              onChange={(keywords) => update((d) => d.trigger.type === 'story_reply' && void (d.trigger.keywords = keywords))}
+          <label className="flex items-center gap-3 text-[14px]">
+            <Toggle
+              label="React with a heart"
+              checked={trigger.reactWithHeart}
+              onChange={(value) => update((d) => d.trigger.type === 'story_reply' && void (d.trigger.reactWithHeart = value))}
             />
-          </div>
+            React to their reply with ❤️
+          </label>
         </>
       )}
 

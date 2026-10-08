@@ -337,13 +337,14 @@ export function Editor({
         </Link>
         <div className="min-w-0 flex-1 sm:flex-none">
           <div className="hidden text-[12.5px] text-subtle sm:block">Automations</div>
-          <div className="flex items-center gap-2.5">
-            <label className="group flex min-w-0 items-center gap-1.5">
+          {/* On phones the row is one line tall and clipped: if the name can't get ~9 characters it wraps out of view. */}
+          <div className="flex h-7 flex-wrap items-center gap-2.5 overflow-hidden sm:h-auto sm:overflow-visible">
+            <label className="group flex min-w-0 flex-[1_1_9ch] items-center gap-1.5 sm:flex-none">
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 aria-label="Automation name"
-                className="field-sizing-content min-w-0 max-w-full truncate rounded-md bg-transparent font-display text-[17px] sm:min-w-[8ch] sm:max-w-[420px] sm:text-[20px] font-bold tracking-[-0.03em] outline-none focus:bg-sand"
+                className="field-sizing-content w-full min-w-0 max-w-full truncate sm:w-auto rounded-md bg-transparent font-display text-[17px] sm:min-w-[8ch] sm:max-w-[420px] sm:text-[20px] font-bold tracking-[-0.03em] outline-none focus:bg-sand"
               />
               <Pencil className="size-3.5 shrink-0 text-faint group-hover:text-muted" />
             </label>

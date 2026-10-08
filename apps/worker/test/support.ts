@@ -130,6 +130,9 @@ export class FakeAdapter implements PlatformAdapter {
   async listMedia() {
     return []
   }
+  async reactToMessage(_: AccountCredentials, recipientId: string, messageId: string) {
+    this.act('reactToMessage', [recipientId, messageId])
+  }
   async isFollower(_: AccountCredentials, userId: string) {
     this.act('isFollower', [userId])
     return this.following
@@ -267,9 +270,9 @@ export const dm = (account: AccountRow, senderId: string, text: string | null): 
   return { ...base(account, senderId), type: 'dm_received', dedupKey: `t:${id}`, messageId: id, text }
 }
 
-export const story = (account: AccountRow, senderId: string, text: string | null, isReaction = false): NormalizedEvent => {
+export const story = (account: AccountRow, senderId: string, text: string | null, isReaction = false, storyId: string | null = null): NormalizedEvent => {
   const id = randomUUID()
-  return { ...base(account, senderId), type: 'story_reply', dedupKey: `t:${id}`, messageId: id, text, isReaction }
+  return { ...base(account, senderId), type: 'story_reply', dedupKey: `t:${id}`, messageId: id, storyId, text, isReaction }
 }
 
 export const postback = (account: AccountRow, senderId: string, payload: string): NormalizedEvent => {

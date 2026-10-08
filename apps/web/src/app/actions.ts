@@ -87,6 +87,11 @@ export async function listPosts(accountId: string): Promise<data.RecentPostsResu
   return data.listRecentPosts(workspaceId, accountId)
 }
 
+export async function listStories(accountId: string): Promise<data.RecentPostsResult> {
+  const { workspaceId } = await requireWorkspace()
+  return data.listRecentStories(workspaceId, accountId)
+}
+
 export async function setAutomationStatus(id: string, status: 'active' | 'paused'): Promise<data.StatusResult> {
   const { workspaceId } = await requireWorkspace()
   const result = await data.setAutomationStatus(workspaceId, id, status)

@@ -61,7 +61,7 @@ export function decideRoute(input: RouteInput): Route {
       const match =
         event.type === 'dm_received'
           ? matchAutomation({ kind: 'dm', text: text ?? '' }, input.candidates)
-          : matchAutomation({ kind: 'story', text, isReaction: event.isReaction }, input.candidates)
+          : matchAutomation({ kind: 'story', storyId: event.storyId, text, isReaction: event.isReaction }, input.candidates)
       if (!match) return ignore('no_matching_automation')
       if (waitingRun && match.trigger.type === 'any_dm') return ignore('waiting_run_has_priority')
       const trigger: StartTrigger =

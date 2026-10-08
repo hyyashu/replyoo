@@ -58,7 +58,7 @@ interface EventBase {
 
 export type NormalizedEvent =
   | (EventBase & { type: 'dm_received'; messageId: string; text: string | null })
-  | (EventBase & { type: 'story_reply'; messageId: string; text: string | null; isReaction: boolean })
+  | (EventBase & { type: 'story_reply'; messageId: string; storyId: string | null; text: string | null; isReaction: boolean })
   | (EventBase & { type: 'postback'; messageId: string | null; payload: string; title: string | null })
   | (EventBase & {
       type: 'comment_created'
@@ -81,6 +81,10 @@ export interface PlatformAdapter {
   getMediaPublishedAt(account: AccountCredentials, mediaId: string): Promise<Date | null>
   /** The account's most recent posts, newest first. */
   listMedia(account: AccountCredentials, limit?: number): Promise<MediaItem[]>
+  /** The account's live stories (they expire after 24h), newest first. Instagram only. */
+  listStories?(account: AccountCredentials, limit?: number): Promise<MediaItem[]>
+  /** React to a message the person sent us with a ❤️. Instagram only. */
+  reactToMessage?(account: AccountCredentials, recipientId: string, messageId: string): Promise<void>
   /** Instagram only. */
   isFollower?(account: AccountCredentials, userId: string): Promise<boolean>
   setIceBreakers(account: AccountCredentials, items: IceBreaker[]): Promise<void>

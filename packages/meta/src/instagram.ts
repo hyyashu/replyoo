@@ -69,6 +69,28 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
       }))
     },
 
+    async listStories(account, limit = 24) {
+      const res = await call<{
+        data?: { id: string; media_type?: string; media_url?: string; thumbnail_url?: string; permalink?: string; timestamp?: string }[]
+      }>(account, `${account.externalId}/stories`, {
+        query: { fields: 'id,media_type,media_url,thumbnail_url,permalink,timestamp', limit: String(limit) },
+      })
+      return (res.data ?? []).map((m) => ({
+        id: m.id,
+        caption: null,
+        thumbnailUrl: (m.media_type === 'VIDEO' ? m.thumbnail_url : (m.media_url ?? m.thumbnail_url)) ?? null,
+        permalink: m.permalink ?? null,
+        publishedAt: m.timestamp ? new Date(m.timestamp) : null,
+      }))
+    },
+
+    async reactToMessage(account, recipientId, messageId) {
+      await call(account, `${account.externalId}/messages`, {
+        method: 'POST',
+        body: { recipient: { id: recipientId }, sender_action: 'react', payload: { message_id: messageId, reaction: 'love' } },
+      })
+    },
+
     async isFollower(account, userId) {
       const res = await call<{ is_user_follow_business?: boolean }>(account, userId, {
         query: { fields: 'is_user_follow_business' },

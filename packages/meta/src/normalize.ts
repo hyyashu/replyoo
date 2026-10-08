@@ -15,7 +15,7 @@ const MessagingSchema = z.looseObject({
       is_echo: z.boolean().optional(),
       is_deleted: z.boolean().optional(),
       quick_reply: z.looseObject({ payload: z.string() }).optional(),
-      reply_to: z.looseObject({ story: z.looseObject({}).optional() }).optional(),
+      reply_to: z.looseObject({ story: z.looseObject({ id: z.string().optional() }).optional() }).optional(),
     })
     .optional(),
   postback: z
@@ -130,6 +130,7 @@ function messagingEvent(platform: Platform, accountExternalId: string, raw: unkn
       type: 'story_reply',
       dedupKey,
       messageId: message.mid,
+      storyId: message.reply_to.story.id ?? null,
       text,
       isReaction: text !== null && !hasWordCharacters(text),
     }
