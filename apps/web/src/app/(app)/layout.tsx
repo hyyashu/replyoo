@@ -53,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       <SkipLink />
       <MobileNav account={account} accounts={accounts} subscription={subscription} />
       <Sidebar account={account} accounts={accounts} subscription={subscription} />

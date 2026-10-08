@@ -24,7 +24,7 @@ interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   return (
-    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-5 border-r border-line bg-sand px-4 py-5 md:flex">
+    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-5 border-r border-line bg-sand px-4 py-5 lg:flex">
       <SidebarBody {...props} />
     </aside>
   )
@@ -44,7 +44,7 @@ export function MobileNav(props: SidebarProps) {
   }, [open])
 
   return (
-    <div className="md:hidden">
+    <div className="lg:hidden">
       <div className="flex items-center justify-between border-b border-line bg-sand px-4 py-3">
         <Link href="/home">
           <Logo />

@@ -1,7 +1,7 @@
 'use client'
 
 import { stepTargets, type Platform } from '@replyooo/shared'
-import { ArrowLeft, Check, CircleAlert, LoaderCircle, Pause, Pencil, Play } from 'lucide-react'
+import { ArrowLeft, Check, CircleAlert, Eye, LoaderCircle, Pause, Pencil, Play, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
@@ -38,6 +38,13 @@ export function Editor({
   const [publishErrors, setPublishErrors] = useState<string[]>([])
   const [published, setPublished] = useState(false)
   const [preview, setPreview] = useState<'comment' | 'dm'>('dm')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  useEffect(() => {
+    if (!previewOpen) return
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setPreviewOpen(false)
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [previewOpen])
   const [publishing, startPublish] = useTransition()
   const [statusPending, startStatus] = useTransition()
   const [conflict, setConflict] = useState(false)
@@ -221,6 +228,30 @@ export function Editor({
   const canPublish = issues.length === 0 && !publishing && !conflict && (unpublished || status === 'draft')
   const { stats } = automation
 
+  const previewPanel = (
+    <>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[15px] font-semibold">Live preview</h2>
+        {hasPublicReply && (
+          <Segmented
+            value={preview}
+            onChange={setPreview}
+            options={[
+              { value: 'comment', label: 'Comment' },
+              { value: 'dm', label: 'DM' },
+            ]}
+          />
+        )}
+      </div>
+      <div className="mt-6">
+        <PhonePreview recipe={recipe} mode={hasPublicReply ? preview : 'dm'} username={username} />
+      </div>
+      <p className="mx-auto mt-5 max-w-[290px] text-center text-[12.5px] leading-relaxed text-subtle">
+        This is what @sam.eats sees. Variables like {'{{first_name}}'} fill in automatically.
+      </p>
+    </>
+  )
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line bg-white/95 px-4 py-4 backdrop-blur sm:px-8">
@@ -254,6 +285,14 @@ export function Editor({
             conflict={conflict}
             onRetry={() => setSaveAttempt((n) => n + 1)}
           />
+          <Button
+            variant="secondary"
+            className="xl:hidden"
+            aria-haspopup="dialog"
+            onClick={() => setPreviewOpen(true)}
+          >
+            <Eye className="size-4" /> Preview
+          </Button>
           {status !== 'draft' && (
             <Button variant="secondary" onClick={toggleLive} disabled={publishing || statusPending}>
               {status === 'active' ? <Pause className="size-4" /> : <Play className="size-4" />}
@@ -327,30 +366,27 @@ export function Editor({
           </div>
         </div>
 
-        <aside className="border-t border-line bg-sand xl:border-t-0 xl:border-l">
-          <div className="px-4 py-6 sm:px-8 xl:sticky xl:top-[81px]">
-            <div className="flex items-center justify-between">
-              <h2 className="text-[15px] font-semibold">Live preview</h2>
-              {hasPublicReply && (
-                <Segmented
-                  value={preview}
-                  onChange={setPreview}
-                  options={[
-                    { value: 'comment', label: 'Comment' },
-                    { value: 'dm', label: 'DM' },
-                  ]}
-                />
-              )}
-            </div>
-            <div className="mt-6">
-              <PhonePreview recipe={recipe} mode={hasPublicReply ? preview : 'dm'} username={username} />
-            </div>
-            <p className="mx-auto mt-5 max-w-[290px] text-center text-[12.5px] leading-relaxed text-subtle">
-              This is what @sam.eats sees. Variables like {'{{first_name}}'} fill in automatically.
-            </p>
-          </div>
+        <aside className="hidden border-line bg-sand xl:block xl:border-l">
+          <div className="px-8 py-6 xl:sticky xl:top-[81px]">{previewPanel}</div>
         </aside>
       </div>
+
+      {previewOpen && (
+        <div className="fixed inset-0 z-40 flex justify-end xl:hidden" role="dialog" aria-modal="true" aria-label="Live preview">
+          <div className="absolute inset-0 bg-ink/40" onClick={() => setPreviewOpen(false)} />
+          <div className="relative h-full w-[440px] max-w-full overflow-y-auto bg-sand px-6 py-6">
+            <button
+              type="button"
+              aria-label="Close preview"
+              onClick={() => setPreviewOpen(false)}
+              className="absolute top-4 right-4 grid size-8 place-items-center rounded-lg text-muted hover:bg-white"
+            >
+              <X className="size-4" />
+            </button>
+            {previewPanel}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
