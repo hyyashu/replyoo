@@ -211,29 +211,22 @@ export function TriggerSection({
       {trigger.type === 'comment_keyword' && (
         <div>
           <Label>Which posts</Label>
-          <div className="flex flex-wrap gap-2">
-            {(['any', 'next', 'specific'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={trigger.posts.mode === mode}
-                onClick={() => {
-                  update((d) => {
-                    if (d.trigger.type !== 'comment_keyword') return
-                    const mediaIds = d.trigger.posts.mode === 'specific' ? d.trigger.posts.mediaIds : []
-                    d.trigger.posts = mode === 'specific' ? { mode, mediaIds } : { mode }
-                  })
-                  if (mode === 'specific') setPickingPosts(true)
-                }}
-                className={cx(
-                  'h-14 rounded-xl border px-4 text-[13px] font-medium transition-colors',
-                  trigger.posts.mode === mode ? 'border-brand bg-brand-tint text-ink' : 'border-line text-muted hover:border-faint',
-                )}
-              >
-                {mode === 'any' ? 'Any post or reel' : mode === 'next' ? 'My next post' : 'Specific posts'}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            value={trigger.posts.mode}
+            onChange={(mode) => {
+              update((d) => {
+                if (d.trigger.type !== 'comment_keyword') return
+                const mediaIds = d.trigger.posts.mode === 'specific' ? d.trigger.posts.mediaIds : []
+                d.trigger.posts = mode === 'specific' ? { mode, mediaIds } : { mode }
+              })
+              if (mode === 'specific') setPickingPosts(true)
+            }}
+            options={[
+              { value: 'any', label: 'Any post or reel' },
+              { value: 'next', label: 'My next post' },
+              { value: 'specific', label: 'Specific posts' },
+            ]}
+          />
           {trigger.posts.mode === 'specific' && (
             <>
               <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
@@ -328,29 +321,21 @@ export function TriggerSection({
         <>
           <div>
             <Label>Which stories</Label>
-            <div className="flex flex-wrap gap-2">
-              {(['any', 'specific'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={trigger.stories.mode === mode}
-                  onClick={() => {
-                    update((d) => {
-                      if (d.trigger.type !== 'story_reply') return
-                      const mediaIds = d.trigger.stories.mode === 'specific' ? d.trigger.stories.mediaIds : []
-                      d.trigger.stories = mode === 'specific' ? { mode, mediaIds } : { mode }
-                    })
-                    if (mode === 'specific') setPickingStories(true)
-                  }}
-                  className={cx(
-                    'h-14 rounded-xl border px-4 text-[13px] font-medium transition-colors',
-                    trigger.stories.mode === mode ? 'border-brand bg-brand-tint text-ink' : 'border-line text-muted hover:border-faint',
-                  )}
-                >
-                  {mode === 'any' ? 'Any story' : 'A specific story'}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              value={trigger.stories.mode}
+              onChange={(mode) => {
+                update((d) => {
+                  if (d.trigger.type !== 'story_reply') return
+                  const mediaIds = d.trigger.stories.mode === 'specific' ? d.trigger.stories.mediaIds : []
+                  d.trigger.stories = mode === 'specific' ? { mode, mediaIds } : { mode }
+                })
+                if (mode === 'specific') setPickingStories(true)
+              }}
+              options={[
+                { value: 'any', label: 'Any story' },
+                { value: 'specific', label: 'A specific story' },
+              ]}
+            />
             {trigger.stories.mode === 'specific' && (
               <>
                 <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
