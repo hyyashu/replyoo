@@ -32,6 +32,17 @@ Billing is subscription-based via Dodo Payments, metered on contacts reached per
 
 Live inbox / manual replying, broadcasts, visual flow canvas, step-list editor, link click tracking (Clicks/CTR, "follow up if no click"), "welcome new followers" (no Meta webhook exists), link in bio, AI replies, analytics charts beyond basic counts, WhatsApp/TikTok, public API/Zapier, multi-language UI.
 
+### 1.3 After launch
+
+Link in bio shipped, but these extras are deferred until after launch:
+
+- **Bio page stats:** unique visitors, referrers and countries (today: views, clicks and CTR only).
+- **Bio page design:** avatar upload, badge toggle and custom slug editing.
+- **Bio blocks:** image, embed and email-capture blocks.
+- **Pro gating** for bio page features.
+- **DM variables menu:** add `{{display_name}}` (it already works in public replies).
+- **Home dashboard:** a "Link clicks" tile.
+
 ---
 
 ## 2. Architecture

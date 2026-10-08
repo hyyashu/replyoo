@@ -328,21 +328,29 @@ export function TriggerSection({
         <>
           <div>
             <Label>Which stories</Label>
-            <Segmented
-              value={trigger.stories.mode}
-              onChange={(mode) => {
-                update((d) => {
-                  if (d.trigger.type !== 'story_reply') return
-                  const mediaIds = d.trigger.stories.mode === 'specific' ? d.trigger.stories.mediaIds : []
-                  d.trigger.stories = mode === 'specific' ? { mode, mediaIds } : { mode }
-                })
-                if (mode === 'specific') setPickingStories(true)
-              }}
-              options={[
-                { value: 'any', label: 'Any story' },
-                { value: 'specific', label: 'A specific story' },
-              ]}
-            />
+            <div className="flex flex-wrap gap-2">
+              {(['any', 'specific'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={trigger.stories.mode === mode}
+                  onClick={() => {
+                    update((d) => {
+                      if (d.trigger.type !== 'story_reply') return
+                      const mediaIds = d.trigger.stories.mode === 'specific' ? d.trigger.stories.mediaIds : []
+                      d.trigger.stories = mode === 'specific' ? { mode, mediaIds } : { mode }
+                    })
+                    if (mode === 'specific') setPickingStories(true)
+                  }}
+                  className={cx(
+                    'h-14 rounded-xl border px-4 text-[13px] font-medium transition-colors',
+                    trigger.stories.mode === mode ? 'border-brand bg-brand-tint text-ink' : 'border-line text-muted hover:border-faint',
+                  )}
+                >
+                  {mode === 'any' ? 'Any story' : 'A specific story'}
+                </button>
+              ))}
+            </div>
             {trigger.stories.mode === 'specific' && (
               <>
                 <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">

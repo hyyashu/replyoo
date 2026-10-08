@@ -91,8 +91,7 @@ In the Meta developer dashboard for your app:
 1. Sign up on your domain and confirm the email arrives.
 2. Connect your own Instagram account.
 3. Publish a simple comment → DM → link automation.
-4. Comment from a second account on one of your posts. Use "Any post" or "My next post": the "Which posts" picker in
-   the builder still shows sample posts.
+4. Comment from a second account on one of your posts (pick it in the "Which posts" picker, or use "Any post").
 5. Watch `docker compose -f docker-compose.prod.yml logs -f worker` and check the message arrives.
 6. Then try features one at a time: follow gate, email question, then the reminder (set a short delay first).
 
