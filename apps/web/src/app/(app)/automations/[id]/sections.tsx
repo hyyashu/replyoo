@@ -18,6 +18,7 @@ import {
 } from '@/lib/recipe'
 import type { RecipeIssue, RecipeSection } from '@/lib/validation'
 import { KeywordInput, Label, MessageInput, Segmented, TextInput } from './fields'
+import { PostPicker } from './post-picker'
 
 export type Update = (fn: (draft: Recipe) => void) => void
 
@@ -88,11 +89,13 @@ export function TriggerSection({
   recipe,
   update,
   platform,
+  accountId,
   issues,
 }: {
   recipe: Recipe
   update: Update
   platform: Platform
+  accountId: string
   issues: (section: RecipeSection) => RecipeIssue[]
 }) {
   const { trigger } = recipe
@@ -126,33 +129,35 @@ export function TriggerSection({
         <div>
           <Label>Which posts</Label>
           <div className="flex flex-wrap gap-2">
-            {(['any', 'next'] as const).map((mode) => (
+            {(['any', 'next', 'specific'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
                 aria-pressed={trigger.posts.mode === mode}
-                onClick={() => update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.posts = { mode }))}
+                onClick={() =>
+                  update((d) => {
+                    if (d.trigger.type !== 'comment_keyword') return
+                    const mediaIds = d.trigger.posts.mode === 'specific' ? d.trigger.posts.mediaIds : []
+                    d.trigger.posts = mode === 'specific' ? { mode, mediaIds } : { mode }
+                  })
+                }
                 className={cx(
                   'h-14 rounded-xl border px-4 text-[13px] font-medium transition-colors',
                   trigger.posts.mode === mode ? 'border-brand bg-brand-tint text-ink' : 'border-line text-muted hover:border-faint',
                 )}
               >
-                {mode === 'any' ? 'Any post or reel' : 'My next post'}
+                {mode === 'any' ? 'Any post or reel' : mode === 'next' ? 'My next post' : 'Specific posts'}
               </button>
             ))}
           </div>
           {trigger.posts.mode === 'specific' && (
-            <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
-              Picking specific posts is coming soon. This automation is set to {trigger.posts.mediaIds.length}{' '}
-              {trigger.posts.mediaIds.length === 1 ? 'post' : 'posts'}.
-              <button
-                type="button"
-                className="font-medium text-ink underline"
-                onClick={() => update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.posts = { mode: 'any' }))}
-              >
-                Switch to Any post
-              </button>
-            </p>
+            <PostPicker
+              accountId={accountId}
+              selected={trigger.posts.mediaIds}
+              onChange={(mediaIds) =>
+                update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.posts = { mode: 'specific', mediaIds }))
+              }
+            />
           )}
         </div>
       )}

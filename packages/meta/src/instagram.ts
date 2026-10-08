@@ -53,6 +53,22 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
       return res.timestamp ? new Date(res.timestamp) : null
     },
 
+    async listMedia(account, limit = 24) {
+      const res = await call<{
+        data?: { id: string; caption?: string; media_type?: string; media_url?: string; thumbnail_url?: string; permalink?: string; timestamp?: string }[]
+      }>(account, `${account.externalId}/media`, {
+        query: { fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp', limit: String(limit) },
+      })
+      return (res.data ?? []).map((m) => ({
+        id: m.id,
+        caption: m.caption ?? null,
+        // Videos expose a still in `thumbnail_url`; for images `media_url` is the picture itself.
+        thumbnailUrl: (m.media_type === 'VIDEO' ? m.thumbnail_url : (m.media_url ?? m.thumbnail_url)) ?? null,
+        permalink: m.permalink ?? null,
+        publishedAt: m.timestamp ? new Date(m.timestamp) : null,
+      }))
+    },
+
     async isFollower(account, userId) {
       const res = await call<{ is_user_follow_business?: boolean }>(account, userId, {
         query: { fields: 'is_user_follow_business' },

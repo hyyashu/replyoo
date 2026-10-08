@@ -77,6 +77,11 @@ export async function publishAutomation(
   return result.ok ? result : { ...result, saved: true }
 }
 
+export async function listPosts(accountId: string): Promise<data.RecentPostsResult> {
+  const { workspaceId } = await requireWorkspace()
+  return data.listRecentPosts(workspaceId, accountId)
+}
+
 export async function setAutomationStatus(id: string, status: 'active' | 'paused'): Promise<data.StatusResult> {
   const { workspaceId } = await requireWorkspace()
   const result = await data.setAutomationStatus(workspaceId, id, status)

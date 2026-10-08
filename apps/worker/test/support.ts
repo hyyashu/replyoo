@@ -127,6 +127,9 @@ export class FakeAdapter implements PlatformAdapter {
     this.calls.push({ method: 'getMediaPublishedAt', args: [mediaId] })
     return this.mediaPublishedAt
   }
+  async listMedia() {
+    return []
+  }
   async isFollower(_: AccountCredentials, userId: string) {
     this.act('isFollower', [userId])
     return this.following

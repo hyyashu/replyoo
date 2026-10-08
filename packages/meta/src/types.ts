@@ -25,6 +25,15 @@ export interface Profile {
   avatarUrl: string | null
 }
 
+/** A published post or reel, as shown in the dashboard's post picker. `id` matches the webhook's `mediaId`. */
+export interface MediaItem {
+  id: string
+  caption: string | null
+  thumbnailUrl: string | null
+  permalink: string | null
+  publishedAt: Date | null
+}
+
 export interface TokenResult {
   accessToken: string
   expiresAt: Date | null
@@ -70,6 +79,8 @@ export interface PlatformAdapter {
   replyToComment(account: AccountCredentials, commentId: string, text: string): Promise<SendResult>
   getProfile(account: AccountCredentials, userId: string): Promise<Profile>
   getMediaPublishedAt(account: AccountCredentials, mediaId: string): Promise<Date | null>
+  /** The account's most recent posts, newest first. */
+  listMedia(account: AccountCredentials, limit?: number): Promise<MediaItem[]>
   /** Instagram only. */
   isFollower?(account: AccountCredentials, userId: string): Promise<boolean>
   setIceBreakers(account: AccountCredentials, items: IceBreaker[]): Promise<void>

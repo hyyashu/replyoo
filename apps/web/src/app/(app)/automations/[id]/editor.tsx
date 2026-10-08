@@ -300,7 +300,7 @@ export function Editor({
             </div>
           )}
 
-          <TriggerSection recipe={recipe} update={update} platform={platform} issues={sectionIssues} />
+          <TriggerSection recipe={recipe} update={update} platform={platform} accountId={automation.accountId} issues={sectionIssues} />
           <PublicReplySection recipe={recipe} update={update} issues={sectionIssues} />
           <DmSection index={hasPublicReply ? 3 : 2} recipe={recipe} update={update} issues={sectionIssues} />
           <BoostersSection index={hasPublicReply ? 4 : 3} recipe={recipe} update={update} platform={platform} issues={sectionIssues} />

@@ -61,6 +61,15 @@ describe('createFacebookAdapter', () => {
     expect((await adapter.getMediaPublishedAt(account, '104_p1'))?.toISOString()).toBe('2026-10-01T09:00:00.000Z')
   })
 
+  it('lists recent page posts', async () => {
+    capture('get', `${base}/${FB_PAGE}/posts`, {
+      data: [{ id: `${FB_PAGE}_p1`, message: 'Sale', full_picture: 'https://pic', permalink_url: 'https://fb/p1', created_time: '2026-10-01T09:00:00+0000' }],
+    })
+    expect(await adapter.listMedia(account)).toEqual([
+      { id: `${FB_PAGE}_p1`, caption: 'Sale', thumbnailUrl: 'https://pic', permalink: 'https://fb/p1', publishedAt: new Date('2026-10-01T09:00:00Z') },
+    ])
+  })
+
   it('sets and clears ice breakers', async () => {
     const posts = capture('post', `${base}/me/messenger_profile`, { result: 'success' })
     await adapter.setIceBreakers(account, [{ question: 'Hours?', payload: 'ib:a1:0' }])

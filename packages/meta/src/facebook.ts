@@ -51,6 +51,21 @@ export function createFacebookAdapter(options: { graphVersion?: string } = {}): 
       return res.created_time ? new Date(res.created_time) : null
     },
 
+    async listMedia(account, limit = 24) {
+      const res = await call<{
+        data?: { id: string; message?: string; full_picture?: string; permalink_url?: string; created_time?: string }[]
+      }>(account, `${account.externalId}/posts`, {
+        query: { fields: 'id,message,full_picture,permalink_url,created_time', limit: String(limit) },
+      })
+      return (res.data ?? []).map((p) => ({
+        id: p.id,
+        caption: p.message ?? null,
+        thumbnailUrl: p.full_picture ?? null,
+        permalink: p.permalink_url ?? null,
+        publishedAt: p.created_time ? new Date(p.created_time) : null,
+      }))
+    },
+
     async setIceBreakers(account, items) {
       if (items.length === 0) {
         await call(account, 'me/messenger_profile', { method: 'DELETE', body: { fields: ['ice_breakers'] } })

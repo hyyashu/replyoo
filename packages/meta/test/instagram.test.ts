@@ -80,6 +80,21 @@ describe('createInstagramAdapter', () => {
     expect((await adapter.getMediaPublishedAt(account, 'media1'))?.toISOString()).toBe('2026-10-01T09:00:00.000Z')
   })
 
+  it('lists recent media with a still for videos', async () => {
+    const calls = capture('get', `${base}/${IG_ACCOUNT}/media`, {
+      data: [
+        { id: 'm1', caption: 'Hi', media_type: 'IMAGE', media_url: 'https://img', permalink: 'https://ig/p/1', timestamp: '2026-10-01T09:00:00+0000' },
+        { id: 'm2', media_type: 'VIDEO', media_url: 'https://video.mp4', thumbnail_url: 'https://still' },
+      ],
+    })
+    const media = await adapter.listMedia(account, 2)
+    expect(calls[0]?.search.get('limit')).toBe('2')
+    expect(media).toEqual([
+      { id: 'm1', caption: 'Hi', thumbnailUrl: 'https://img', permalink: 'https://ig/p/1', publishedAt: new Date('2026-10-01T09:00:00Z') },
+      { id: 'm2', caption: null, thumbnailUrl: 'https://still', permalink: null, publishedAt: null },
+    ])
+  })
+
   it('sets and clears ice breakers', async () => {
     const posts = capture('post', `${base}/${IG_ACCOUNT}/messenger_profile`, { result: 'success' })
     await adapter.setIceBreakers(account, [{ question: 'Pricing?', payload: 'ib:a1:0' }])
