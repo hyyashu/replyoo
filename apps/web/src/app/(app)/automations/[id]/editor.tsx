@@ -335,7 +335,7 @@ export function Editor({
     <>
       <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-semibold">Live preview</h2>
-        {previewTabs.length > 1 && <Segmented value={previewMode} onChange={setPreview} options={previewTabs} />}
+        {previewTabs.length > 1 && <Segmented variant="outline" value={previewMode} onChange={setPreview} options={previewTabs} />}
       </div>
       <div className="mt-6">
         <PhonePreview recipe={recipe} mode={previewMode} username={username} media={previewMedia} />

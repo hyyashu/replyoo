@@ -246,11 +246,34 @@ export function Segmented<T extends string>({
   value,
   options,
   onChange,
+  variant = 'pill',
 }: {
   value: T
   options: { value: T; label: ReactNode; disabled?: boolean }[]
   onChange: (value: T) => void
+  variant?: 'pill' | 'outline'
 }) {
+  if (variant === 'outline') {
+    return (
+      <div className="flex gap-2">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            disabled={option.disabled}
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+            className={cx(
+              'h-9 rounded-xl border px-4 text-[13px] font-medium transition-colors disabled:opacity-40',
+              value === option.value ? 'border-brand bg-brand-tint text-ink' : 'border-line text-muted hover:border-faint',
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
   return (
     <div className="inline-flex max-w-full overflow-x-auto rounded-full bg-sand p-1">
       {options.map((option) => (
