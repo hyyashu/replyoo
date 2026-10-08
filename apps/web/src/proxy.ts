@@ -17,6 +17,7 @@ export const config = {
     '/home',
     '/automations/:path*',
     '/contacts/:path*',
+    '/bio/:path*',
     '/settings/:path*',
     '/connect',
     '/api/contacts/:path*',

@@ -29,6 +29,20 @@
       "when": 1791293897799,
       "tag": "0003_meta_billing_email",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791450289455,
+      "tag": "0004_bio_pages",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791451166705,
+      "tag": "0005_bio_stats",
+      "breakpoints": true
     }
   ]
 }

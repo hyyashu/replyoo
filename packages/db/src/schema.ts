@@ -413,3 +413,62 @@ export const dataDeletionRequests = pgTable(
   },
   (t) => [uniqueIndex('data_deletion_requests_code_uq').on(t.confirmationCode)],
 )
+
+// ---------- bio page (link in bio) ----------
+
+export type BioBlockType = 'link' | 'header'
+export interface BioBlockConfig {
+  label: string
+  /** Links only; http(s). */
+  url?: string
+  platform?: string
+}
+
+export const bioPages = pgTable(
+  'bio_pages',
+  {
+    id: id(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(),
+    displayName: text('display_name').notNull(),
+    bio: text('bio').notNull().default(''),
+    avatarUrl: text('avatar_url'),
+    theme: text('theme').notNull().default('modern'),
+    showBadge: boolean('show_badge').notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('bio_pages_workspace_idx').on(t.workspaceId), uniqueIndex('bio_pages_slug_idx').on(t.slug)],
+)
+
+export const bioBlocks = pgTable(
+  'bio_blocks',
+  {
+    id: id(),
+    pageId: uuid('page_id')
+      .notNull()
+      .references(() => bioPages.id, { onDelete: 'cascade' }),
+    type: text('type').$type<BioBlockType>().notNull(),
+    config: jsonb('config').$type<BioBlockConfig>().notNull(),
+    position: integer('position').notNull().default(0),
+    hidden: boolean('hidden').notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [index('bio_blocks_page_position_idx').on(t.pageId, t.position)],
+)
+
+export const bioEvents = pgTable(
+  'bio_events',
+  {
+    id: id(),
+    pageId: uuid('page_id')
+      .notNull()
+      .references(() => bioPages.id, { onDelete: 'cascade' }),
+    // Kept (as null) when the block is deleted, so the page's totals don't shrink.
+    blockId: uuid('block_id').references(() => bioBlocks.id, { onDelete: 'set null' }),
+    type: text('type').$type<'view' | 'click'>().notNull(),
+    createdAt: tz('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('bio_events_page_type_idx').on(t.pageId, t.type, t.createdAt), index('bio_events_block_idx').on(t.blockId, t.createdAt)],
+)

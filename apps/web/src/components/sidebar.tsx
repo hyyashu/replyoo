@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ChevronsUpDown, CircleHelp, House, LogOut, Menu, Plus, Settings, Users, X, Zap } from 'lucide-react'
+import { Check, ChevronsUpDown, CircleHelp, House, Link2, LogOut, Menu, Plus, Settings, Users, X, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
@@ -14,6 +14,7 @@ const NAV = [
   { href: '/home', label: 'Home', icon: House },
   { href: '/automations', label: 'Automations', icon: Zap },
   { href: '/contacts', label: 'Contacts', icon: Users },
+  { href: '/bio', label: 'Bio page', icon: Link2 },
 ]
 
 interface SidebarProps {
