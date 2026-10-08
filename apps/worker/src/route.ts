@@ -53,7 +53,9 @@ export function decideRoute(input: RouteInput): Route {
     case 'story_reply': {
       const { text } = event
       const { waitingRun } = input
-      if (waitingRun && text !== null && acceptsReply(input, waitingRun, text)) {
+      // A reaction ("❤") is never an answer to a waiting question.
+      const isReaction = event.type === 'story_reply' && event.isReaction
+      if (waitingRun && text !== null && !isReaction && acceptsReply(input, waitingRun, text)) {
         return { kind: 'resume', runId: waitingRun.id, event: { type: 'reply', text } }
       }
       const match =

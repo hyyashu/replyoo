@@ -1,6 +1,14 @@
 import { TEMPLATES, validateFlow } from '@replyooo/shared'
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_RECIPE, changeTriggerType, compileRecipe, recipeFromFlow, type Recipe } from '@/lib/recipe'
+import {
+  DEFAULT_RECIPE,
+  addChips,
+  changeTriggerType,
+  compileRecipe,
+  recipeFromFlow,
+  setCollectKind,
+  type Recipe,
+} from '@/lib/recipe'
 import { checkRecipe } from '@/lib/validation'
 
 const recipe = (patch: Partial<Recipe>): Recipe => ({ ...structuredClone(DEFAULT_RECIPE), ...patch })
@@ -59,8 +67,34 @@ describe('compileRecipe', () => {
     )
     expect(issues).toContainEqual({ section: 'dm', message: 'Enter a valid link, including https://' })
 
+    const unsafe = checkRecipe(
+      recipe({ message: { text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'javascript:alert(1)' }] } }),
+      'instagram',
+    )
+    expect(unsafe.issues).toContainEqual({ section: 'dm', message: 'Enter a valid link, including https://' })
+
+    const badImage = checkRecipe(
+      recipe({ message: { text: 'Hi', imageUrl: 'data:image/png;base64,AAAA', links: [] } }),
+      'instagram',
+    )
+    expect(badImage.issues).toContainEqual({ section: 'dm', message: 'Enter a valid image link, including https://' })
+
+    const longTag = checkRecipe(recipe({ tags: ['x'.repeat(51)] }), 'instagram')
+    expect(longTag.issues).toContainEqual({ section: 'boosters', message: 'Tags must be 1–50 characters' })
+
     const empty = checkRecipe(recipe({ trigger: { type: 'dm_keyword', keywords: [], match: 'contains' } }), 'instagram')
     expect(empty.issues.map((issue) => issue.section)).toContain('trigger')
+  })
+})
+
+describe('ice breaker issues', () => {
+  it('show up in the trigger section, where the answers are edited', () => {
+    const { issues } = checkRecipe(
+      recipe({ trigger: { type: 'ice_breaker', items: [{ question: 'What do you offer?', answer: '', links: [] }] } }),
+      'instagram',
+    )
+    expect(issues.length).toBeGreaterThan(0)
+    expect(issues.every((issue) => issue.section === 'trigger')).toBe(true)
   })
 })
 
@@ -206,5 +240,54 @@ describe('follow reminder', () => {
     const ask = old.steps.ask_follow
     if (ask?.type === 'send_message' && ask.buttons?.[0]?.type === 'reply') ask.buttons[0].next = 'check'
     expect(recipeFromFlow(old).followGate.reminderText).toBe(DEFAULT_RECIPE.followGate.reminderText)
+  })
+})
+
+describe('addChips', () => {
+  const limits = { max: 3, maxLength: 5 }
+
+  it('splits on commas, trims and skips empties', () => {
+    expect(addChips([], ' a, b ,,c ', limits)).toEqual({ value: ['a', 'b', 'c'], dropped: 0 })
+  })
+
+  it('skips duplicates case-insensitively, including inside the pasted batch', () => {
+    expect(addChips(['Link'], 'link, Price, PRICE, price', limits)).toEqual({ value: ['Link', 'Price'], dropped: 0 })
+  })
+
+  it('stops at the cap and reports how many were left out', () => {
+    expect(addChips(['a'], 'b, c, d, e', limits)).toEqual({ value: ['a', 'b', 'c'], dropped: 2 })
+  })
+
+  it('cuts words to the maximum length', () => {
+    expect(addChips([], 'abcdefgh', limits)).toEqual({ value: ['abcde'], dropped: 0 })
+  })
+})
+
+describe('setCollectKind', () => {
+  it('adds the lead tag, swaps it when the kind changes, and removes it when switched off', () => {
+    const r = recipe({ tags: ['vip'] })
+    setCollectKind(r, 'email')
+    expect(r.collect.kind).toBe('email')
+    expect(r.tags).toEqual(['vip', 'email-lead'])
+
+    setCollectKind(r, 'phone')
+    expect(r.collect.kind).toBe('phone')
+    expect(r.tags).toEqual(['vip', 'phone-lead'])
+
+    setCollectKind(r, 'phone')
+    expect(r.collect.kind).toBe('none')
+    expect(r.tags).toEqual(['vip'])
+  })
+})
+
+describe('recipeFromFlow without a message', () => {
+  it('leaves the message empty so validation flags it', () => {
+    const flow = compileRecipe(recipe({ trigger: { type: 'any_dm' } }))
+    flow.steps.opener = { type: 'send_message', text: 'Hi', buttons: [{ type: 'reply', id: 'go', label: 'Go' }] }
+    flow.start = 'opener'
+    delete flow.steps.deliver
+    const back = recipeFromFlow(flow)
+    expect(back.message.text).toBe('')
+    expect(checkRecipe(back, 'instagram').issues.length).toBeGreaterThan(0)
   })
 })

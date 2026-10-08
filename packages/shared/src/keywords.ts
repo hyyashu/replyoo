@@ -3,6 +3,8 @@ import type { KeywordMatch } from './flow'
 export function normalizeText(input: string): string {
   return input
     .normalize('NFKC')
+    // Emoji variation selectors: "❤" and "❤️" are the same thing to the person typing.
+    .replace(/[\uFE0E\uFE0F]/g, '')
     .toLowerCase()
     .replace(/\p{P}+/gu, ' ')
     .replace(/\s+/g, ' ')

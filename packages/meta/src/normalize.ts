@@ -30,7 +30,7 @@ const EntrySchema = z.looseObject({
   changes: z.array(z.looseObject({ field: z.string(), value: z.unknown() })).optional(),
 })
 
-const PayloadSchema = z.looseObject({ object: z.string(), entry: z.array(EntrySchema) })
+const PayloadSchema = z.looseObject({ object: z.string(), entry: z.array(z.unknown()) })
 
 const InstagramCommentSchema = z.looseObject({
   id: z.string(),
@@ -55,7 +55,9 @@ type ChangeHandler = (entry: Entry, field: string, value: unknown) => Normalized
 /** Meta sends seconds for `changes` and milliseconds for `messaging`. */
 function toIso(time: number | undefined): string {
   if (time === undefined) return new Date().toISOString()
-  return new Date(time < 1e12 ? time * 1000 : time).toISOString()
+  const date = new Date(time < 1e12 ? time * 1000 : time)
+  // An out-of-range timestamp makes toISOString() throw, which would drop the whole batch; use now instead.
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString()
 }
 
 const hasWordCharacters = (text: string) => /[\p{L}\p{N}]/u.test(text)
@@ -69,7 +71,11 @@ function normalize(
   const parsed = PayloadSchema.safeParse(payload)
   if (!parsed.success || parsed.data.object !== expectedObject) return []
   const events: NormalizedEvent[] = []
-  for (const entry of parsed.data.entry) {
+  for (const rawEntry of parsed.data.entry) {
+    // One malformed entry must not drop the valid ones in the same batch.
+    const parsedEntry = EntrySchema.safeParse(rawEntry)
+    if (!parsedEntry.success) continue
+    const entry = parsedEntry.data
     for (const item of entry.messaging ?? []) {
       const event = messagingEvent(platform, entry.id, item)
       if (event) events.push(event)

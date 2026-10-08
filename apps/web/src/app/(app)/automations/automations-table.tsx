@@ -145,7 +145,12 @@ function Row({ automation }: { automation: Automation }) {
         {live && stats.runs > 0 ? formatPercent(stats.completed / stats.runs) : '—'}
       </td>
       <td className="pl-6">
-        <StatusPill status={automation.status} />
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <StatusPill status={automation.status} />
+          {live && automation.hasUnpublishedChanges && (
+            <span className="text-[12px] font-medium text-[#8a4b0f]">Unpublished edits</span>
+          )}
+        </div>
       </td>
       <td className="pr-4" onClick={(e) => e.stopPropagation()}>
         <RowMenu automation={automation} />

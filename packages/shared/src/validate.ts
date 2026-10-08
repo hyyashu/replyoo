@@ -1,4 +1,5 @@
 import type { FlowDefinition, Step, StepOf } from './flow'
+import { normalizeText } from './keywords'
 import type { Platform } from './platform'
 
 export type ValidationCode =
@@ -16,6 +17,10 @@ export type ValidationCode =
   | 'nudge_without_wait'
   | 'nudge_after_private_reply'
   | 'nudge_too_late'
+  | 'duplicate_button_id'
+  | 'keyword_never_matches'
+  | 'too_many_steps_without_wait'
+  | 'too_many_steps'
 
 export interface ValidationIssue {
   code: ValidationCode
@@ -25,6 +30,11 @@ export interface ValidationIssue {
 
 /** Meta's button template caps the text above the buttons at 640 characters. */
 export const MAX_BUTTON_TEMPLATE_TEXT = 640
+
+/** The engine gives up on a run that executes more than this many steps without waiting. */
+export const MAX_STEPS_PER_ADVANCE = 50
+/** Upper bound on steps in one flow; enforced here rather than in the schema so stored drafts still parse. */
+export const MAX_FLOW_STEPS = 200
 
 const isDefined = <T>(value: T | undefined): value is T => value !== undefined
 
@@ -97,6 +107,12 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
         message: `Messages with buttons can be at most ${MAX_BUTTON_TEMPLATE_TEXT} characters`,
       })
     }
+    if (step.type === 'send_message') {
+      const ids = (step.buttons ?? []).flatMap((button) => (button.type === 'reply' ? [button.id] : []))
+      if (new Set(ids).size !== ids.length) {
+        issues.push({ code: 'duplicate_button_id', stepId, message: 'Two buttons on this message share an id' })
+      }
+    }
     if ((step.type === 'send_message' || step.type === 'ask') && step.nudge) {
       if (step.type === 'send_message' && !hasReplyButtons(step)) {
         issues.push({ code: 'nudge_without_wait', stepId, message: 'A reminder needs a reply button to wait on' })
@@ -141,6 +157,24 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
     issues.push({ code: 'platform_unsupported', message: 'Story replies are only available on Instagram' })
   }
 
+  const keywords =
+    trigger.type === 'comment_keyword' || trigger.type === 'dm_keyword' || trigger.type === 'story_reply'
+      ? (trigger.keywords ?? [])
+      : []
+  if (keywords.some((keyword) => normalizeText(keyword) === '')) {
+    issues.push({
+      code: 'keyword_never_matches',
+      message: 'Keywords made only of punctuation can never match',
+    })
+  }
+
+  if (Object.keys(steps).length > MAX_FLOW_STEPS) {
+    issues.push({
+      code: 'too_many_steps',
+      message: `A flow can have at most ${MAX_FLOW_STEPS} steps`,
+    })
+  }
+
   if (trigger.type === 'comment_keyword') {
     if (trigger.posts.mode === 'specific' && trigger.posts.mediaIds.length === 0) {
       issues.push({ code: 'no_posts_selected', message: 'Pick at least one post' })
@@ -163,7 +197,7 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
     }
   }
 
-  issues.push(...findOrphans(flow, entries), ...findCyclesWithoutWait(flow))
+  issues.push(...findOrphans(flow, entries), ...findCyclesWithoutWait(flow, entries))
   return issues
 }
 
@@ -182,30 +216,68 @@ function findOrphans(flow: FlowDefinition, entries: string[]): ValidationIssue[]
     .map((stepId) => ({ code: 'orphan_step' as const, stepId, message: 'This step can never be reached' }))
 }
 
-function findCyclesWithoutWait(flow: FlowDefinition): ValidationIssue[] {
+/**
+ * One iterative depth-first pass (a recursive one overflows the stack on long chains) that finds
+ * loops without a wait and measures how many steps a run executes before it next has to wait.
+ */
+function findCyclesWithoutWait(flow: FlowDefinition, entries: string[]): ValidationIssue[] {
   const state = new Map<string, 'visiting' | 'done'>()
+  const depth = new Map<string, number>()
   const flagged = new Set<string>()
 
-  const visit = (id: string) => {
-    state.set(id, 'visiting')
-    const step = flow.steps[id]
-    for (const target of step ? stepTargets(step) : []) {
+  const visit = (root: string) => {
+    const stack: Array<{ id: string; targets: string[]; index: number; best: number }> = []
+    const enter = (id: string) => {
+      state.set(id, 'visiting')
+      const step = flow.steps[id]
+      stack.push({ id, targets: step ? stepTargets(step) : [], index: 0, best: 0 })
+    }
+    enter(root)
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1] as (typeof stack)[number]
+      const target = frame.targets[frame.index++]
+      if (target === undefined) {
+        stack.pop()
+        state.set(frame.id, 'done')
+        depth.set(frame.id, 1 + frame.best)
+        const parent = stack[stack.length - 1]
+        if (parent) parent.best = Math.max(parent.best, 1 + frame.best)
+        continue
+      }
       const targetStep = flow.steps[target]
-      if (!targetStep || isWaitStep(targetStep)) continue
+      if (!targetStep) continue
+      if (isWaitStep(targetStep)) {
+        frame.best = Math.max(frame.best, 1)
+        continue
+      }
       const targetState = state.get(target)
       if (targetState === 'visiting') flagged.add(target)
-      else if (targetState === undefined) visit(target)
+      else if (targetState === 'done') frame.best = Math.max(frame.best, depth.get(target) ?? 0)
+      else enter(target)
     }
-    state.set(id, 'done')
   }
 
   for (const [id, step] of Object.entries(flow.steps)) {
     if (!isWaitStep(step) && !state.has(id)) visit(id)
   }
 
-  return [...flagged].map((stepId) => ({
-    code: 'cycle_without_wait' as const,
-    stepId,
-    message: 'This loop never waits for the person, so it would repeat forever',
-  }))
+  // A run starts at an entry step or right after a wait step, so those are where a long chain begins.
+  const segmentStarts = new Set(entries)
+  for (const step of Object.values(flow.steps)) {
+    if (isWaitStep(step)) for (const target of stepTargets(step)) segmentStarts.add(target)
+  }
+  const tooLong = [...segmentStarts].filter((id) => (depth.get(id) ?? 0) > MAX_STEPS_PER_ADVANCE)
+
+  return [
+    ...[...flagged].map((stepId) => ({
+      code: 'cycle_without_wait' as const,
+      stepId,
+      message: 'This loop never waits for the person, so it would repeat forever',
+    })),
+    ...tooLong.map((stepId) => ({
+      code: 'too_many_steps_without_wait' as const,
+      stepId,
+      message: `More than ${MAX_STEPS_PER_ADVANCE} steps in a row without waiting for the person; add a wait or shorten the chain`,
+    })),
+  ]
 }

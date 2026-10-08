@@ -1,6 +1,6 @@
 'use server'
 
-import { FlowDefinitionSchema } from '@replyooo/shared'
+import { DraftFlowSchema } from '@replyooo/shared'
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -41,26 +41,40 @@ export async function createAutomation(templateKey: string | null) {
   redirect(`/automations/${automation.id}`)
 }
 
-export async function saveDraft(id: string, name: string, flow: unknown) {
+type PublishActionResult = data.PublishResult | { ok: false; errors: string[]; conflict?: true; saved?: true }
+
+const MAX_DRAFT_BYTES = 200_000
+const CONFLICT_MESSAGE = 'This automation was changed in another tab. Reload to get the latest version.'
+
+/** `base` is the draft this tab last saw; if someone else saved since, the write is refused. */
+export async function saveDraft(id: string, name: string, flow: unknown, base?: unknown) {
   const { workspaceId } = await requireWorkspace()
-  // Drafts may be incomplete, but they must still be well-formed JSON of the right shape.
-  const parsed = FlowDefinitionSchema.safeParse(flow)
-  if (!parsed.success) return { ok: false as const, error: 'Fix the highlighted fields before saving' }
-  if (!(await data.saveDraft(workspaceId, id, { name, flow: parsed.data }))) {
-    return { ok: false as const, error: 'This automation no longer exists' }
+  // Drafts may be incomplete (publishing checks them strictly), but they must be the right shape and a sane size.
+  const parsed = DraftFlowSchema.safeParse(flow)
+  if (!parsed.success || JSON.stringify(flow).length > MAX_DRAFT_BYTES) {
+    return { ok: false as const, error: 'Fix the highlighted fields before saving' }
   }
+  const result = await data.saveDraft(workspaceId, id, { name, flow: parsed.data }, base)
+  if (result === 'conflict') return { ok: false as const, conflict: true as const, error: CONFLICT_MESSAGE }
+  if (result === 'missing') return { ok: false as const, error: 'This automation no longer exists' }
   revalidatePath('/automations')
   return { ok: true as const, savedAt: new Date().toISOString() }
 }
 
-export async function publishAutomation(id: string, name: string, flow: unknown): Promise<data.PublishResult> {
+export async function publishAutomation(
+  id: string,
+  name: string,
+  flow: unknown,
+  base?: unknown,
+): Promise<PublishActionResult> {
   const { workspaceId } = await requireWorkspace()
-  const saved = await saveDraft(id, name, flow)
-  if (!saved.ok) return { ok: false, errors: [saved.error] }
+  const saved = await saveDraft(id, name, flow, base)
+  if (!saved.ok) return { ok: false, errors: [saved.error], ...('conflict' in saved && { conflict: true as const }) }
   const result = await data.publishAutomation(workspaceId, id)
   revalidatePath('/automations')
   revalidatePath(`/automations/${id}`)
-  return result
+  // `saved` tells the editor the draft was stored even though the publish checks failed.
+  return result.ok ? result : { ...result, saved: true }
 }
 
 export async function setAutomationStatus(id: string, status: 'active' | 'paused'): Promise<data.StatusResult> {

@@ -122,6 +122,8 @@ function onReply(ctx: Ctx, text: string): boolean {
   if (current?.kind === 'postback') {
     const step = currentStep(ctx, 'send_message')
     const typed = normalizeText(text)
+    // Punctuation-only text must not tap a button whose label is also punctuation-only.
+    if (typed === '') return false
     const button = step?.buttons?.find((b) => b.type === 'reply' && normalizeText(b.label) === typed)
     if (!button || button.type !== 'reply' || !ctx.run.currentStepId) return false
     return onPostback(ctx, ctx.run.currentStepId, button.id)
@@ -148,14 +150,23 @@ function onReply(ctx: Ctx, text: string): boolean {
     type: 'send',
     message: { text: renderText(step.retryText, ctx.contact, ctx.run.vars) },
   })
+  // The retry bumps the state version, which would make the original timeout job stale.
+  if (ctx.run.waitUntil) ctx.effects.push({ type: 'schedule_timeout', at: ctx.run.waitUntil })
   return true
 }
 
 function onTimeout(ctx: Ctx): boolean {
-  const { wait: current, waitUntil } = ctx.run
-  if (!current || !waitUntil || ctx.now.getTime() < waitUntil.getTime()) return false
-  if ((current.kind === 'postback' || current.kind === 'reply') && current.nudgeDeadline) {
-    return onNudge(ctx, current)
+  const { wait, waitUntil } = ctx.run
+  if (!wait || !waitUntil || ctx.now.getTime() < waitUntil.getTime()) return false
+  let current: Wait = wait
+  if ((wait.kind === 'postback' || wait.kind === 'reply') && wait.nudgeDeadline) {
+    const deadline = new Date(wait.nudgeDeadline)
+    if (ctx.now.getTime() < deadline.getTime()) return onNudge(ctx, wait)
+    // Woke after the real deadline (e.g. the worker was down): too late for a reminder, time out instead.
+    const { nudgeDeadline, ...rest } = wait
+    ctx.run.wait = rest
+    ctx.run.waitUntil = deadline
+    current = rest
   }
   switch (current.kind) {
     case 'postback':
@@ -329,7 +340,7 @@ function evaluate(contact: ContactState, has: StepOf<'condition'>['has']): boole
   if (has === 'email') return Boolean(contact.email)
   if (has === 'phone') return Boolean(contact.phone)
   if ('tag' in has) return contact.tags.includes(has.tag)
-  return Boolean(contact.fields[has.field])
+  return Object.hasOwn(contact.fields, has.field) ? Boolean(contact.fields[has.field]) : false
 }
 
 function fail(ctx: Ctx, error: string): void {

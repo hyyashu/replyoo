@@ -1,9 +1,16 @@
 import type { FlowDefinition, Trigger } from '@replyooo/shared'
 
+const POST_MODES: Record<string, string> = { any: 'Any post', next: 'Next post', specific: 'Specific post' }
+
+/** Drafts are only loosely checked when saved, so a trigger field can be missing or the wrong type. */
+function textList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
 export function triggerLabel(trigger: Trigger): string {
   switch (trigger.type) {
     case 'comment_keyword': {
-      const where = { any: 'Any post', next: 'Next post', specific: 'Specific post' }[trigger.posts.mode]
+      const where = POST_MODES[String(trigger.posts?.mode)] ?? 'Post'
       return `${where} · Comment`
     }
     case 'dm_keyword':
@@ -14,22 +21,30 @@ export function triggerLabel(trigger: Trigger): string {
       return trigger.includeReactions ? 'Story · Replies & reactions' : 'Story · Replies'
     case 'ice_breaker':
       return 'DM · Conversation starters'
+    default:
+      return 'Automation'
   }
 }
 
 /** Short chips shown in the trigger column. */
 export function triggerChips(trigger: Trigger): string[] {
   switch (trigger.type) {
-    case 'comment_keyword':
-      return trigger.keywords.length > 0 ? trigger.keywords : ['Any comment']
+    case 'comment_keyword': {
+      const keywords = textList(trigger.keywords)
+      return keywords.length > 0 ? keywords : ['Any comment']
+    }
     case 'dm_keyword':
-      return trigger.keywords
-    case 'story_reply':
-      return trigger.keywords?.length ? trigger.keywords : ['Any reply']
+      return textList(trigger.keywords)
+    case 'story_reply': {
+      const keywords = textList(trigger.keywords)
+      return keywords.length > 0 ? keywords : ['Any reply']
+    }
     case 'any_dm':
       return ['Any DM']
     case 'ice_breaker':
-      return [`${trigger.items.length} questions`]
+      return [`${Array.isArray(trigger.items) ? trigger.items.length : 0} questions`]
+    default:
+      return []
   }
 }
 

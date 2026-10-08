@@ -39,7 +39,7 @@ describe('publishAutomation', () => {
 
     const edited = structuredClone(automation.flow)
     if (edited.trigger.type === 'comment_keyword') edited.trigger.keywords = ['CHANGED']
-    expect(await data.saveDraft(workspaceId, automation.id, { name: 'Renamed', flow: edited })).toBe(true)
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'Renamed', flow: edited })).toBe('saved')
     expect(await data.publishAutomation(workspaceId, automation.id)).toEqual({ ok: true, version: 2 })
 
     const versions = await db()
@@ -77,6 +77,88 @@ describe('publishAutomation', () => {
     delete flow.steps.opener
     await data.saveDraft(workspaceId, automation.id, { name: 'Broken', flow })
     expect((await data.publishAutomation(workspaceId, automation.id)).ok).toBe(false)
+  })
+})
+
+describe('saveDraft', () => {
+  it('refuses a write based on a stale draft and accepts one based on the current draft', async () => {
+    const { workspaceId, accountId } = await setup()
+    const automation = await created(workspaceId, accountId, 'comment_to_dm')
+    const edit = (keyword: string) => {
+      const flow = structuredClone(automation.flow)
+      if (flow.trigger.type === 'comment_keyword') flow.trigger.keywords = [keyword]
+      return flow
+    }
+    const first = edit('ONE')
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'A', flow: first }, automation.flow)).toBe('saved')
+    // A second tab still thinks the draft is the original one.
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'B', flow: edit('TWO') }, automation.flow)).toBe('conflict')
+    expect((await data.getAutomation(workspaceId, automation.id))?.name).toBe('A')
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'B', flow: edit('TWO') }, first)).toBe('saved')
+  })
+
+  it('accepts a retry of a save that already landed, even though its base is out of date', async () => {
+    const { workspaceId, accountId } = await setup()
+    const automation = await created(workspaceId, accountId, 'comment_to_dm')
+    const edited = structuredClone(automation.flow)
+    if (edited.trigger.type === 'comment_keyword') edited.trigger.keywords = ['ONE']
+    // The first request committed but its response was lost; the retry still carries the old base.
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'A', flow: edited }, automation.flow)).toBe('saved')
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'A', flow: edited }, automation.flow)).toBe('saved')
+    expect((await data.getAutomation(workspaceId, automation.id))?.flow).toEqual(edited)
+
+    // A different draft on a stale base is still a conflict.
+    const other = structuredClone(automation.flow)
+    if (other.trigger.type === 'comment_keyword') other.trigger.keywords = ['TWO']
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'B', flow: other }, automation.flow)).toBe('conflict')
+  })
+})
+
+describe('hasUnpublishedChanges', () => {
+  it('is true for a fresh draft, false after publishing, true again after an edited draft is saved', async () => {
+    const { workspaceId, accountId } = await setup()
+    const automation = await created(workspaceId, accountId, 'comment_to_dm')
+    expect(automation.hasUnpublishedChanges).toBe(true)
+
+    await data.publishAutomation(workspaceId, automation.id)
+    expect((await data.getAutomation(workspaceId, automation.id))?.hasUnpublishedChanges).toBe(false)
+
+    const edited = structuredClone(automation.flow)
+    if (edited.trigger.type === 'comment_keyword') edited.trigger.keywords = ['CHANGED']
+    await data.saveDraft(workspaceId, automation.id, { name: 'Renamed', flow: edited })
+    expect((await data.getAutomation(workspaceId, automation.id))?.hasUnpublishedChanges).toBe(true)
+  })
+
+  it('ignores the whitespace that publishing trims, but still sees a real edit', async () => {
+    const { workspaceId, accountId } = await setup()
+    const automation = await created(workspaceId, accountId, 'comment_to_dm')
+    const spaced = structuredClone(automation.flow)
+    const opener = spaced.steps.opener
+    if (opener?.type !== 'send_message') throw new Error('expected a send_message opener')
+    opener.text = `${opener.text} `
+    await data.saveDraft(workspaceId, automation.id, { name: automation.name, flow: spaced })
+    expect(await data.publishAutomation(workspaceId, automation.id)).toEqual({ ok: true, version: 1 })
+
+    const published = await data.getAutomation(workspaceId, automation.id)
+    // The stored draft keeps the raw text; only the comparison trims.
+    expect(published?.flow).toEqual(spaced)
+    expect(published?.hasUnpublishedChanges).toBe(false)
+
+    opener.text = `${opener.text.trim()} Really.`
+    await data.saveDraft(workspaceId, automation.id, { name: automation.name, flow: spaced })
+    expect((await data.getAutomation(workspaceId, automation.id))?.hasUnpublishedChanges).toBe(true)
+  })
+
+  it('counts a draft that no longer parses as unpublished', async () => {
+    const { workspaceId, accountId } = await setup()
+    const automation = await created(workspaceId, accountId, 'comment_to_dm')
+    await data.publishAutomation(workspaceId, automation.id)
+    const blank = structuredClone(automation.flow)
+    const opener = blank.steps.opener
+    if (opener?.type !== 'send_message') throw new Error('expected a send_message opener')
+    opener.text = ''
+    await data.saveDraft(workspaceId, automation.id, { name: automation.name, flow: blank })
+    expect((await data.getAutomation(workspaceId, automation.id))?.hasUnpublishedChanges).toBe(true)
   })
 })
 
@@ -118,7 +200,7 @@ describe('workspace isolation', () => {
     const automation = await created(a.workspaceId, a.accountId, 'comment_to_dm')
 
     expect(await data.getAutomation(b.workspaceId, automation.id)).toBeNull()
-    expect(await data.saveDraft(b.workspaceId, automation.id, { name: 'Hijacked', flow: automation.flow })).toBe(false)
+    expect(await data.saveDraft(b.workspaceId, automation.id, { name: 'Hijacked', flow: automation.flow })).toBe('missing')
     expect(await data.publishAutomation(b.workspaceId, automation.id)).toEqual({ ok: false, errors: ['Automation not found'] })
     expect(await data.setAutomationStatus(b.workspaceId, automation.id, 'paused')).toEqual({
       ok: false,
@@ -139,7 +221,9 @@ describe('workspace isolation', () => {
   it('returns not found for malformed ids instead of throwing', async () => {
     const { workspaceId, accountId } = await setup()
     expect(await data.getAutomation(workspaceId, 'aut_breakfast')).toBeNull()
-    expect(await data.saveDraft(workspaceId, 'aut_breakfast', { name: 'x', flow: compileRecipe(DEFAULT_RECIPE) })).toBe(false)
+    expect(await data.saveDraft(workspaceId, 'aut_breakfast', { name: 'x', flow: compileRecipe(DEFAULT_RECIPE) })).toBe(
+      'missing',
+    )
     expect(await data.publishAutomation(workspaceId, 'aut_breakfast')).toEqual({ ok: false, errors: ['Automation not found'] })
     expect(await data.setAutomationStatus(workspaceId, 'aut_breakfast', 'paused')).toEqual({ ok: false, error: 'Automation not found' })
     expect(await data.createAutomation(workspaceId, 'acc_ig', null)).toBeNull()

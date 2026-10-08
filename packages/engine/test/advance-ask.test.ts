@@ -51,7 +51,10 @@ describe('ask step', () => {
     driver.startDm()
 
     const first = driver.send({ type: 'reply', text: 'idk' })
-    expect(first.effects).toEqual([{ type: 'send', message: { text: 'Hmm, try again?' } }])
+    expect(first.effects).toEqual([
+      { type: 'send', message: { text: 'Hmm, try again?' } },
+      { type: 'schedule_timeout', at: addMinutes(T0, 60) },
+    ])
     expect(first.run.wait).toEqual({ kind: 'reply', attempts: 1 })
     expect(first.run.waitUntil).toEqual(addMinutes(T0, 60))
 

@@ -26,7 +26,12 @@ function lookup(key: string, contact: ContactState, vars: Record<string, string>
     case 'phone':
       return contact.phone
   }
-  if (key.startsWith('fields.')) return contact.fields[key.slice('fields.'.length)] ?? null
-  if (key.startsWith('vars.')) return vars[key.slice('vars.'.length)] ?? null
+  if (key.startsWith('fields.')) return lookupOwn(contact.fields, key.slice('fields.'.length))
+  if (key.startsWith('vars.')) return lookupOwn(vars, key.slice('vars.'.length))
   return null
+}
+
+/** Own keys only, so `{{fields.constructor}}` can't reach Object.prototype. */
+function lookupOwn(record: Record<string, string>, key: string): string | null {
+  return Object.hasOwn(record, key) ? (record[key] ?? null) : null
 }

@@ -1,6 +1,6 @@
 export type AnswerKind = 'email' | 'phone' | 'text'
 
-const EMAIL = /[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.\p{L}{2,}/u
+const EMAIL = /[^\s@<>()[\]{}"'`“”‘’«»,;:]+@[^\s@<>()[\]{}"'`“”‘’«»,;:]+\.\p{L}{2,}/u
 const PHONE = /(?<!\d)\+?\d{7,15}(?!\d)/
 
 export function parseAnswer(text: string, kind: AnswerKind): string | null {

@@ -2,11 +2,22 @@ import { TriangleAlert } from 'lucide-react'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { signOut } from '@/app/auth-actions'
-import { Sidebar } from '@/components/sidebar'
+import { MobileNav, Sidebar } from '@/components/sidebar'
 import { Logo } from '@/components/ui'
 import { VerifyEmailBanner } from '@/components/verify-banner'
 import { getSubscription } from '@/lib/data'
 import { getAccountContext, VERIFY_COOLDOWN_COOKIE } from '@/lib/session'
+
+function SkipLink() {
+  return (
+    <a
+      href="#main"
+      className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-ink focus:px-3 focus:py-2 focus:text-[13px] focus:text-white"
+    >
+      Skip to content
+    </a>
+  )
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { workspace, account, accounts } = await getAccountContext()
@@ -19,7 +30,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!account) {
     return (
       <div className="min-h-screen bg-sand">
-        <header className="flex items-center justify-between px-8 py-6">
+        <SkipLink />
+        <header className="flex items-center justify-between px-4 py-6 sm:px-8">
           <Link href="/connect">
             <Logo />
           </Link>
@@ -35,18 +47,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </header>
         {verifyBanner}
-        <main>{children}</main>
+        <main id="main">{children}</main>
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col md:flex-row">
+      <SkipLink />
+      <MobileNav account={account} accounts={accounts} subscription={subscription} />
       <Sidebar account={account} accounts={accounts} subscription={subscription} />
-      <main className="min-w-0 flex-1">
+      <main id="main" className="min-w-0 flex-1">
         {verifyBanner}
         {account.status === 'reauth_required' && (
-          <div className="flex items-center gap-2 border-b border-[#ffd7c4] bg-brand-tint px-10 py-2.5 text-[13.5px] text-ink">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#ffd7c4] bg-brand-tint px-4 py-2.5 sm:px-10 text-[13.5px] text-ink">
             <TriangleAlert className="size-4 text-brand" />
             Meta revoked access to @{account.username}. Automations on this account are paused until you reconnect.
             <Link href={`/connect?platform=${account.platform}`} className="ml-auto font-semibold text-brand hover:underline">
@@ -55,7 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         )}
         {subscription.contactsReached >= subscription.contactsLimit && (
-          <div className="flex items-center gap-2 border-b border-[#ffd7c4] bg-brand-tint px-10 py-2.5 text-[13.5px] text-ink">
+          <div className="flex flex-wrap items-center gap-2 border-b border-[#ffd7c4] bg-brand-tint px-4 py-2.5 sm:px-10 text-[13.5px] text-ink">
             <TriangleAlert className="size-4 text-brand" />
             You’ve reached {subscription.contactsLimit.toLocaleString('en-US')} contacts this month. New conversations are paused until{' '}
             {new Date(subscription.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.

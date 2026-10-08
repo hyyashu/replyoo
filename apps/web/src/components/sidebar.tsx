@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, ChevronsUpDown, CircleHelp, House, LogOut, Plus, Settings, Users, Zap } from 'lucide-react'
+import { Check, ChevronsUpDown, CircleHelp, House, LogOut, Menu, Plus, Settings, Users, X, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
@@ -16,21 +16,80 @@ const NAV = [
   { href: '/contacts', label: 'Contacts', icon: Users },
 ]
 
-export function Sidebar({
-  account,
-  accounts,
-  subscription,
-}: {
+interface SidebarProps {
   account: ConnectedAccount
   accounts: ConnectedAccount[]
   subscription: Subscription
-}) {
+}
+
+export function Sidebar(props: SidebarProps) {
+  return (
+    <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col gap-5 border-r border-line bg-sand px-4 py-5 md:flex">
+      <SidebarBody {...props} />
+    </aside>
+  )
+}
+
+/** Below md the sidebar is replaced by a slim top bar whose menu button opens the same content as a drawer. */
+export function MobileNav(props: SidebarProps) {
+  const [open, setOpen] = useState(false)
+  const pathname = usePathname()
+
+  useEffect(() => setOpen(false), [pathname])
+  useEffect(() => {
+    if (!open) return
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false)
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+
+  return (
+    <div className="md:hidden">
+      <div className="flex items-center justify-between border-b border-line bg-sand px-4 py-3">
+        <Link href="/home">
+          <Logo />
+        </Link>
+        <button
+          type="button"
+          aria-label="Open menu"
+          aria-expanded={open}
+          aria-controls="mobile-nav"
+          onClick={() => setOpen(true)}
+          className="grid size-10 place-items-center rounded-xl border border-line bg-white"
+        >
+          <Menu className="size-4" />
+        </button>
+      </div>
+      {open && (
+        <div className="fixed inset-0 z-40 flex">
+          <div className="absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
+          <aside
+            id="mobile-nav"
+            className="relative flex h-full w-[280px] max-w-[85vw] flex-col gap-5 overflow-y-auto bg-sand px-4 py-5"
+          >
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setOpen(false)}
+              className="absolute top-4 right-3 grid size-8 place-items-center rounded-lg text-muted hover:bg-white"
+            >
+              <X className="size-4" />
+            </button>
+            <SidebarBody {...props} />
+          </aside>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SidebarBody({ account, accounts, subscription }: SidebarProps) {
   const pathname = usePathname()
   const usage = subscription.contactsReached / subscription.contactsLimit
   const daysLeft = Math.max(0, Math.ceil((new Date(subscription.periodEnd).getTime() - Date.now()) / 86_400_000))
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[248px] shrink-0 flex-col gap-5 border-r border-line bg-sand px-4 py-5">
+    <>
       <Link href="/home" className="px-2 py-1">
         <Logo />
       </Link>
@@ -81,7 +140,7 @@ export function Sidebar({
           </button>
         </form>
       </div>
-    </aside>
+    </>
   )
 }
 

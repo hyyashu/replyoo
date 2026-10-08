@@ -2,15 +2,16 @@
 
 import type { Platform } from '@replyooo/shared'
 import { AtSign, BellRing, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Toggle, cx } from '@/components/ui'
 import {
-  COLLECT_DEFAULTS,
   MAX_LINKS,
   MAX_NUDGE_HOURS,
   changeTriggerType,
   nudgeApplies,
   openerRequired,
+  setCollectKind,
+  TAG_LIMITS,
   type LinkButton,
   type Recipe,
   type RecipeTrigger,
@@ -19,14 +20,6 @@ import type { RecipeIssue, RecipeSection } from '@/lib/validation'
 import { KeywordInput, Label, MessageInput, Segmented, TextInput } from './fields'
 
 export type Update = (fn: (draft: Recipe) => void) => void
-
-/** Posts would come from the Graph API media endpoint once the account is connected (Plan 3). */
-const POSTS = [
-  { id: 'reel_breakfast', label: 'Reel', style: 'bg-[linear-gradient(135deg,#ffd7c4,#ff4f1f)]' },
-  { id: 'post_pantry', label: 'Post', style: 'bg-[linear-gradient(135deg,#e6f6b5,#4c8a0b)]' },
-  { id: 'carousel_brunch', label: 'Carousel', style: 'bg-[linear-gradient(135deg,#cde9ff,#3b5bdb)]' },
-  { id: 'reel_smoothie', label: 'Reel', style: 'bg-[linear-gradient(135deg,#ded8ff,#6b4bff)]' },
-]
 
 function Section({
   index,
@@ -103,6 +96,8 @@ export function TriggerSection({
   issues: (section: RecipeSection) => RecipeIssue[]
 }) {
   const { trigger } = recipe
+  // Switching trigger type keeps what was entered, so switching back restores it.
+  const previous = useRef<Partial<Record<RecipeTrigger['type'], RecipeTrigger>>>({})
   const subtitle = {
     comment_keyword: 'Someone comments on your post — with a keyword, or any comment',
     dm_keyword: 'Someone sends you a DM with a keyword',
@@ -115,7 +110,11 @@ export function TriggerSection({
     <Section index={1} title="When this happens" subtitle={subtitle} issues={issues('trigger')}>
       <Segmented
         value={trigger.type}
-        onChange={(type) => update((d) => void (d.trigger = changeTriggerType(d.trigger, type)))}
+        onChange={(type) => {
+          previous.current[trigger.type] = structuredClone(trigger)
+          const restored = previous.current[type]
+          update((d) => void (d.trigger = restored ? structuredClone(restored) : changeTriggerType(d.trigger, type)))
+        }}
         options={TRIGGER_OPTIONS.map((o) => ({
           value: o.value,
           label: o.label,
@@ -127,33 +126,11 @@ export function TriggerSection({
         <div>
           <Label>Which posts</Label>
           <div className="flex flex-wrap gap-2">
-            {POSTS.map((post) => {
-              const selected = trigger.posts.mode === 'specific' && trigger.posts.mediaIds.includes(post.id)
-              return (
-                <button
-                  key={post.id}
-                  type="button"
-                  title={post.label}
-                  onClick={() =>
-                    update((d) => {
-                      if (d.trigger.type !== 'comment_keyword') return
-                      const current = d.trigger.posts.mode === 'specific' ? d.trigger.posts.mediaIds : []
-                      const mediaIds = current.includes(post.id) ? current.filter((id) => id !== post.id) : [...current, post.id]
-                      d.trigger.posts = mediaIds.length > 0 ? { mode: 'specific', mediaIds } : { mode: 'any' }
-                    })
-                  }
-                  className={cx(
-                    'size-14 rounded-xl border-2 transition-all',
-                    post.style,
-                    selected ? 'border-brand ring-3 ring-brand-soft' : 'border-transparent opacity-80 hover:opacity-100',
-                  )}
-                />
-              )
-            })}
             {(['any', 'next'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
+                aria-pressed={trigger.posts.mode === mode}
                 onClick={() => update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.posts = { mode }))}
                 className={cx(
                   'h-14 rounded-xl border px-4 text-[13px] font-medium transition-colors',
@@ -164,6 +141,19 @@ export function TriggerSection({
               </button>
             ))}
           </div>
+          {trigger.posts.mode === 'specific' && (
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
+              Picking specific posts is coming soon. This automation is set to {trigger.posts.mediaIds.length}{' '}
+              {trigger.posts.mediaIds.length === 1 ? 'post' : 'posts'}.
+              <button
+                type="button"
+                className="font-medium text-ink underline"
+                onClick={() => update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.posts = { mode: 'any' }))}
+              >
+                Switch to Any post
+              </button>
+            </p>
+          )}
         </div>
       )}
 
@@ -190,6 +180,7 @@ export function TriggerSection({
             Keywords
           </Label>
           <KeywordInput
+            label="Keywords"
             value={trigger.keywords}
             placeholder={trigger.type === 'comment_keyword' ? 'Any comment' : undefined}
             onChange={(keywords) =>
@@ -219,6 +210,7 @@ export function TriggerSection({
           <div>
             <Label hint="Leave empty to reply to every story reply">Only when the reply contains</Label>
             <KeywordInput
+              label="Only when the reply contains"
               value={trigger.keywords}
               placeholder="Any reply"
               onChange={(keywords) => update((d) => d.trigger.type === 'story_reply' && void (d.trigger.keywords = keywords))}
@@ -234,6 +226,7 @@ export function TriggerSection({
               <div className="mb-2 flex items-center gap-2">
                 <div className="flex-1">
                   <TextInput
+                    label="Question people can tap"
                     value={item.question}
                     maxLength={80}
                     placeholder="Question people can tap"
@@ -256,6 +249,7 @@ export function TriggerSection({
                 )}
               </div>
               <MessageInput
+                label="Instant answer"
                 value={item.answer}
                 rows={2}
                 maxLength={1000}
@@ -305,6 +299,7 @@ export function PublicReplySection({
   const { trigger } = recipe
   if (trigger.type !== 'comment_keyword') return null
   const { enabled, replies } = trigger.publicReplies
+  const filled = replies.filter((reply) => reply.trim() !== '').length
   const set = (fn: (publicReplies: { enabled: boolean; replies: string[] }) => void) =>
     update((d) => d.trigger.type === 'comment_keyword' && void fn(d.trigger.publicReplies))
 
@@ -312,7 +307,13 @@ export function PublicReplySection({
     <Section
       index={2}
       title="Reply publicly under the comment"
-      subtitle={enabled ? `Rotates ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'} so it looks human` : 'Off — they only get the DM'}
+      subtitle={
+        enabled
+          ? filled === 0
+            ? 'Add at least one reply, or turn this off'
+            : `Rotates ${filled} ${filled === 1 ? 'reply' : 'replies'} so it looks human`
+          : 'Off — they only get the DM'
+      }
       issues={issues('publicReply')}
       action={<Toggle label="Reply publicly" checked={enabled} onChange={(value) => set((p) => void (p.enabled = value))} />}
     >
@@ -321,7 +322,7 @@ export function PublicReplySection({
           {replies.map((reply, index) => (
             <div key={index} className="flex items-center gap-1">
               <div className="flex-1">
-                <TextInput value={reply} maxLength={500} onChange={(value) => set((p) => void (p.replies[index] = value))} />
+                <TextInput label={`Public reply ${index + 1}`} value={reply} maxLength={500} onChange={(value) => set((p) => void (p.replies[index] = value))} />
               </div>
               {replies.length > 1 && (
                 <button
@@ -382,12 +383,14 @@ export function DmSection({
         </Label>
         {opener && (
           <MessageInput
+            label="Opening message"
             value={recipe.opener.text}
             maxLength={640}
             rows={2}
             onChange={(text) => update((d) => void (d.opener.text = text))}
             footer={
               <ButtonField
+                label="Opener button label"
                 icon={<span className="text-[13px]">↳</span>}
                 value={recipe.opener.buttonLabel}
                 placeholder="Button label"
@@ -401,6 +404,7 @@ export function DmSection({
       <div>
         <Label hint={opener ? 'Sent after they tap' : undefined}>{opener ? 'Then send' : 'Message'}</Label>
         <MessageInput
+          label={opener ? 'Then send' : 'Message'}
           value={recipe.message.text}
           maxLength={links.length > 0 ? 640 : 1000}
           onChange={(text) => update((d) => void (d.message.text = text))}
@@ -409,6 +413,7 @@ export function DmSection({
         <div className="mt-3">
           <Label hint="Sent as a picture just before the message">Image (optional)</Label>
           <TextInput
+            label="Image (optional)"
             value={recipe.message.imageUrl}
             placeholder="https://… link to a .jpg or .png"
             onChange={(imageUrl) => update((d) => void (d.message.imageUrl = imageUrl.trim()))}
@@ -434,14 +439,7 @@ export function BoostersSection({
 }) {
   if (recipe.trigger.type === 'ice_breaker') return null
   const collect = recipe.collect.kind
-  const setCollect = (kind: 'email' | 'phone') =>
-    update((d) => {
-      d.collect = d.collect.kind === kind ? { ...d.collect, kind: 'none' } : { kind, ...COLLECT_DEFAULTS[kind] }
-      if (d.collect.kind !== 'none') {
-        const tag = `${kind}-lead`
-        if (!d.tags.includes(tag)) d.tags.push(tag)
-      }
-    })
+  const setCollect = (kind: 'email' | 'phone') => update((d) => setCollectKind(d, kind))
 
   const canNudge = nudgeApplies(recipe)
   const active = [
@@ -486,12 +484,14 @@ export function BoostersSection({
         <div>
           <Label hint="Sent when they aren't following yet">Follow gate message</Label>
           <MessageInput
+            label="Follow gate message"
             value={recipe.followGate.text}
             maxLength={640}
             rows={2}
             onChange={(text) => update((d) => void (d.followGate.text = text))}
             footer={
               <ButtonField
+                label="Follow gate button label"
                 icon={<span className="text-[13px]">↳</span>}
                 value={recipe.followGate.buttonLabel}
                 placeholder="Button label"
@@ -502,6 +502,7 @@ export function BoostersSection({
           <div className="mt-3">
             <Label hint="Sent if they tap the button but still aren't following">Follow reminder</Label>
             <MessageInput
+              label="Follow reminder"
               value={recipe.followGate.reminderText}
               maxLength={640}
               rows={2}
@@ -515,11 +516,11 @@ export function BoostersSection({
         <div className="grid gap-3">
           <div>
             <Label hint="Skipped if we already have it">Question</Label>
-            <MessageInput value={recipe.collect.question} maxLength={1000} rows={2} onChange={(q) => update((d) => void (d.collect.question = q))} />
+            <MessageInput label="Question" value={recipe.collect.question} maxLength={1000} rows={2} onChange={(q) => update((d) => void (d.collect.question = q))} />
           </div>
           <div>
             <Label hint="2 tries · waits 24h">If the answer isn't valid</Label>
-            <TextInput value={recipe.collect.retryText} maxLength={1000} onChange={(t) => update((d) => void (d.collect.retryText = t))} />
+            <TextInput label="If the answer isn't valid" value={recipe.collect.retryText} maxLength={1000} onChange={(t) => update((d) => void (d.collect.retryText = t))} />
           </div>
         </div>
       )}
@@ -541,6 +542,7 @@ export function BoostersSection({
         <div>
           <Label hint={`Sent once · max ${MAX_NUDGE_HOURS}h, inside Meta's 24h messaging window`}>Reminder message</Label>
           <MessageInput
+            label="Reminder message"
             value={recipe.nudge.text}
             maxLength={1000}
             rows={2}
@@ -550,6 +552,7 @@ export function BoostersSection({
                 Send after
                 <input
                   type="number"
+                  aria-label="Hours without a reply before the reminder"
                   min={1}
                   max={MAX_NUDGE_HOURS}
                   value={recipe.nudge.afterHours}
@@ -574,7 +577,13 @@ export function BoostersSection({
             <Tag className="size-3.5" /> Tag contacts
           </span>
         </Label>
-        <KeywordInput value={recipe.tags} placeholder="e.g. vip, email-lead" onChange={(tags) => update((d) => void (d.tags = tags))} />
+        <KeywordInput
+          label="Tag contacts"
+          value={recipe.tags}
+          placeholder="e.g. vip, email-lead"
+          {...TAG_LIMITS}
+          onChange={(tags) => update((d) => void (d.tags = tags))}
+        />
       </div>
     </Section>
   )
@@ -621,6 +630,7 @@ function LinkButtons({ links, onChange }: { links: LinkButton[]; onChange: (link
       {links.map((link, index) => (
         <div key={index} className="flex items-center gap-2">
           <ButtonField
+            label={`Link ${index + 1} button label`}
             icon={<Link2 className="size-3.5 text-brand" />}
             value={link.label}
             placeholder="Button label"
@@ -629,6 +639,7 @@ function LinkButtons({ links, onChange }: { links: LinkButton[]; onChange: (link
           <span className="text-faint">→</span>
           <input
             value={link.url}
+            aria-label={`Link ${index + 1} address`}
             placeholder="https://"
             onChange={(e) => change(index, { url: e.target.value })}
             className="min-w-0 flex-1 bg-transparent text-[13px] text-muted outline-none placeholder:text-faint"
@@ -661,11 +672,14 @@ function ButtonField({
   value,
   placeholder,
   onChange,
+  label,
 }: {
   icon: ReactNode
   value: string
   placeholder: string
   onChange: (value: string) => void
+  /** Accessible name; pass the visible label text. */
+  label?: string
 }) {
   return (
     <span
@@ -677,6 +691,7 @@ function ButtonField({
       {icon}
       <input
         value={value}
+        aria-label={label}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         size={Math.max(8, value.length + 1)}

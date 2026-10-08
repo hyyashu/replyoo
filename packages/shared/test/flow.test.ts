@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FlowDefinitionSchema, StepSchema, TriggerSchema } from '../src'
+import { DraftFlowSchema, FlowDefinitionSchema, StepSchema, TriggerSchema } from '../src'
 
 const emailFlow = {
   trigger: {
@@ -92,5 +92,43 @@ describe('FlowDefinitionSchema', () => {
   it('rejects empty keyword lists', () => {
     const result = TriggerSchema.safeParse({ type: 'dm_keyword', keywords: [], match: 'exact' })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('DraftFlowSchema', () => {
+  it('accepts a half-finished draft that the strict schema rejects', () => {
+    const draft = structuredClone(emailFlow)
+    ;(draft.steps.opener as { buttons: { label: string }[] }).buttons[0]!.label = ''
+    expect(FlowDefinitionSchema.safeParse(draft).success).toBe(false)
+    expect(DraftFlowSchema.safeParse(draft).success).toBe(true)
+  })
+
+  it('still rejects data of the wrong shape', () => {
+    expect(DraftFlowSchema.safeParse({ ...emailFlow, trigger: { type: 'nope' } }).success).toBe(false)
+    expect(DraftFlowSchema.safeParse({ ...emailFlow, steps: { a: { type: 'nope' } } }).success).toBe(false)
+    expect(DraftFlowSchema.safeParse({ ...emailFlow, start: 'x'.repeat(65) }).success).toBe(false)
+    expect(DraftFlowSchema.safeParse({ ...emailFlow, steps: { ['x'.repeat(65)]: { type: 'tag' } } }).success).toBe(false)
+  })
+
+  it('rejects a trigger missing the fields the list views read', () => {
+    const withTrigger = (trigger: unknown) => DraftFlowSchema.safeParse({ ...emailFlow, trigger }).success
+    expect(withTrigger({ type: 'comment_keyword' })).toBe(false)
+    expect(withTrigger({ type: 'comment_keyword', posts: { mode: 'sometimes' }, keywords: [], match: 'contains' })).toBe(false)
+    expect(withTrigger({ type: 'comment_keyword', posts: { mode: 'specific' }, keywords: [], match: 'contains' })).toBe(false)
+    expect(withTrigger({ type: 'comment_keyword', posts: { mode: 'any' }, keywords: 'LINK', match: 'contains' })).toBe(false)
+    expect(withTrigger({ type: 'dm_keyword', match: 'contains' })).toBe(false)
+    expect(withTrigger({ type: 'story_reply' })).toBe(false)
+    expect(withTrigger({ type: 'ice_breaker' })).toBe(false)
+    expect(withTrigger({ type: 'ice_breaker', items: [{ question: 'Hi' }] })).toBe(false)
+  })
+
+  it('accepts half-finished trigger edits', () => {
+    const withTrigger = (trigger: unknown) => DraftFlowSchema.safeParse({ ...emailFlow, trigger }).success
+    expect(withTrigger({ type: 'comment_keyword', posts: { mode: 'specific', mediaIds: [] }, keywords: [''], match: 'exact' })).toBe(true)
+    expect(withTrigger({ type: 'comment_keyword', posts: { mode: 'next' }, keywords: [], match: 'contains', publicReplies: [''] })).toBe(true)
+    expect(withTrigger({ type: 'dm_keyword', keywords: [], match: 'contains' })).toBe(true)
+    expect(withTrigger({ type: 'any_dm' })).toBe(true)
+    expect(withTrigger({ type: 'story_reply', includeReactions: false })).toBe(true)
+    expect(withTrigger({ type: 'ice_breaker', items: [{ question: '', startStep: 'answer_0' }] })).toBe(true)
   })
 })

@@ -1,8 +1,9 @@
 import 'server-only'
 import { type Tx, automationVersions, automations, connectedAccounts, contacts, flowRuns, messages } from '@replyooo/db'
 import { MetaError } from '@replyooo/meta'
-import { FlowDefinitionSchema, getTemplate, validateFlow, type FlowDefinition } from '@replyooo/shared'
-import { and, eq, gte, inArray, max, ne, type SQL, sql } from 'drizzle-orm'
+import { FlowDefinitionSchema, getTemplate, validateFlow, type DraftFlow, type FlowDefinition } from '@replyooo/shared'
+import { and, eq, gte, inArray, max, ne, or, type SQL, sql } from 'drizzle-orm'
+import { isDeepStrictEqual } from 'node:util'
 import { db } from '../db'
 import { DEFAULT_RECIPE, compileRecipe } from '../recipe'
 import { clearIceBreakersQuietly, iceBreakerError, iceBreakerItems, pushIceBreakers } from './ice-breakers'
@@ -29,6 +30,7 @@ const columns = {
   updatedAt: automations.updatedAt,
   version: automationVersions.version,
   publishedAt: automationVersions.publishedAt,
+  published: automationVersions.definition,
 }
 
 function selectAutomations(where: SQL | undefined) {
@@ -41,6 +43,16 @@ function selectAutomations(where: SQL | undefined) {
 
 type AutomationRow = Awaited<ReturnType<typeof selectAutomations>>[number]
 
+/**
+ * The draft is stored as the browser sent it, the published version after strict parsing (which trims text),
+ * so compare the parsed draft; one that doesn't parse can't match what was published.
+ */
+function differsFromPublished(draft: FlowDefinition, published: FlowDefinition | null): boolean {
+  if (!published) return true
+  const parsed = FlowDefinitionSchema.safeParse(draft)
+  return !parsed.success || !isDeepStrictEqual(parsed.data, published)
+}
+
 function toAutomation(row: AutomationRow, stats: AutomationStats | undefined): Automation {
   return {
     id: row.id,
@@ -49,6 +61,7 @@ function toAutomation(row: AutomationRow, stats: AutomationStats | undefined): A
     status: row.status,
     flow: row.flow,
     version: row.version ?? 0,
+    hasUnpublishedChanges: differsFromPublished(row.flow, row.published),
     templateKey: row.templateKey,
     updatedAt: row.updatedAt.toISOString(),
     publishedAt: row.publishedAt?.toISOString() ?? null,
@@ -153,19 +166,35 @@ export async function createAutomation(
   return row ? getAutomation(workspaceId, row.id) : null
 }
 
-/** Drafts may be incomplete; callers have already checked they're a well-formed FlowDefinition. */
+export type SaveDraftResult = 'saved' | 'conflict' | 'missing'
+
+/**
+ * Drafts may be incomplete; callers have already checked the outer shape (publishing parses it strictly).
+ * With `base` (the draft the caller last saw or saved) the write only lands if nobody changed the draft since.
+ * A draft that already equals the new one counts too, so retrying a save whose response was lost still succeeds.
+ */
 export async function saveDraft(
   workspaceId: string,
   id: string,
-  input: { name: string; flow: FlowDefinition },
-): Promise<boolean> {
-  if (!isUuid(id)) return false
+  input: { name: string; flow: DraftFlow },
+  base?: unknown,
+): Promise<SaveDraftResult> {
+  if (!isUuid(id)) return 'missing'
+  const owned = and(eq(automations.workspaceId, workspaceId), eq(automations.id, id))
+  const matches = (flow: unknown) => sql`${automations.definition} = ${JSON.stringify(flow)}::jsonb`
   const updated = await db()
     .update(automations)
-    .set({ name: input.name.trim() || 'Untitled automation', definition: input.flow, triggerType: input.flow.trigger.type })
-    .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
+    .set({
+      name: input.name.trim() || 'Untitled automation',
+      definition: input.flow as unknown as FlowDefinition,
+      triggerType: input.flow.trigger.type,
+    })
+    .where(base === undefined ? owned : and(owned, or(matches(base), matches(input.flow))))
     .returning({ id: automations.id })
-  return updated.length > 0
+  if (updated.length > 0) return 'saved'
+  if (base === undefined) return 'missing'
+  const [exists] = await db().select({ id: automations.id }).from(automations).where(owned)
+  return exists ? 'conflict' : 'missing'
 }
 
 /** A "next post" comment trigger stays on the post it already latched onto when republished. */

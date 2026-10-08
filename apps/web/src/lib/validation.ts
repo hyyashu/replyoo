@@ -20,6 +20,11 @@ const STEP_SECTION: Record<string, RecipeSection> = {
   tag: 'boosters',
 }
 
+/** Ice-breaker answers are edited inside the trigger section; every other unknown step is the DM message. */
+function sectionForStep(id: string): RecipeSection {
+  return STEP_SECTION[id] ?? (id.startsWith('answer_') ? 'trigger' : 'dm')
+}
+
 /** Runs the same checks the server runs on publish (spec §4.4) and maps them onto form sections. */
 export function checkRecipe(recipe: Recipe, platform: Platform): { flow: FlowDefinition; issues: RecipeIssue[] } {
   const flow = compileRecipe(recipe)
@@ -34,7 +39,7 @@ export function checkRecipe(recipe: Recipe, platform: Platform): { flow: FlowDef
   }
 
   for (const issue of validateFlow(parsed.data, platform)) {
-    const section = issue.stepId ? (STEP_SECTION[issue.stepId] ?? 'dm') : 'trigger'
+    const section = issue.stepId ? sectionForStep(issue.stepId) : 'trigger'
     issues.push({ section, message: issue.message })
   }
   return { flow, issues: dedupe(issues) }
@@ -42,7 +47,7 @@ export function checkRecipe(recipe: Recipe, platform: Platform): { flow: FlowDef
 
 function sectionForPath(path: PropertyKey[]): RecipeSection {
   if (path[0] === 'trigger') return path[1] === 'publicReplies' ? 'publicReply' : 'trigger'
-  if (path[0] === 'steps' && typeof path[1] === 'string') return STEP_SECTION[path[1]] ?? 'dm'
+  if (path[0] === 'steps' && typeof path[1] === 'string') return sectionForStep(path[1])
   return 'dm'
 }
 
@@ -57,8 +62,9 @@ function describe(path: PropertyKey[], fallback: string): string {
   }
   if (last === 'label') return 'Button labels must be 1–20 characters'
   if (last === 'url') return 'Enter a valid link, including https://'
+  if (last === 'imageUrl') return 'Enter a valid image link, including https://'
   if (last === 'text' || last === 'question' || last === 'retryText') return 'Messages must be 1–1000 characters'
-  if (last === 'add') return 'Tags must be 1–50 characters'
+  if (rest.includes('add')) return 'Tags must be 1–50 characters'
   return fallback
 }
 

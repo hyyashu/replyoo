@@ -84,6 +84,46 @@ export const COLLECT_DEFAULTS = {
   },
 } as const
 
+/** Limits for the keyword and tag chip inputs (they match the flow schema). */
+export const KEYWORD_LIMITS = { max: 20, maxLength: 100 } as const
+export const TAG_LIMITS = { max: 10, maxLength: 50 } as const
+
+/**
+ * Adds comma-separated chips from typed or pasted text. Duplicates are skipped case-insensitively
+ * (including within the pasted batch), long words are cut to `maxLength`, and chips past `max` are
+ * counted in `dropped` so the UI can say so.
+ */
+export function addChips(
+  current: string[],
+  input: string,
+  { max, maxLength }: { max: number; maxLength: number },
+): { value: string[]; dropped: number } {
+  const value = [...current]
+  const seen = new Set(current.map((word) => word.toLowerCase()))
+  let dropped = 0
+  for (const raw of input.split(',')) {
+    const word = raw.trim().slice(0, maxLength).trim()
+    if (!word || seen.has(word.toLowerCase())) continue
+    seen.add(word.toLowerCase())
+    if (value.length >= max) dropped++
+    else value.push(word)
+  }
+  return { value, dropped }
+}
+
+/** Turns the email/phone question on or off, keeping the automatic lead tag in step with it. */
+export function setCollectKind(recipe: Recipe, kind: 'email' | 'phone'): void {
+  const removeTag = (tag: string) => void (recipe.tags = recipe.tags.filter((existing) => existing !== tag))
+  if (recipe.collect.kind === kind) {
+    recipe.collect = { ...recipe.collect, kind: 'none' }
+    removeTag(`${kind}-lead`)
+    return
+  }
+  recipe.collect = { kind, ...COLLECT_DEFAULTS[kind] }
+  removeTag(`${kind === 'email' ? 'phone' : 'email'}-lead`)
+  if (!recipe.tags.includes(`${kind}-lead`)) recipe.tags.push(`${kind}-lead`)
+}
+
 export function openerRequired(trigger: RecipeTrigger): boolean {
   return trigger.type === 'comment_keyword'
 }
@@ -305,6 +345,8 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
         break
     }
   }
+  // Don't leave the default "Here you go!" in place of a message the flow doesn't have.
+  if (!messageFound) recipe.message.text = ''
   return recipe
 }
 

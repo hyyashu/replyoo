@@ -1,6 +1,6 @@
 import type { FlowDefinition } from '@replyooo/shared'
 
-export const MAX_STEPS_PER_ADVANCE = 50
+export { MAX_STEPS_PER_ADVANCE } from '@replyooo/shared'
 export const POSTBACK_WAIT_MINUTES = 24 * 60
 export const FOLLOW_CHECK_WAIT_MINUTES = 5
 

@@ -17,6 +17,8 @@ export const NudgeSchema = z.object({
 })
 export type Nudge = z.infer<typeof NudgeSchema>
 
+/** http(s) only: Meta rejects other schemes and a javascript:/data: link must never reach a recipient. */
+const HttpUrl = z.httpUrl()
 const Tag = z.string().trim().min(1).max(50)
 const Minutes = z.number().int().min(1).max(10080)
 
@@ -57,7 +59,7 @@ export type TriggerOf<T extends TriggerType> = Extract<Trigger, { type: T }>
 // ---------- Buttons ----------
 
 export const ButtonSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('url'), label: ButtonLabel, url: z.url() }),
+  z.object({ type: z.literal('url'), label: ButtonLabel, url: HttpUrl }),
   z.object({
     type: z.literal('reply'),
     id: z.string().regex(/^[a-zA-Z0-9_-]{1,32}$/),
@@ -73,7 +75,7 @@ export const StepSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('send_message'),
     text: MessageText,
-    imageUrl: z.url().optional(),
+    imageUrl: HttpUrl.optional(),
     buttons: z.array(ButtonSchema).max(3).optional(),
     /** One reminder if they haven't tapped a reply button yet. Only used on steps with reply buttons. */
     nudge: NudgeSchema.optional(),
@@ -129,3 +131,44 @@ export const FlowDefinitionSchema = z.object({
   steps: z.record(StepIdSchema, StepSchema),
 })
 export type FlowDefinition = z.infer<typeof FlowDefinitionSchema>
+
+/** Draft trigger fields keep the right shape (the list and home views read them) but not the strict limits. */
+const DraftKeywords = z.array(z.string())
+const DraftTrigger = z.discriminatedUnion('type', [
+  z.looseObject({
+    type: z.literal('comment_keyword'),
+    posts: z.discriminatedUnion('mode', [
+      z.looseObject({ mode: z.literal('specific'), mediaIds: z.array(z.string()) }),
+      z.looseObject({ mode: z.literal('any') }),
+      z.looseObject({ mode: z.literal('next') }),
+    ]),
+    keywords: DraftKeywords,
+    match: KeywordMatchSchema,
+    publicReplies: z.array(z.string()).optional(),
+  }),
+  z.looseObject({ type: z.literal('dm_keyword'), keywords: DraftKeywords, match: KeywordMatchSchema }),
+  z.looseObject({ type: z.literal('any_dm') }),
+  z.looseObject({
+    type: z.literal('story_reply'),
+    includeReactions: z.boolean(),
+    keywords: DraftKeywords.optional(),
+  }),
+  z.looseObject({
+    type: z.literal('ice_breaker'),
+    items: z.array(z.looseObject({ question: z.string(), startStep: z.string() })),
+  }),
+])
+
+/**
+ * What a draft save checks: the outer shape and the trigger's field types, so half-finished edits
+ * (an empty label, a blank message) still autosave. Publishing parses the stored draft with FlowDefinitionSchema.
+ */
+export const DraftFlowSchema = z.object({
+  trigger: DraftTrigger,
+  start: z.string().max(64),
+  steps: z.record(
+    z.string().max(64),
+    z.looseObject({ type: z.enum(['send_message', 'ask', 'check_follow', 'delay', 'tag', 'condition']) }),
+  ),
+})
+export type DraftFlow = z.infer<typeof DraftFlowSchema>

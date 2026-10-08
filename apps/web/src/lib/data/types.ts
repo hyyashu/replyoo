@@ -30,6 +30,8 @@ export interface Automation {
   flow: FlowDefinition
   /** Latest published version, if any. */
   version: number
+  /** The draft differs from the published version (always true before the first publish). */
+  hasUnpublishedChanges: boolean
   templateKey: string | null
   updatedAt: string
   publishedAt: string | null

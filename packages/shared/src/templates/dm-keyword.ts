@@ -2,7 +2,7 @@ import type { FlowTemplate } from './types'
 
 export const dmKeyword: FlowTemplate = {
   key: 'dm_keyword',
-  title: 'Respond to all your DMs',
+  title: 'Reply to a DM keyword',
   description: 'Set up automation on DMs for specific keywords when someone DMs you',
   categories: ['setup_inbox'],
   platforms: ['instagram', 'facebook'],
