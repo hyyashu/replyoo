@@ -326,53 +326,63 @@ export function Editor({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-30 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-line bg-white/95 px-4 py-4 backdrop-blur sm:px-8">
+      <header className="sticky top-0 z-30 flex items-center gap-2.5 border-b border-line bg-white/95 px-3 py-3 backdrop-blur sm:gap-4 sm:px-8 sm:py-4">
         <Link
           href="/automations"
           onClick={goBack}
           aria-label="Back to automations"
-          className="grid size-10 place-items-center rounded-xl border border-line hover:bg-sand"
+          className="grid size-9 shrink-0 place-items-center rounded-xl border border-line hover:bg-sand sm:size-10"
         >
           <ArrowLeft className="size-4" />
         </Link>
-        <div className="min-w-0">
-          <div className="text-[12.5px] text-subtle">Automations</div>
+        <div className="min-w-0 flex-1 sm:flex-none">
+          <div className="hidden text-[12.5px] text-subtle sm:block">Automations</div>
           <div className="flex items-center gap-2.5">
-            <label className="group flex items-center gap-1.5">
+            <label className="group flex min-w-0 items-center gap-1.5">
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 aria-label="Automation name"
-                className="field-sizing-content min-w-[8ch] max-w-[420px] rounded-md bg-transparent font-display text-[20px] font-bold tracking-[-0.03em] outline-none focus:bg-sand"
+                className="field-sizing-content min-w-0 max-w-full truncate rounded-md bg-transparent font-display text-[17px] sm:min-w-[8ch] sm:max-w-[420px] sm:text-[20px] font-bold tracking-[-0.03em] outline-none focus:bg-sand"
               />
-              <Pencil className="size-3.5 text-faint group-hover:text-muted" />
+              <Pencil className="size-3.5 shrink-0 text-faint group-hover:text-muted" />
             </label>
+            <span className="hidden sm:inline-flex">
+              <StatusPill status={status} />
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-2 sm:hidden">
             <StatusPill status={status} />
+            <SaveIndicator state={save} conflict={conflict} onRetry={() => setSaveAttempt((n) => n + 1)} />
           </div>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
-          <SaveIndicator
-            state={save}
-            conflict={conflict}
-            onRetry={() => setSaveAttempt((n) => n + 1)}
-          />
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-2 sm:gap-3">
+          <span className="hidden sm:inline">
+            <SaveIndicator state={save} conflict={conflict} onRetry={() => setSaveAttempt((n) => n + 1)} />
+          </span>
           <Button
             variant="secondary"
             className="min-[1180px]:hidden"
             aria-haspopup="dialog"
+            aria-label="Preview"
             onClick={() => setPreviewOpen(true)}
           >
-            <Eye className="size-4" /> Preview
+            <Eye className="size-4" /> <span className="hidden sm:inline">Preview</span>
           </Button>
           {status !== 'draft' && (
-            <Button variant="secondary" onClick={toggleLive} disabled={publishing || statusPending}>
+            <Button
+              variant="secondary"
+              aria-label={status === 'active' ? 'Pause' : 'Resume'}
+              onClick={toggleLive}
+              disabled={publishing || statusPending}
+            >
               {status === 'active' ? <Pause className="size-4" /> : <Play className="size-4" />}
-              {status === 'active' ? 'Pause' : 'Resume'}
+              <span className="hidden sm:inline">{status === 'active' ? 'Pause' : 'Resume'}</span>
             </Button>
           )}
           <Button
-            className="min-w-[168px] justify-center"
+            className="justify-center sm:min-w-[168px]"
             onClick={publish}
             disabled={!canPublish}
             title={issues.length ? 'Fix the issues below first' : undefined}
@@ -389,7 +399,8 @@ export function Editor({
               </>
             ) : (
               <>
-                Publish changes <Check className="size-4" />
+                <span className="sm:hidden">Publish</span>
+                <span className="hidden sm:inline">Publish changes</span> <Check className="size-4" />
               </>
             )}
           </Button>
