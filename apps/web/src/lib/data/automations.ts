@@ -172,12 +172,14 @@ export type SaveDraftResult = 'saved' | 'conflict' | 'missing'
  * Drafts may be incomplete; callers have already checked the outer shape (publishing parses it strictly).
  * With `base` (the draft the caller last saw or saved) the write only lands if nobody changed the draft since.
  * A draft that already equals the new one counts too, so retrying a save whose response was lost still succeeds.
+ * `unconfirmed` lists drafts the caller sent whose responses never arrived; they may have landed, so they count as the base too.
  */
 export async function saveDraft(
   workspaceId: string,
   id: string,
   input: { name: string; flow: DraftFlow },
   base?: unknown,
+  unconfirmed: readonly unknown[] = [],
 ): Promise<SaveDraftResult> {
   if (!isUuid(id)) return 'missing'
   const owned = and(eq(automations.workspaceId, workspaceId), eq(automations.id, id))
@@ -189,7 +191,11 @@ export async function saveDraft(
       definition: input.flow as unknown as FlowDefinition,
       triggerType: input.flow.trigger.type,
     })
-    .where(base === undefined ? owned : and(owned, or(matches(base), matches(input.flow))))
+    .where(
+      base === undefined
+        ? owned
+        : and(owned, or(matches(base), matches(input.flow), ...unconfirmed.map((flow) => matches(flow)))),
+    )
     .returning({ id: automations.id })
   if (updated.length > 0) return 'saved'
   if (base === undefined) return 'missing'

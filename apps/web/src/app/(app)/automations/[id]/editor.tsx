@@ -19,6 +19,16 @@ type SaveResult = { ok: true; savedAt: string } | { ok: false; error: string; co
 
 const savedNow = (): SaveState => ({ kind: 'saved', at: new Date().toISOString() })
 const NETWORK_ERROR = "Couldn't reach Replyooo. Check your connection and try again."
+// Sent drafts whose response never arrived. The server may have stored any of them, so it accepts each as the base.
+const MAX_UNCONFIRMED = 10
+
+/**
+ * The save started when an editor unmounts (see below), per automation, until it settles. An editor that mounts
+ * while one is running (leave, then Back) still gets the older draft from the server, so it seeds its accepted
+ * bases with the flushed draft and adopts it once the save is confirmed.
+ */
+type PendingFlush = { name: string; flow: unknown; snap: string; promise: Promise<SaveResult> }
+const pendingFlushes = new Map<string, PendingFlush>()
 
 export function Editor({
   automation,
@@ -71,6 +81,25 @@ export function Editor({
   const lastSaved = useRef(snapshot)
   // The draft as the server last stored it. The server refuses a save whose base no longer matches (another tab saved).
   const baseFlow = useRef<unknown>(automation.flow)
+  // Drafts this editor sent without hearing back; they may or may not be stored. Anything here also blocks "settled".
+  const unconfirmed = useRef<unknown[]>([])
+  // A leave-page save from an earlier mount of this page that was still running when this one mounted.
+  const [pendingFlush] = useState(() => pendingFlushes.get(automation.id))
+  const flushed = useRef<unknown[]>(pendingFlush ? [pendingFlush.flow] : [])
+  const acceptedBases = () => [...flushed.current, ...unconfirmed.current]
+  const confirmed = (flow: unknown) => {
+    baseFlow.current = flow
+    flushed.current = []
+    unconfirmed.current = []
+  }
+  const rememberUnconfirmed = (flow: unknown) => {
+    const key = JSON.stringify(flow)
+    // The base is accepted anyway.
+    if (key === JSON.stringify(baseFlow.current)) return
+    unconfirmed.current = [...unconfirmed.current.filter((item) => JSON.stringify(item) !== key), flow].slice(-MAX_UNCONFIRMED)
+  }
+  // Nothing to send and no doubt about what the server holds.
+  const isSettled = () => latest.current === lastSaved.current && unconfirmed.current.length === 0
   // Every save and publish goes through one queue so two requests can never reach the server out of order.
   const queue = useRef<Promise<unknown>>(Promise.resolve())
   const inFlight = useRef(0)
@@ -87,16 +116,19 @@ export function Editor({
     const { name: savedName, flow: savedFlow } = JSON.parse(snap) as { name: string; flow: unknown }
     return enqueue(async (): Promise<SaveResult> => {
       // An earlier request in the queue (a publish, or the same autosave) may already have stored this exact draft.
-      if (lastSaved.current === snap) return { ok: true, savedAt: new Date().toISOString() }
+      // Not when an earlier send may have stored a different draft: that one still has to be overwritten.
+      if (lastSaved.current === snap && unconfirmed.current.length === 0) return { ok: true, savedAt: new Date().toISOString() }
       inFlight.current++
       try {
-        const result = await saveDraft(automation.id, savedName, savedFlow, baseFlow.current)
+        const result = await saveDraft(automation.id, savedName, savedFlow, baseFlow.current, acceptedBases())
         if (result.ok) {
-          baseFlow.current = savedFlow
+          confirmed(savedFlow)
           lastSaved.current = snap
         }
         return result
       } catch {
+        // The request may have reached the server before the connection dropped.
+        rememberUnconfirmed(savedFlow)
         return { ok: false, error: NETWORK_ERROR }
       } finally {
         inFlight.current--
@@ -107,14 +139,15 @@ export function Editor({
   // Debounced autosave of the draft whenever it differs from what was last saved.
   useEffect(() => {
     if (conflict) return
-    if (snapshot === lastSaved.current) {
-      // Edited back to what's saved: nothing to send. A request still in flight settles the status when it returns.
-      if (inFlight.current === 0) setSave((current) => (current.kind === 'saving' ? savedNow() : current))
+    if (isSettled()) {
+      // Edited back to what's saved: nothing to send, so a "Saving…" or "Not saved" left by the edit it undoes is stale.
+      // A request still in flight settles the status when it returns. (A conflict returned above and stays.)
+      if (inFlight.current === 0) setSave((current) => (current.kind === 'saved' ? current : savedNow()))
       return
     }
     setSave({ kind: 'saving' })
     const timer = setTimeout(async () => {
-      if (snapshot === lastSaved.current) return setSave(savedNow())
+      if (isSettled()) return setSave(savedNow())
       const result = await saveSnapshot(snapshot)
       if (!result.ok && result.conflict) setConflict(true)
       if (latest.current !== snapshot) {
@@ -132,11 +165,41 @@ export function Editor({
   // Leaving through a link elsewhere in the app (no beforeunload) unmounts this page; send the edit still waiting on the debounce.
   useEffect(
     () => () => {
-      if (latest.current !== lastSaved.current) void saveSnapshot(latest.current)
+      if (isSettled()) return
+      const snap = latest.current
+      const { name: flushedName, flow: flushedFlow } = JSON.parse(snap) as { name: string; flow: unknown }
+      const entry: PendingFlush = { name: flushedName, flow: flushedFlow, snap, promise: saveSnapshot(snap) }
+      pendingFlushes.set(automation.id, entry)
+      const done = () => {
+        if (pendingFlushes.get(automation.id) === entry) pendingFlushes.delete(automation.id)
+      }
+      void entry.promise.then(done, done)
     },
     // saveSnapshot only reads refs and the (constant) automation id.
     [],
   )
+
+  // Back on the page while the leave-page save of an earlier visit is still running: the server rendered the draft from
+  // before it. Its flow is already an accepted base (seeded above), so edits made now save fine; once the save is
+  // confirmed, show what it stored, unless there are edits here already.
+  useEffect(() => {
+    if (!pendingFlush) return
+    let active = true
+    const initial = lastSaved.current
+    void pendingFlush.promise.then((result) => {
+      if (!active || !result.ok) return
+      // Anything saved or typed since mount is newer than the flushed draft.
+      if (inFlight.current > 0 || latest.current !== initial || lastSaved.current !== initial) return
+      confirmed(pendingFlush.flow)
+      lastSaved.current = pendingFlush.snap
+      setName(pendingFlush.name)
+      setRecipe(recipeFromFlow(pendingFlush.flow as Automation['flow']))
+    })
+    return () => {
+      active = false
+    }
+    // Reads refs only; pendingFlush never changes.
+  }, [pendingFlush])
 
   // Come back online: retry a save that failed because we were offline.
   const failed = save.kind === 'error' && !conflict
@@ -147,7 +210,7 @@ export function Editor({
     return () => window.removeEventListener('online', retry)
   }, [failed])
 
-  const hasUnsavedWork = () => inFlight.current > 0 || latest.current !== lastSaved.current
+  const hasUnsavedWork = () => inFlight.current > 0 || !isSettled()
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (!hasUnsavedWork()) return
@@ -174,9 +237,9 @@ export function Editor({
       const snap = snapshot
       inFlight.current++
       try {
-        const result = await enqueue(() => publishAutomation(automation.id, name, flow, baseFlow.current))
+        const result = await enqueue(() => publishAutomation(automation.id, name, flow, baseFlow.current, acceptedBases()))
         if (result.ok) {
-          baseFlow.current = flow
+          confirmed(flow)
           lastSaved.current = snap
           setStatus('active')
           // An edit made while this ran isn't published yet; its own save settles the status.
@@ -188,7 +251,7 @@ export function Editor({
         } else {
           // The draft was stored before the publish checks ran, unless the save itself was refused.
           if ('saved' in result && result.saved) {
-            baseFlow.current = flow
+            confirmed(flow)
             lastSaved.current = snap
             if (latest.current === snap) setSave(savedNow())
           }
@@ -196,6 +259,8 @@ export function Editor({
           setPublishErrors(result.errors)
         }
       } catch {
+        // The draft may have been stored before the connection dropped.
+        rememberUnconfirmed(flow)
         setPublishErrors([NETWORK_ERROR])
       } finally {
         inFlight.current--

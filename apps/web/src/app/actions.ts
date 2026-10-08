@@ -46,15 +46,19 @@ type PublishActionResult = data.PublishResult | { ok: false; errors: string[]; c
 const MAX_DRAFT_BYTES = 200_000
 const CONFLICT_MESSAGE = 'This automation was changed in another tab. Reload to get the latest version.'
 
+/** Drafts the tab sent without hearing back; they may have landed, so each one is accepted as the base too. */
+const MAX_UNCONFIRMED = 10
+
 /** `base` is the draft this tab last saw; if someone else saved since, the write is refused. */
-export async function saveDraft(id: string, name: string, flow: unknown, base?: unknown) {
+export async function saveDraft(id: string, name: string, flow: unknown, base?: unknown, unconfirmed?: unknown) {
   const { workspaceId } = await requireWorkspace()
   // Drafts may be incomplete (publishing checks them strictly), but they must be the right shape and a sane size.
   const parsed = DraftFlowSchema.safeParse(flow)
   if (!parsed.success || JSON.stringify(flow).length > MAX_DRAFT_BYTES) {
     return { ok: false as const, error: 'Fix the highlighted fields before saving' }
   }
-  const result = await data.saveDraft(workspaceId, id, { name, flow: parsed.data }, base)
+  const alsoBase = Array.isArray(unconfirmed) ? unconfirmed.slice(-MAX_UNCONFIRMED) : []
+  const result = await data.saveDraft(workspaceId, id, { name, flow: parsed.data }, base, alsoBase)
   if (result === 'conflict') return { ok: false as const, conflict: true as const, error: CONFLICT_MESSAGE }
   if (result === 'missing') return { ok: false as const, error: 'This automation no longer exists' }
   revalidatePath('/automations')
@@ -66,9 +70,10 @@ export async function publishAutomation(
   name: string,
   flow: unknown,
   base?: unknown,
+  unconfirmed?: unknown,
 ): Promise<PublishActionResult> {
   const { workspaceId } = await requireWorkspace()
-  const saved = await saveDraft(id, name, flow, base)
+  const saved = await saveDraft(id, name, flow, base, unconfirmed)
   if (!saved.ok) return { ok: false, errors: [saved.error], ...('conflict' in saved && { conflict: true as const }) }
   const result = await data.publishAutomation(workspaceId, id)
   revalidatePath('/automations')

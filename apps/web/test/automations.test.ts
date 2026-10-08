@@ -112,6 +112,46 @@ describe('saveDraft', () => {
     if (other.trigger.type === 'comment_keyword') other.trigger.keywords = ['TWO']
     expect(await data.saveDraft(workspaceId, automation.id, { name: 'B', flow: other }, automation.flow)).toBe('conflict')
   })
+
+  it('accepts the next edit after a save whose response was lost, and still refuses a real conflict', async () => {
+    const { workspaceId, accountId } = await setup()
+    const automation = await created(workspaceId, accountId, 'comment_to_dm')
+    const edit = (keyword: string) => {
+      const flow = structuredClone(automation.flow)
+      if (flow.trigger.type === 'comment_keyword') flow.trigger.keywords = [keyword]
+      return flow
+    }
+    const a = edit('ONE')
+    const b = edit('TWO')
+    // Save A reaches the server but the response is lost: the caller still holds the original draft as its base.
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'A', flow: a }, automation.flow)).toBe('saved')
+    // Without the unconfirmed list, the next edit (B) matches neither the stored draft (A) nor the base.
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'B', flow: b }, automation.flow)).toBe('conflict')
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'B', flow: b }, automation.flow, [a])).toBe('saved')
+    expect((await data.getAutomation(workspaceId, automation.id))?.flow).toEqual(b)
+
+    // Another actor stored a different draft meanwhile: neither the base nor the unconfirmed save explains it.
+    const theirs = edit('THEIRS')
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'T', flow: theirs })).toBe('saved')
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'C', flow: edit('THREE') }, automation.flow, [a])).toBe(
+      'conflict',
+    )
+    expect((await data.getAutomation(workspaceId, automation.id))?.flow).toEqual(theirs)
+  })
+
+  it('accepts a later edit when several earlier responses were lost, wherever the stored draft is in that chain', async () => {
+    const { workspaceId, accountId } = await setup()
+    const automation = await created(workspaceId, accountId, 'comment_to_dm')
+    const edit = (keyword: string) => {
+      const flow = structuredClone(automation.flow)
+      if (flow.trigger.type === 'comment_keyword') flow.trigger.keywords = [keyword]
+      return flow
+    }
+    const [a, b, c] = [edit('ONE'), edit('TWO'), edit('THREE')]
+    // A and B were sent; only A landed (B's request never arrived). The caller can't tell, so it lists both.
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'A', flow: a }, automation.flow)).toBe('saved')
+    expect(await data.saveDraft(workspaceId, automation.id, { name: 'C', flow: c }, automation.flow, [a, b])).toBe('saved')
+  })
 })
 
 describe('hasUnpublishedChanges', () => {
