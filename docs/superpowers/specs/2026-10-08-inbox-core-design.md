@@ -1,6 +1,6 @@
 # Inbox, part 1: core (read and reply)
 
-Date: 2026-10-08. Status: draft for review.
+Date: 2026-10-08. Status: drafted, build deferred until after launch.
 
 ## Where this fits
 

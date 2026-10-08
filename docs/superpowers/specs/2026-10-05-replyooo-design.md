@@ -42,6 +42,10 @@ Link in bio shipped, but these extras are deferred until after launch:
 - **Pro gating** for bio page features.
 - **DM variables menu:** add `{{display_name}}` (it already works in public replies).
 - **Home dashboard:** a "Link clicks" tile.
+- **Inbox** (Reachlee-style live inbox with manual replies), built in three parts, one at a time:
+  1. Core: conversation list, chat view, manual DM replies within the 24-hour window, unread, archive, search. Design: [2026-10-08-inbox-core-design.md](2026-10-08-inbox-core-design.md).
+  2. Workflow tools: labels, private notes, contact details panel, saved replies (`/`).
+  3. Advanced: scheduled sends, image attachments, the Outreach tab (DMs sent by hand in the Instagram app), sound alert.
 
 ---
 
