@@ -187,7 +187,7 @@ Keyword matching is case-insensitive and trims whitespace/emoji-adjacent punctua
 | `tag` | `add?: string[]`, `remove?: string[]` | `next` |
 | `condition` | `{ has: 'email' \| 'phone' \| { tag } \| { field } }` | `yes`, `no` |
 
-Message text supports variables: `{{first_name}}`, `{{username}}`, `{{email}}`, `{{fields.x}}`.
+Message text supports variables: `{{first_name}}`, `{{display_name}}` (first name, else the username), `{{username}}`, `{{email}}`, `{{fields.x}}`. Public comment replies support `{{display_name}}` and `{{username}}` only, since a commenter has not given an email or phone yet.
 
 ### 4.4 Validation rules (editor + server on publish)
 
@@ -252,7 +252,7 @@ Each template has an engine test that runs it end to end.
 
 - **Home** — account switcher, contacts reached this month, leads captured, top automations, usage meter + upgrade CTA.
 - **Automations** — list with status toggle, trigger summary, runs/completion %; "+ New" opens template picker (search + categories).
-- **Automation editor** — left: vertical trigger card + step cards with indented branches, "+" insert between steps, step settings panel; right: phone preview of the conversation; top: name, draft/live, Publish (runs validation, shows errors inline).
+- **Automation editor** — left: vertical trigger card + step cards with indented branches, "+" insert between steps, step settings panel; right: phone preview with tabs per trigger (comment: Post / Comments / DM; story reply: Story / DM; otherwise DM only), showing the chosen post or story thumbnail and tappable conversation starters; top: name, draft/live, Publish (runs validation, shows errors inline).
 - **Contacts** — table, search, filters (tag, has email, has phone), detail drawer (fields, tags, message timeline, run history), CSV export.
 - **Settings** — connected accounts (reconnect/disconnect), members (invite by email), billing (plan, usage, Dodo customer portal link), data deletion (delete workspace).
 - **Public** — landing, pricing, privacy policy, terms, data-deletion instructions.
