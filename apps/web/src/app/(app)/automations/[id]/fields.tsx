@@ -4,6 +4,7 @@ import { Braces } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Keyword, cx } from '@/components/ui'
 import { KEYWORD_LIMITS, addChips } from '@/lib/recipe'
+import { variableProblems } from '@/lib/variables'
 
 const VARIABLES = [
   { token: '{{first_name|there}}', label: 'First name' },
@@ -91,6 +92,7 @@ export function MessageInput({
   const ref = useRef<HTMLTextAreaElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menu, setMenu] = useState(false)
+  const problems = variableProblems(value)
 
   useEffect(() => {
     if (!menu) return
@@ -129,6 +131,13 @@ export function MessageInput({
         onChange={(e) => onChange(e.target.value)}
         className="block w-full resize-none rounded-t-xl bg-transparent px-3.5 pt-3 pb-1 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
       />
+      {problems.length > 0 && (
+        <ul role="alert" className="space-y-0.5 px-3.5 pb-2 text-[12.5px] text-brand">
+          {problems.map((problem) => (
+            <li key={problem}>{problem}</li>
+          ))}
+        </ul>
+      )}
       <div className="flex items-center gap-3 border-t border-line/70 px-3.5 py-2">
         <div className="min-w-0 flex-1">{footer}</div>
         <span className={cx('font-mono text-[11px]', value.length > maxLength ? 'text-brand' : 'text-subtle')}>
