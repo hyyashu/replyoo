@@ -2,7 +2,7 @@
 
 import type { Platform } from '@replyooo/shared'
 import { AtSign, BellRing, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
 import { Toggle, cx } from '@/components/ui'
 import {
   MAX_LINKS,
@@ -22,24 +22,62 @@ import { PostPickerDialog } from './post-picker'
 
 export type Update = (fn: (draft: Recipe) => void) => void
 
+// One section is open at a time, so a newcomer sees a single step instead of every option at once.
+const AccordionContext = createContext<{ open: string; setOpen: (id: string) => void }>({ open: '', setOpen: () => {} })
+
+export function Accordion({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState<string>('trigger')
+  return <AccordionContext.Provider value={{ open, setOpen }}>{children}</AccordionContext.Provider>
+}
+
+/** Segmented "n of m ready" bar; each segment opens its section. */
+export function ProgressCue({ steps }: { steps: { id: RecipeSection; label: string; ready: boolean }[] }) {
+  const { setOpen } = useContext(AccordionContext)
+  const done = steps.filter((step) => step.ready).length
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex gap-1" role="group" aria-label="Setup progress">
+        {steps.map((step) => (
+          <button
+            key={step.id}
+            type="button"
+            title={`${step.label}${step.ready ? ' — ready' : ' — needs attention'}`}
+            aria-label={`${step.label}: ${step.ready ? 'ready' : 'needs attention'}`}
+            onClick={() => setOpen(step.id)}
+            className={cx('h-1.5 w-8 rounded-full transition-colors', step.ready ? 'bg-lime' : 'bg-white/25 hover:bg-white/40')}
+          />
+        ))}
+      </div>
+      <span className="text-[13px] font-semibold">
+        {done} of {steps.length} ready
+      </span>
+    </div>
+  )
+}
+
 function Section({
+  id,
   index,
   title,
   subtitle,
+  summary,
   issues,
   action,
   children,
-  defaultOpen = true,
 }: {
+  id: RecipeSection
   index: number
   title: string
   subtitle: string
+  /** Shown instead of the subtitle while collapsed, so each step shows what was chosen. */
+  summary?: string
   issues: RecipeIssue[]
   action?: ReactNode
   children?: ReactNode
-  defaultOpen?: boolean
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  const accordion = useContext(AccordionContext)
+  const open = accordion.open === id
+  const setOpen = (next: boolean) => accordion.setOpen(next ? id : '')
   return (
     <section
       className={cx(
@@ -53,7 +91,7 @@ function Section({
         </span>
         <button type="button" onClick={() => children && setOpen(!open)} className="min-w-0 flex-1 text-left">
           <h2 className="text-[15.5px] font-semibold">{title}</h2>
-          <p className="truncate text-[12.5px] text-subtle">{subtitle}</p>
+          <p className="truncate text-[12.5px] text-subtle">{!open && summary ? summary : subtitle}</p>
         </button>
         {action}
         {children && (
@@ -102,6 +140,9 @@ export function TriggerSection({
   // Switching trigger type keeps what was entered, so switching back restores it.
   const previous = useRef<Partial<Record<RecipeTrigger['type'], RecipeTrigger>>>({})
   const [pickingPosts, setPickingPosts] = useState(false)
+  // An empty keyword list means "any comment"; this remembers an explicit choice of "specific keywords" before any are typed.
+  const [anyComment, setAnyComment] = useState(() => trigger.type === 'comment_keyword' && trigger.keywords.length === 0)
+  const commentsAny = trigger.type === 'comment_keyword' && trigger.keywords.length === 0 && anyComment
   const subtitle = {
     comment_keyword: 'Someone comments on your post — with a keyword, or any comment',
     dm_keyword: 'Someone sends you a DM with a keyword',
@@ -110,8 +151,37 @@ export function TriggerSection({
     ice_breaker: 'Tappable questions shown when someone opens a new chat',
   }[trigger.type]
 
+  const title = {
+    comment_keyword: 'When someone comments',
+    dm_keyword: 'When someone DMs you a keyword',
+    story_reply: 'When someone replies to your story',
+    any_dm: 'When someone DMs you',
+    ice_breaker: 'When someone opens a new chat',
+  }[trigger.type]
+  const keywordSummary = (keywords: string[], none: string) => (keywords.length ? `Keyword: ${keywords.join(', ')}` : none)
+  const summary = {
+    comment_keyword:
+      trigger.type === 'comment_keyword'
+        ? [
+            trigger.posts.mode === 'any'
+              ? 'Any post or reel'
+              : trigger.posts.mode === 'next'
+                ? 'Your next post'
+                : `${trigger.posts.mediaIds.length} chosen post${trigger.posts.mediaIds.length === 1 ? '' : 's'}`,
+            keywordSummary(trigger.keywords, 'Any comment'),
+          ].join(' · ')
+        : '',
+    dm_keyword: trigger.type === 'dm_keyword' ? keywordSummary(trigger.keywords, 'Any DM') : '',
+    story_reply:
+      trigger.type === 'story_reply'
+        ? [trigger.includeReactions ? 'Replies and reactions' : 'Replies only', keywordSummary(trigger.keywords, 'Any reply')].join(' · ')
+        : '',
+    any_dm: 'Any DM that no other automation answers',
+    ice_breaker: trigger.type === 'ice_breaker' ? `${trigger.items.length} question${trigger.items.length === 1 ? '' : 's'}` : '',
+  }[trigger.type]
+
   return (
-    <Section index={1} title="When this happens" subtitle={subtitle} issues={issues('trigger')}>
+    <Section id="trigger" index={1} title={title} subtitle={subtitle} summary={summary} issues={issues('trigger')}>
       <Segmented
         value={trigger.type}
         onChange={(type) => {
@@ -181,39 +251,62 @@ export function TriggerSection({
         <div>
           <Label
             hint={
-              <button
-                type="button"
-                className="hover:text-ink"
-                onClick={() =>
-                  update((d) => {
-                    if (d.trigger.type === 'comment_keyword' || d.trigger.type === 'dm_keyword') {
-                      d.trigger.match = d.trigger.match === 'contains' ? 'exact' : 'contains'
-                    }
-                  })
-                }
-              >
-                {trigger.match === 'contains' ? 'Message contains a keyword' : 'Message is exactly a keyword'} ·{' '}
-                <span className="underline">change</span>
-              </button>
+              (trigger.type === 'dm_keyword' || !commentsAny) && (
+                <button
+                  type="button"
+                  className="hover:text-ink"
+                  onClick={() =>
+                    update((d) => {
+                      if (d.trigger.type === 'comment_keyword' || d.trigger.type === 'dm_keyword') {
+                        d.trigger.match = d.trigger.match === 'contains' ? 'exact' : 'contains'
+                      }
+                    })
+                  }
+                >
+                  {trigger.match === 'contains' ? 'Message contains a keyword' : 'Message is exactly a keyword'} ·{' '}
+                  <span className="underline">change</span>
+                </button>
+              )
             }
           >
-            Keywords
+            {trigger.type === 'comment_keyword' ? 'And this comment has' : 'Keywords'}
           </Label>
-          <KeywordInput
-            label="Keywords"
-            ignoresCase
-            value={trigger.keywords}
-            placeholder={trigger.type === 'comment_keyword' ? 'Any comment' : undefined}
-            onChange={(keywords) =>
-              update((d) => {
-                if (d.trigger.type === 'comment_keyword' || d.trigger.type === 'dm_keyword') d.trigger.keywords = keywords
-              })
-            }
-          />
-          {trigger.type === 'comment_keyword' && trigger.keywords.length === 0 && (
-            <p className="mt-1.5 text-[12.5px] text-subtle">
-              No keywords: replies to every comment on these posts, unless another automation matches its keyword first.
+          {trigger.type === 'comment_keyword' && (
+            <div className="mb-2.5">
+              <Segmented
+                value={commentsAny ? 'any' : 'specific'}
+                onChange={(mode) => {
+                  setAnyComment(mode === 'any')
+                  if (mode === 'any') update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.keywords = []))
+                }}
+                options={[
+                  { value: 'specific', label: 'Specific keywords' },
+                  { value: 'any', label: 'Any comment' },
+                ]}
+              />
+            </div>
+          )}
+          {commentsAny ? (
+            <p className="text-[12.5px] text-subtle">
+              Replies to every comment on these posts, unless another automation matches its keyword first.
             </p>
+          ) : (
+            <>
+              <KeywordInput
+                label="Keywords"
+                ignoresCase
+                value={trigger.keywords}
+                placeholder={trigger.type === 'comment_keyword' ? 'Type a keyword and press Enter, e.g. link, price' : undefined}
+                onChange={(keywords) =>
+                  update((d) => {
+                    if (d.trigger.type === 'comment_keyword' || d.trigger.type === 'dm_keyword') d.trigger.keywords = keywords
+                  })
+                }
+              />
+              {trigger.type === 'comment_keyword' && trigger.keywords.length === 0 && (
+                <p className="mt-1.5 text-[12.5px] text-subtle">Add a keyword, or choose “Any comment”.</p>
+              )}
+            </>
           )}
         </div>
       )}
@@ -297,7 +390,15 @@ export function TriggerSection({
           {trigger.items.length < 4 && (
             <AddButton
               onClick={() =>
-                update((d) => d.trigger.type === 'ice_breaker' && void d.trigger.items.push({ question: '', answer: '', links: [] }))
+                update(
+                  (d) =>
+                    d.trigger.type === 'ice_breaker' &&
+                    void d.trigger.items.push({
+                      question: '',
+                      answer: '',
+                      links: [],
+                    }),
+                )
               }
             >
               Add question ({trigger.items.length}/4)
@@ -327,8 +428,9 @@ export function PublicReplySection({
 
   return (
     <Section
+      id="publicReply"
       index={2}
-      title="Reply publicly under the comment"
+      title="Reply under their comment"
       subtitle={
         enabled
           ? filled === 0
@@ -344,7 +446,12 @@ export function PublicReplySection({
           {replies.map((reply, index) => (
             <div key={index} className="flex items-center gap-1">
               <div className="flex-1">
-                <TextInput label={`Public reply ${index + 1}`} value={reply} maxLength={500} onChange={(value) => set((p) => void (p.replies[index] = value))} />
+                <TextInput
+                  label={`Public reply ${index + 1}`}
+                  value={reply}
+                  maxLength={500}
+                  onChange={(value) => set((p) => void (p.replies[index] = value))}
+                />
               </div>
               {replies.length > 1 && (
                 <button
@@ -383,9 +490,16 @@ export function DmSection({
 
   return (
     <Section
+      id="dm"
       index={index}
-      title="Send this DM"
-      subtitle={[opener && 'Opener + tap to continue', 'Message', links.length > 0 && `${links.length} link button${links.length > 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
+      title={recipe.trigger.type === 'comment_keyword' ? 'Send them a DM' : 'Send them a reply'}
+      subtitle={[
+        opener && 'Opener + tap to continue',
+        'Message',
+        links.length > 0 && `${links.length} link button${links.length > 1 ? 's' : ''}`,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
       issues={issues('dm')}
     >
       <div>
@@ -472,8 +586,9 @@ export function BoostersSection({
   ]
   return (
     <Section
+      id="boosters"
       index={index}
-      title="Boosters"
+      title="Extras (optional)"
       subtitle={active.filter(Boolean).join(' · ') || 'Optional extras that grow your audience'}
       issues={issues('boosters')}
     >
@@ -538,11 +653,22 @@ export function BoostersSection({
         <div className="grid gap-3">
           <div>
             <Label hint="Skipped if we already have it">Question</Label>
-            <MessageInput label="Question" value={recipe.collect.question} maxLength={1000} rows={2} onChange={(q) => update((d) => void (d.collect.question = q))} />
+            <MessageInput
+              label="Question"
+              value={recipe.collect.question}
+              maxLength={1000}
+              rows={2}
+              onChange={(q) => update((d) => void (d.collect.question = q))}
+            />
           </div>
           <div>
             <Label hint="2 tries · waits 24h">If the answer isn't valid</Label>
-            <TextInput label="If the answer isn't valid" value={recipe.collect.retryText} maxLength={1000} onChange={(t) => update((d) => void (d.collect.retryText = t))} />
+            <TextInput
+              label="If the answer isn't valid"
+              value={recipe.collect.retryText}
+              maxLength={1000}
+              onChange={(t) => update((d) => void (d.collect.retryText = t))}
+            />
           </div>
         </div>
       )}
@@ -682,7 +808,8 @@ function LinkButtons({ links, onChange }: { links: LinkButton[]; onChange: (link
           className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium text-muted hover:text-ink"
           onClick={() => onChange([...links, { label: '', url: '' }])}
         >
-          <Plus className="size-3.5" /> Add link button{links.length > 0 ? ` (${links.length}/${MAX_LINKS})` : ''}
+          <Plus className="size-3.5" /> Add link button
+          {links.length > 0 ? ` (${links.length}/${MAX_LINKS})` : ''}
         </button>
       )}
     </div>

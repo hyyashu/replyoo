@@ -12,7 +12,7 @@ import { recipeFromFlow, type Recipe } from '@/lib/recipe'
 import { checkRecipe, type RecipeSection } from '@/lib/validation'
 import { Segmented } from './fields'
 import { PhonePreview } from '@/components/phone-preview'
-import { BoostersSection, DmSection, PublicReplySection, TriggerSection, type Update } from './sections'
+import { Accordion, BoostersSection, DmSection, ProgressCue, PublicReplySection, TriggerSection, type Update } from './sections'
 
 type SaveState = { kind: 'saved'; at: string } | { kind: 'saving' } | { kind: 'error'; message: string }
 type SaveResult = { ok: true; savedAt: string } | { ok: false; error: string; conflict?: boolean }
@@ -286,6 +286,13 @@ export function Editor({
     })
   }
 
+  const progressSteps: { id: RecipeSection; label: string; ready: boolean }[] = [
+    { id: 'trigger', label: 'Trigger', ready: sectionIssues('trigger').length === 0 },
+    ...(recipe.trigger.type === 'comment_keyword'
+      ? [{ id: 'publicReply' as const, label: 'Public reply', ready: sectionIssues('publicReply').length === 0 }]
+      : []),
+    ...(recipe.trigger.type === 'ice_breaker' ? [] : [{ id: 'dm' as const, label: 'DM', ready: sectionIssues('dm').length === 0 }]),
+  ]
   const isIceBreaker = recipe.trigger.type === 'ice_breaker'
   const hasPublicReply = recipe.trigger.type === 'comment_keyword'
   const stepCount = Object.keys(flow.steps).length
@@ -352,7 +359,7 @@ export function Editor({
           />
           <Button
             variant="secondary"
-            className="xl:hidden"
+            className="min-[1180px]:hidden"
             aria-haspopup="dialog"
             onClick={() => setPreviewOpen(true)}
           >
@@ -389,7 +396,7 @@ export function Editor({
         </div>
       </header>
 
-      <div className="grid flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid flex-1 grid-cols-1 min-[1180px]:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex min-w-0 flex-col gap-3.5 px-4 pt-6 pb-8 sm:px-8">
           {publishErrors.length > 0 && (
             <div className="rounded-2xl border border-[#ffb59a] bg-brand-tint px-5 py-3.5 text-[13.5px] text-[#a12b0b]">
@@ -404,40 +411,43 @@ export function Editor({
             </div>
           )}
 
-          <TriggerSection recipe={recipe} update={update} platform={platform} accountId={automation.accountId} issues={sectionIssues} />
-          <PublicReplySection recipe={recipe} update={update} issues={sectionIssues} />
-          <DmSection index={hasPublicReply ? 3 : 2} recipe={recipe} update={update} issues={sectionIssues} />
-          <BoostersSection index={hasPublicReply ? 4 : 3} recipe={recipe} update={update} platform={platform} issues={sectionIssues} />
+          <Accordion>
+            <TriggerSection recipe={recipe} update={update} platform={platform} accountId={automation.accountId} issues={sectionIssues} />
+            <PublicReplySection recipe={recipe} update={update} issues={sectionIssues} />
+            <DmSection index={hasPublicReply ? 3 : 2} recipe={recipe} update={update} issues={sectionIssues} />
+            <BoostersSection index={hasPublicReply ? 4 : 3} recipe={recipe} update={update} platform={platform} issues={sectionIssues} />
 
-          <div className="sticky bottom-4 mt-1 flex flex-wrap items-center gap-x-8 gap-y-2 rounded-[18px] bg-ink px-6 py-4 text-white">
-            {status === 'draft' || unpublished ? (
-              <>
-                <span className={cx('eyebrow', issues.length ? 'text-[#ffb59a]' : 'text-lime')}>
-                  {issues.length ? 'Needs attention' : 'Ready to publish'}
-                </span>
-                <Metric value={stepCount} label={stepCount === 1 ? 'step' : 'steps'} />
-                {!isIceBreaker && <Metric value={branchCount} label={branchCount === 1 ? 'branch' : 'branches'} />}
-                <Metric value={issues.length} label={issues.length === 1 ? 'issue' : 'issues'} />
-              </>
-            ) : (
-              <>
-                <span className="eyebrow text-lime">Last 30 days</span>
-                <Metric value={formatNumber(stats.dmsSent)} label="DMs sent" />
-                <Metric value={formatNumber(stats.runs)} label="runs" />
-                <Metric value={stats.runs ? formatPercent(stats.completed / stats.runs) : '—'} label="completed" />
-                <Metric value={formatNumber(stats.leads)} label="leads" />
-              </>
-            )}
-          </div>
+            <div className="sticky bottom-4 mt-1 flex flex-wrap items-center gap-x-8 gap-y-2 rounded-[18px] bg-ink px-6 py-4 text-white">
+              {status === 'draft' || unpublished ? (
+                <>
+                  <span className={cx('eyebrow', issues.length ? 'text-[#ffb59a]' : 'text-lime')}>
+                    {issues.length ? 'Needs attention' : 'Ready to publish'}
+                  </span>
+                  <ProgressCue steps={progressSteps} />
+                  <Metric value={stepCount} label={stepCount === 1 ? 'step' : 'steps'} />
+                  {!isIceBreaker && <Metric value={branchCount} label={branchCount === 1 ? 'branch' : 'branches'} />}
+                  <Metric value={issues.length} label={issues.length === 1 ? 'issue' : 'issues'} />
+                </>
+              ) : (
+                <>
+                  <span className="eyebrow text-lime">Last 30 days</span>
+                  <Metric value={formatNumber(stats.dmsSent)} label="DMs sent" />
+                  <Metric value={formatNumber(stats.runs)} label="runs" />
+                  <Metric value={stats.runs ? formatPercent(stats.completed / stats.runs) : '—'} label="completed" />
+                  <Metric value={formatNumber(stats.leads)} label="leads" />
+                </>
+              )}
+            </div>
+          </Accordion>
         </div>
 
-        <aside className="hidden border-line bg-sand xl:block xl:border-l">
-          <div className="px-8 py-6 xl:sticky xl:top-[81px]">{previewPanel}</div>
+        <aside className="hidden border-line bg-sand min-[1180px]:block min-[1180px]:border-l">
+          <div className="px-6 py-6 min-[1180px]:sticky min-[1180px]:top-[81px]">{previewPanel}</div>
         </aside>
       </div>
 
       {previewOpen && (
-        <div className="fixed inset-0 z-40 flex justify-end xl:hidden" role="dialog" aria-modal="true" aria-label="Live preview">
+        <div className="fixed inset-0 z-40 flex justify-end min-[1180px]:hidden" role="dialog" aria-modal="true" aria-label="Live preview">
           <div className="absolute inset-0 bg-ink/40" onClick={() => setPreviewOpen(false)} />
           <div className="relative h-full w-[440px] max-w-full overflow-y-auto bg-sand px-6 py-6">
             <button
