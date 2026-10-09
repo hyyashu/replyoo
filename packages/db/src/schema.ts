@@ -1,4 +1,4 @@
-import type { FlowDefinition } from '@replyooo/shared'
+import { BILLING_INTERVALS, type FlowDefinition } from '@replyooo/shared'
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -48,6 +48,7 @@ export const messageKindEnum = pgEnum('message_kind', [
 ])
 export const messageStatusEnum = pgEnum('message_status', ['queued', 'sent', 'failed', 'received'])
 export const planEnum = pgEnum('plan', ['free', 'pro', 'business'])
+export const billingIntervalEnum = pgEnum('billing_interval', BILLING_INTERVALS)
 
 // ---------- auth (Better Auth core schema; the adapter maps by property name) ----------
 
@@ -373,6 +374,7 @@ export const subscriptions = pgTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     plan: planEnum('plan').notNull().default('free'),
+    billingInterval: billingIntervalEnum('billing_interval').notNull().default('month'),
     dodoCustomerId: text('dodo_customer_id'),
     dodoSubscriptionId: text('dodo_subscription_id'),
     status: text('status').notNull().default('active'),

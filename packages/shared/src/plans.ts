@@ -26,6 +26,10 @@ export function periodEnd(date: Date): Date {
 
 export const PLAN_NAMES: Record<PlanKey, string> = { free: 'Free', pro: 'Pro', business: 'Business' }
 
+/** How often a paid plan bills. Each (plan, interval) pair is one Dodo product. */
+export const BILLING_INTERVALS = ['month', 'year'] as const
+export type BillingInterval = (typeof BILLING_INTERVALS)[number]
+
 /** Dodo subscription statuses that keep a paid plan's limits (`past_due` is the payment-retry grace period). */
 export const PAID_STATUSES: readonly string[] = ['active', 'past_due']
 

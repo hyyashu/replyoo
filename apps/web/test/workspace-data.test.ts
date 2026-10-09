@@ -104,6 +104,7 @@ describe('getSubscription', () => {
     await db().insert(subscriptions).values({
       workspaceId,
       plan: 'pro',
+      billingInterval: 'year',
       dodoCustomerId: 'cus_1',
       currentPeriodEnd: new Date('2026-10-20T00:00:00.000Z'),
     })
@@ -114,6 +115,7 @@ describe('getSubscription', () => {
     expect(await getSubscription(workspaceId, NOW)).toEqual({
       plan: 'pro',
       billedPlan: 'pro',
+      billedInterval: 'year',
       status: 'active',
       hasBillingAccount: true,
       renewsAt: '2026-10-20T00:00:00.000Z',
@@ -134,6 +136,7 @@ describe('getSubscription', () => {
     expect(await getSubscription(workspaceId, NOW)).toMatchObject({
       plan: 'free',
       billedPlan: 'free',
+      billedInterval: 'month',
       hasBillingAccount: false,
       renewsAt: null,
       contactsReached: 0,
