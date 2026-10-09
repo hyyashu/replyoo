@@ -58,6 +58,10 @@ export async function handleOutbound(
       if (error.kind === 'retryable' && !attempt.isFinal) throw error
       if (error.kind === 'reauth') await flagReauth(deps, account.id)
       const reason = error.details.reason ?? error.kind
+      deps.log.warn(
+        { messageId: id, kind: message.kind, reason, metaMessage: error.message, ...error.details },
+        'outbound message failed',
+      )
       return stop(reason, reason === 'window_closed' ? 'expired' : 'failed')
     }
   }
