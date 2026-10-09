@@ -49,6 +49,13 @@ export function softwareApplicationLd(plans: PlanDisplay[], siteUrl: string) {
   }
 }
 
+export function breadcrumbLd(siteUrl: string, trail: { name: string; path: string }[]) {
+  return {
+    '@type': 'BreadcrumbList',
+    itemListElement: trail.map((item, index) => ({ '@type': 'ListItem', position: index + 1, name: item.name, item: `${siteUrl}${item.path}` })),
+  }
+}
+
 export const freePlan = PLAN_CATALOG.filter((plan) => plan.key === 'free')
 
 export function graph(...nodes: Record<string, unknown>[]) {

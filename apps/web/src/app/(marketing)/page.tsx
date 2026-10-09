@@ -1,5 +1,6 @@
 import { PLAN_LIMITS } from '@replyooo/shared'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { ArrowRight, AtSign, MessageCircleReply, MessagesSquare, Sparkles, UserPlus, Zap } from 'lucide-react'
 import { InstagramIcon } from '@/components/brand-icons'
 import { JsonLd } from '@/components/json-ld'
@@ -77,6 +78,7 @@ const FEATURES = [
   {
     icon: MessageCircleReply,
     eyebrow: 'Comment → DM',
+    href: '/features/instagram-comment-to-dm',
     title: 'Every comment gets your link — in under a second',
     body: 'Reply publicly and slide into their DMs at the same time. Works on reels, posts and carousels.',
     className: 'bg-brand-soft lg:col-span-2',
@@ -84,6 +86,7 @@ const FEATURES = [
   {
     icon: UserPlus,
     eyebrow: 'Follow gate',
+    href: '/features/instagram-follow-gate',
     title: 'Turn freebies into followers',
     body: 'Ask for a follow before the link unlocks. Replyooo checks it automatically.',
     className: 'bg-sand',
@@ -91,6 +94,7 @@ const FEATURES = [
   {
     icon: AtSign,
     eyebrow: 'Lead capture',
+    href: '/features/collect-emails-instagram-dm',
     title: 'Build your email list in the DM',
     body: 'Ask for an email or phone number, validate it, and keep every lead in one place.',
     className: 'bg-sand',
@@ -98,6 +102,7 @@ const FEATURES = [
   {
     icon: Sparkles,
     eyebrow: 'Story replies',
+    href: '/features/instagram-story-reply-automation',
     title: 'Every story reply becomes a conversation',
     body: 'React or reply to a story and get an instant, personal answer.',
     className: 'bg-violet-soft',
@@ -105,6 +110,7 @@ const FEATURES = [
   {
     icon: MessagesSquare,
     eyebrow: 'Conversation starters',
+    href: '/features/instagram-dm-auto-reply',
     title: 'Answer the questions you get every day',
     body: 'Tappable questions in every new chat — pricing, shipping, booking — answered instantly.',
     className: 'bg-ink text-white',
@@ -191,14 +197,14 @@ export default async function LandingPage() {
               const Icon = feature.icon
               const dark = feature.className.includes('bg-ink')
               return (
-                <div key={feature.title} className={cx('flex min-h-[240px] flex-col rounded-[24px] p-7', feature.className)}>
+                <Link key={feature.title} href={feature.href} className={cx('flex min-h-[240px] flex-col rounded-[24px] p-7 transition-transform hover:-translate-y-0.5', feature.className)}>
                   <span className={cx('grid size-11 place-items-center rounded-2xl', dark ? 'bg-lime text-ink' : 'bg-white text-ink')}>
                     <Icon className="size-5" />
                   </span>
                   <div className={cx('eyebrow mt-auto pt-8', dark ? 'text-lime' : 'text-brand')}>{feature.eyebrow}</div>
                   <h3 className="mt-1.5 text-[19px] leading-snug font-semibold">{feature.title}</h3>
                   <p className={cx('mt-1.5 text-[14px]', dark ? 'text-white/60' : 'text-muted')}>{feature.body}</p>
-                </div>
+                </Link>
               )
             })}
           </div>
