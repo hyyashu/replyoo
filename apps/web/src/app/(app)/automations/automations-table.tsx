@@ -4,6 +4,7 @@ import { Clapperboard, Ellipsis, MessageCircleQuestion, MessageSquare, MessagesS
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { deleteAutomation, setAutomationStatus } from '@/app/actions'
 import { ButtonLink, Card, EmptyState, Keyword, StatusPill, cx, formatNumber, formatPercent } from '@/components/ui'
 import type { Automation, AutomationStatus, StatusResult } from '@/lib/data/types'
@@ -162,16 +163,33 @@ function Row({ automation }: { automation: Automation }) {
 function RowMenu({ automation }: { automation: Automation }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
-  const ref = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ top: 0, right: 0 })
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     const close = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false)
+      const target = event.target as Node
+      if (!buttonRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false)
     }
+    const dismiss = () => setOpen(false)
     document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
+    window.addEventListener('scroll', dismiss, true)
+    window.addEventListener('resize', dismiss)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      window.removeEventListener('scroll', dismiss, true)
+      window.removeEventListener('resize', dismiss)
+    }
   }, [open])
+
+  // The menu is portaled to <body> so the table card's overflow-hidden can't clip it.
+  const toggle = () => {
+    const rect = buttonRef.current?.getBoundingClientRect()
+    if (rect) setPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    setOpen(!open)
+  }
 
   const run = (action: () => Promise<StatusResult | void>) => {
     setOpen(false)
@@ -182,39 +200,46 @@ function RowMenu({ automation }: { automation: Automation }) {
   }
 
   return (
-    <div ref={ref} className="relative">
+    <>
       <button
+        ref={buttonRef}
         type="button"
         aria-label="Automation actions"
-        onClick={() => setOpen(!open)}
+        onClick={toggle}
         className={cx('grid size-8 place-items-center rounded-lg text-subtle hover:bg-cream hover:text-ink', pending && 'opacity-50')}
       >
         <Ellipsis className="size-4" />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-xl border border-line bg-white p-1 text-[13.5px] shadow-[0_12px_32px_rgba(21,19,16,0.12)]">
-          <Link href={`/automations/${automation.id}`} className="block rounded-lg px-3 py-2 hover:bg-sand">
-            Edit
-          </Link>
-          {automation.status === 'active' && (
-            <MenuButton onClick={() => run(() => setAutomationStatus(automation.id, 'paused'))}>Pause</MenuButton>
-          )}
-          {automation.status === 'paused' && (
-            <MenuButton onClick={() => run(() => setAutomationStatus(automation.id, 'active'))}>Resume</MenuButton>
-          )}
-          <MenuButton
-            danger
-            onClick={() => {
-              if (confirm(`Delete “${automation.name}”? In-flight conversations will stop.`)) {
-                run(() => deleteAutomation(automation.id))
-              }
-            }}
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ top: position.top, right: position.right }}
+            className="fixed z-50 w-44 rounded-xl border border-line bg-white p-1 text-[13.5px] shadow-[0_12px_32px_rgba(21,19,16,0.12)]"
           >
-            Delete
-          </MenuButton>
-        </div>
-      )}
-    </div>
+            <Link href={`/automations/${automation.id}`} className="block rounded-lg px-3 py-2 hover:bg-sand">
+              Edit
+            </Link>
+            {automation.status === 'active' && (
+              <MenuButton onClick={() => run(() => setAutomationStatus(automation.id, 'paused'))}>Pause</MenuButton>
+            )}
+            {automation.status === 'paused' && (
+              <MenuButton onClick={() => run(() => setAutomationStatus(automation.id, 'active'))}>Resume</MenuButton>
+            )}
+            <MenuButton
+              danger
+              onClick={() => {
+                if (confirm(`Delete “${automation.name}”? In-flight conversations will stop.`)) {
+                  run(() => deleteAutomation(automation.id))
+                }
+              }}
+            >
+              Delete
+            </MenuButton>
+          </div>,
+          document.body,
+        )}
+    </>
   )
 }
 
