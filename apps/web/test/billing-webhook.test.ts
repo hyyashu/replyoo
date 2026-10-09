@@ -10,14 +10,19 @@ import { db } from '@/lib/db'
 import { createWorkspace } from './support'
 
 const SECRET = `whsec_${Buffer.from('dodo-test-signing-key').toString('base64')}`
-const PRODUCTS = { pro: 'pdt_pro', business: 'pdt_business' }
+const PRODUCTS = {
+  pro: { month: 'pdt_pro', year: 'pdt_pro_year' },
+  business: { month: 'pdt_business', year: 'pdt_business_year' },
+}
 // Unique per run: the test database is shared, and the webhook falls back to a customer-id lookup.
 const CUSTOMER = `cus_${randomUUID()}`
 
 process.env.DODO_API_KEY = 'dodo_test_key'
 process.env.DODO_WEBHOOK_SECRET = SECRET
-process.env.DODO_PRODUCT_PRO = PRODUCTS.pro
-process.env.DODO_PRODUCT_BUSINESS = PRODUCTS.business
+process.env.DODO_PRODUCT_PRO_MONTHLY = PRODUCTS.pro.month
+process.env.DODO_PRODUCT_PRO_YEARLY = PRODUCTS.pro.year
+process.env.DODO_PRODUCT_BUSINESS_MONTHLY = PRODUCTS.business.month
+process.env.DODO_PRODUCT_BUSINESS_YEARLY = PRODUCTS.business.year
 
 function sign(body: string, id = `msg_${randomUUID()}`, timestamp = Math.floor(Date.now() / 1000)) {
   const key = Buffer.from(SECRET.slice('whsec_'.length), 'base64')
@@ -37,7 +42,7 @@ function event(
     data: {
       payload_type: 'Subscription',
       subscription_id: data.subscription_id ?? `sub_${randomUUID()}`,
-      product_id: data.product_id ?? PRODUCTS.pro,
+      product_id: data.product_id ?? PRODUCTS.pro.month,
       status: data.status ?? 'active',
       customer: { customer_id: data.customer_id ?? CUSTOMER, email: 'owner@example.com', name: 'Owner' },
       next_billing_date: data.next_billing_date === undefined ? '2026-11-06T10:00:00.000Z' : data.next_billing_date,
@@ -76,11 +81,30 @@ describe('applyDodoEvent', () => {
     expect(result).toBe('updated')
     expect(await row(workspaceId)).toMatchObject({
       plan: 'pro',
+      billingInterval: 'month',
       status: 'active',
       dodoCustomerId: CUSTOMER,
       dodoSubscriptionId: `sub_${workspaceId}`,
       currentPeriodEnd: new Date('2026-11-06T10:00:00.000Z'),
     })
+  })
+
+  it('stores the interval of each of the four products and follows interval changes', async () => {
+    for (const [plan, interval] of [['pro', 'month'], ['pro', 'year'], ['business', 'month'], ['business', 'year']] as const) {
+      const { workspaceId } = await createWorkspace(`Four ${plan} ${interval}`)
+      const result = await applyDodoEvent(
+        db(),
+        PRODUCTS,
+        event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: workspaceId, subscription_id: `sub_${workspaceId}`, product_id: PRODUCTS[plan][interval] }),
+      )
+      expect(result).toBe('updated')
+      expect(await row(workspaceId)).toMatchObject({ plan, billingInterval: interval })
+    }
+    const { workspaceId } = await createWorkspace('Goes yearly')
+    const sub = `sub_${workspaceId}`
+    await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: workspaceId, subscription_id: sub }))
+    await applyDodoEvent(db(), PRODUCTS, event('subscription.plan_changed', '2026-10-07T10:00:00.000Z', { subscription_id: sub, product_id: PRODUCTS.pro.year }))
+    expect(await row(workspaceId)).toMatchObject({ plan: 'pro', billingInterval: 'year' })
   })
 
   it('ignores an event older than the stored one', async () => {
@@ -114,7 +138,7 @@ describe('applyDodoEvent', () => {
     await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: a.workspaceId, subscription_id: `sub_${a.workspaceId}`, customer_id: customer }))
     await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: b.workspaceId, subscription_id: `sub_${b.workspaceId}`, customer_id: customer }))
     expect(
-      await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-07T10:00:00.000Z', { subscription_id: `sub_${randomUUID()}`, customer_id: customer, product_id: PRODUCTS.business })),
+      await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-07T10:00:00.000Z', { subscription_id: `sub_${randomUUID()}`, customer_id: customer, product_id: PRODUCTS.business.month })),
     ).toBe('unknown_workspace')
     expect(await row(a.workspaceId)).toMatchObject({ plan: 'pro', dodoSubscriptionId: `sub_${a.workspaceId}` })
     expect(await row(b.workspaceId)).toMatchObject({ plan: 'pro', dodoSubscriptionId: `sub_${b.workspaceId}` })
@@ -124,7 +148,7 @@ describe('applyDodoEvent', () => {
     const { workspaceId } = await createWorkspace('Upgrader')
     const sub = `sub_${workspaceId}`
     await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: workspaceId, subscription_id: sub }))
-    await applyDodoEvent(db(), PRODUCTS, event('subscription.plan_changed', '2026-10-07T10:00:00.000Z', { subscription_id: sub, product_id: PRODUCTS.business }))
+    await applyDodoEvent(db(), PRODUCTS, event('subscription.plan_changed', '2026-10-07T10:00:00.000Z', { subscription_id: sub, product_id: PRODUCTS.business.month }))
     expect(await row(workspaceId)).toMatchObject({ plan: 'business' })
   })
 

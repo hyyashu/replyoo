@@ -3,7 +3,7 @@ import { subscriptions } from '@replyooo/db'
 import { http, HttpResponse, type JsonBodyType } from 'msw'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { startPlanChange } from '@/lib/billing/checkout'
-import { createPortalSession, DodoError, type DodoConfig } from '@/lib/billing/dodo'
+import { createPortalSession, DodoError, parsePlanChoice, planForProduct, productFor, type DodoConfig } from '@/lib/billing/dodo'
 import { db } from '@/lib/db'
 import { createWorkspace, mockFetch } from './support'
 
@@ -12,7 +12,7 @@ beforeEach(() => server.reset())
 afterAll(() => server.restore())
 
 const DODO = 'https://test.dodopayments.com'
-const config: DodoConfig = { apiKey: 'dodo_key', baseUrl: DODO, products: { pro: 'pdt_pro', business: 'pdt_business' } }
+const config: DodoConfig = { apiKey: 'dodo_key', baseUrl: DODO, products: { pro: { month: 'pdt_pro', year: 'pdt_pro_year' }, business: { month: 'pdt_business', year: 'pdt_business_year' } } }
 const RETURN = 'http://localhost:3000/settings?billing=updated#billing'
 const uid = (prefix: string) => `${prefix}_${randomUUID()}`
 
@@ -113,5 +113,24 @@ describe('createPortalSession', () => {
     const error = await createPortalSession(config, 'cus_x', 'http://localhost:3000/settings').catch((e: unknown) => e)
     expect(error).toBeInstanceOf(DodoError)
     expect(error).toMatchObject({ status: 404, message: 'Dodo POST /customers/cus_x/customer-portal/session failed (404): Customer not found' })
+  })
+})
+
+describe('product table', () => {
+  it('maps each of the four products to its plan and interval and back', () => {
+    for (const plan of ['pro', 'business'] as const) {
+      for (const interval of ['month', 'year'] as const) {
+        const id = productFor(config.products, { plan, interval })
+        expect(planForProduct(config.products, id)).toEqual({ plan, interval })
+      }
+    }
+    expect(planForProduct(config.products, 'pdt_other')).toBeNull()
+  })
+
+  it('accepts only known plan and interval form values', () => {
+    expect(parsePlanChoice('business', 'year')).toEqual({ plan: 'business', interval: 'year' })
+    expect(parsePlanChoice('pro', null)).toEqual({ plan: 'pro', interval: 'month' })
+    expect(parsePlanChoice('free', 'month')).toBeNull()
+    expect(parsePlanChoice('pro', 'week')).toBeNull()
   })
 })

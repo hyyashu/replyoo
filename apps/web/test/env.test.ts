@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import { isUuid } from '@/lib/data/ids'
 import { db } from '@/lib/db'
+import { dodoConfig } from '@/lib/billing/dodo'
 import { parseEnv } from '@/lib/env'
 
 const base = {
@@ -41,5 +42,25 @@ describe('db', () => {
   it('connects to the migrated test database', async () => {
     const rows = await db().execute(sql`select count(*)::int as n from "user"`)
     expect(rows[0]).toHaveProperty('n')
+  })
+})
+
+describe('dodoConfig', () => {
+  const products = {
+    DODO_API_KEY: 'key',
+    DODO_PRODUCT_PRO_MONTHLY: 'pdt_pm',
+    DODO_PRODUCT_PRO_YEARLY: 'pdt_py',
+    DODO_PRODUCT_BUSINESS_MONTHLY: 'pdt_bm',
+    DODO_PRODUCT_BUSINESS_YEARLY: 'pdt_by',
+  }
+
+  it('stays off until the key and all four products are set', () => {
+    expect(dodoConfig(parseEnv({ ...base, ...products, DODO_PRODUCT_BUSINESS_YEARLY: '' }))).toBeNull()
+    expect(dodoConfig(parseEnv({ ...base, ...products, DODO_API_KEY: '' }))).toBeNull()
+    expect(dodoConfig(parseEnv({ ...base, ...products }))).toEqual({
+      apiKey: 'key',
+      baseUrl: 'https://test.dodopayments.com',
+      products: { pro: { month: 'pdt_pm', year: 'pdt_py' }, business: { month: 'pdt_bm', year: 'pdt_by' } },
+    })
   })
 })

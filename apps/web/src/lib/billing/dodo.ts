@@ -1,13 +1,19 @@
 import 'server-only'
-import { env } from '../env'
+import { BILLING_INTERVALS, type BillingInterval } from '@replyooo/shared'
+import { type Env, env } from '../env'
 
 export type PaidPlan = 'pro' | 'business'
+export interface PlanChoice {
+  plan: PaidPlan
+  interval: BillingInterval
+}
+/** One Dodo subscription product per (plan, interval). */
+export type ProductTable = Record<PaidPlan, Record<BillingInterval, string>>
 
 export interface DodoConfig {
   apiKey: string
   baseUrl: string
-  /** Dodo product ID per paid plan. */
-  products: Record<PaidPlan, string>
+  products: ProductTable
 }
 
 export const DODO_BASE_URLS = {
@@ -15,21 +21,39 @@ export const DODO_BASE_URLS = {
   live_mode: 'https://live.dodopayments.com',
 } as const
 
-/** Null until the API key and both product IDs are set; billing UI and endpoints stay off until then. */
-export function dodoConfig(): DodoConfig | null {
-  const e = env()
-  if (!e.DODO_API_KEY || !e.DODO_PRODUCT_PRO || !e.DODO_PRODUCT_BUSINESS) return null
+/** Null until the API key and all four product IDs are set; billing UI and endpoints stay off until then. */
+export function dodoConfig(e: Env = env()): DodoConfig | null {
+  const { DODO_API_KEY: apiKey, DODO_PRODUCT_PRO_MONTHLY: proMonth, DODO_PRODUCT_PRO_YEARLY: proYear } = e
+  const { DODO_PRODUCT_BUSINESS_MONTHLY: businessMonth, DODO_PRODUCT_BUSINESS_YEARLY: businessYear } = e
+  if (!apiKey || !proMonth || !proYear || !businessMonth || !businessYear) return null
   return {
-    apiKey: e.DODO_API_KEY,
+    apiKey,
     baseUrl: DODO_BASE_URLS[e.DODO_ENVIRONMENT],
-    products: { pro: e.DODO_PRODUCT_PRO, business: e.DODO_PRODUCT_BUSINESS },
+    products: { pro: { month: proMonth, year: proYear }, business: { month: businessMonth, year: businessYear } },
   }
 }
 
-export function planForProduct(products: DodoConfig['products'], productId: string): PaidPlan | null {
-  if (productId === products.pro) return 'pro'
-  if (productId === products.business) return 'business'
-  return null
+const CHOICES: readonly PlanChoice[] = (['pro', 'business'] as const).flatMap((plan) => BILLING_INTERVALS.map((interval) => ({ plan, interval })))
+
+export function productFor(products: ProductTable, choice: PlanChoice): string {
+  return products[choice.plan][choice.interval]
+}
+
+export function productIds(products: ProductTable): string[] {
+  return CHOICES.map((choice) => productFor(products, choice))
+}
+
+export function planForProduct(products: ProductTable, productId: string): PlanChoice | null {
+  const choice = CHOICES.find((c) => productFor(products, c) === productId)
+  return choice ? { ...choice } : null
+}
+
+/** Form values from the billing UI; a missing interval means monthly. */
+export function parsePlanChoice(plan: unknown, interval: unknown): PlanChoice | null {
+  if (plan !== 'pro' && plan !== 'business') return null
+  const value = interval ?? 'month'
+  if (value !== 'month' && value !== 'year') return null
+  return { plan, interval: value }
 }
 
 export class DodoError extends Error {

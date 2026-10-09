@@ -4,7 +4,7 @@ import { PAID_STATUSES } from '@replyooo/shared'
 import { and, eq, isNull, lte, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { isUuid } from '../data/ids'
-import { type DodoConfig, planForProduct } from './dodo'
+import { planForProduct, type ProductTable } from './dodo'
 
 const SubscriptionEvent = z.object({
   type: z.string().startsWith('subscription.'),
@@ -49,18 +49,19 @@ async function findWorkspace(db: Db, data: SubscriptionData): Promise<string | n
  * arrive out of order, so an event older than the last one applied is ignored, and a non-paying
  * event about a different subscription never replaces the one on file.
  */
-export async function applyDodoEvent(db: Db, products: DodoConfig['products'], payload: unknown): Promise<SyncResult> {
+export async function applyDodoEvent(db: Db, products: ProductTable, payload: unknown): Promise<SyncResult> {
   const parsed = SubscriptionEvent.safeParse(payload)
   if (!parsed.success) return 'ignored'
   const { data, timestamp } = parsed.data
-  const plan = planForProduct(products, data.product_id)
-  if (!plan) return 'unknown_product'
+  const choice = planForProduct(products, data.product_id)
+  if (!choice) return 'unknown_product'
   const workspaceId = await findWorkspace(db, data)
   if (!workspaceId) return 'unknown_workspace'
 
   const eventAt = new Date(timestamp)
   const values = {
-    plan,
+    plan: choice.plan,
+    billingInterval: choice.interval,
     status: data.status,
     dodoCustomerId: data.customer.customer_id,
     dodoSubscriptionId: data.subscription_id,

@@ -4,7 +4,7 @@ import { effectivePlan } from '@replyooo/shared'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { appUrl } from '../env'
-import { changeSubscriptionPlan, createCheckout, createPortalSession, type DodoConfig, type PaidPlan } from './dodo'
+import { changeSubscriptionPlan, createCheckout, createPortalSession, productFor, type DodoConfig, type PaidPlan } from './dodo'
 
 /** Dodo statuses where the subscription still exists and resumes once the payment method is fixed. */
 const RECOVERABLE_STATUSES: readonly string[] = ['on_hold']
@@ -25,13 +25,13 @@ export async function startPlanChange(
   const [current] = await db().select().from(subscriptions).where(eq(subscriptions.workspaceId, workspace.workspaceId))
   if (current?.dodoSubscriptionId && effectivePlan(current, now) !== 'free') {
     if (current.plan === plan) return returnUrl
-    return (await changeSubscriptionPlan(config, current.dodoSubscriptionId, config.products[plan])) ?? returnUrl
+    return (await changeSubscriptionPlan(config, current.dodoSubscriptionId, productFor(config.products, { plan, interval: 'month' }))) ?? returnUrl
   }
   if (current?.dodoSubscriptionId && current.dodoCustomerId && RECOVERABLE_STATUSES.includes(current.status)) {
     return createPortalSession(config, current.dodoCustomerId, appUrl('/settings#billing'))
   }
   return createCheckout(config, {
-    productId: config.products[plan],
+    productId: productFor(config.products, { plan, interval: 'month' }),
     workspaceId: workspace.workspaceId,
     customer: current?.dodoCustomerId ? { customerId: current.dodoCustomerId } : { email: workspace.user.email, name: workspace.user.name },
     returnUrl,
