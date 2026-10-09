@@ -107,6 +107,17 @@ In the Meta developer dashboard for your app:
 
 **Never** add `-v` to `down` on a live server: it deletes the database volume.
 
+### Background jobs
+
+The worker runs these on a schedule (UTC), with no setup:
+
+| Job | When | What it does |
+| --- | --- | --- |
+| `sweep` | every minute | Re-queues timed-out waits, lost run starts, stuck messages and unprocessed webhook events |
+| `refresh-tokens` | daily 03:00 | Renews Instagram tokens that expire within 10 days; flags the account for reconnect if Meta refuses |
+| `refresh-profiles` | every 6 hours (:15) | Re-reads each active account's name, picture and follower count, because Instagram and Facebook picture links expire |
+| `prune-webhooks` | daily 03:30 | Deletes stored webhook events older than 30 days |
+
 ### Backups
 
 ```bash
@@ -125,6 +136,12 @@ holds only queued jobs and rate-limit counters, so it isn't part of the backup.
 - **Meta can't verify the webhook:** the verify token in the dashboard must match `.env` exactly. Run the `curl`
   check above first.
 - **`migrate` fails:** `docker compose ... logs migrate`. The web app and worker won't start until it succeeds.
+- **The opener goes out but the follow-up DM never arrives:** search the worker log for `outbound message failed`. It
+  carries Meta's own `metaMessage`, `code` and `subcode`; the message row in the database only keeps a short reason such
+  as `invalid_request`. Code 100 / subcode 2534037 (“not the thread owner”) means another app or the Instagram inbox
+  controls that conversation (Meta's Conversation Routing). Private replies to comments still work, because they aren't
+  tied to a thread. Disconnect other messaging tools from the Instagram account, avoid replying by hand in the
+  Instagram app or Business Suite to test chats, and retry with an account that has no earlier thread.
 
 ## Deploying with Dokploy
 
