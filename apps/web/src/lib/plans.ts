@@ -17,6 +17,9 @@ const COPY: Record<PlanKey, { price: string; blurb: string; extras: string[]; fe
   business: { price: '$29', blurb: 'For full-time creators, teams and brands.', extras: ['Team members', 'Priority support'], featured: false },
 }
 
+/** USD monthly prices in cents, shown only when Dodo's prices are unavailable. Keep equal to the Dodo base prices and to COPY. */
+export const FALLBACK_MONTHLY_USD_CENTS: Record<'pro' | 'business', number> = { pro: 1200, business: 2900 }
+
 function limitPerks(key: PlanKey): string[] {
   const limits = PLAN_LIMITS[key]
   return [
@@ -26,7 +29,7 @@ function limitPerks(key: PlanKey): string[] {
   ]
 }
 
-/** One source for the landing page, /pricing and Settings → Billing. Prices must match the Dodo products. */
+/** Plan copy and USD base prices for JSON-LD, comparison pages and the price fallback. Live prices come from Dodo (lib/billing/pricing.ts). */
 export const PLAN_CATALOG: PlanDisplay[] = (['free', 'pro', 'business'] as const).map((key) => ({
   key,
   name: PLAN_NAMES[key],
