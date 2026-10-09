@@ -104,6 +104,7 @@ export async function createCheckout(
     workspaceId: string
     customer: { customerId: string } | { email: string; name: string }
     returnUrl: string
+    extra?: Record<string, unknown>
   },
 ): Promise<string> {
   const customer = 'customerId' in input.customer
@@ -115,6 +116,7 @@ export async function createCheckout(
       customer,
       return_url: input.returnUrl,
       metadata: { workspace_id: input.workspaceId },
+      ...input.extra,
     },
   })
   if (!session.checkout_url) throw new DodoError('Dodo returned no checkout URL', 200)
