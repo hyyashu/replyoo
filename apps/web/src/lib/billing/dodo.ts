@@ -42,26 +42,35 @@ export class DodoError extends Error {
   }
 }
 
-async function post<T>(config: DodoConfig, path: string, init: { query?: Record<string, string>; body?: unknown } = {}): Promise<T> {
+/** One Dodo API call. Errors (network, non-2xx) become DodoError. */
+export async function dodoRequest<T>(
+  config: Pick<DodoConfig, 'apiKey' | 'baseUrl'>,
+  method: 'GET' | 'POST',
+  path: string,
+  init: { query?: Record<string, string>; body?: unknown; timeoutMs?: number } = {},
+): Promise<T> {
   const url = new URL(path, config.baseUrl)
   for (const [key, value] of Object.entries(init.query ?? {})) url.searchParams.set(key, value)
   let response: Response
   try {
     response = await fetch(url, {
-      method: 'POST',
+      method,
       headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(init.timeoutMs ?? 15_000),
     })
   } catch (cause) {
     throw new DodoError(`Dodo request failed: ${(cause as Error).message}`, 0)
   }
   const body = (await response.json().catch(() => ({}))) as { message?: string }
   if (!response.ok) {
-    throw new DodoError(`Dodo POST ${path} failed (${response.status}): ${body.message ?? response.statusText}`, response.status)
+    throw new DodoError(`Dodo ${method} ${path} failed (${response.status}): ${body.message ?? response.statusText}`, response.status)
   }
   return body as T
 }
+
+const post = <T>(config: DodoConfig, path: string, init: { query?: Record<string, string>; body?: unknown } = {}) =>
+  dodoRequest<T>(config, 'POST', path, init)
 
 /** A hosted checkout for a new subscription. The workspace id rides along as metadata for the webhook. */
 export async function createCheckout(
