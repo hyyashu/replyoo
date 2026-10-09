@@ -61,6 +61,11 @@ describe('createFacebookAdapter', () => {
     expect((await adapter.getMediaPublishedAt(account, '104_p1'))?.toISOString()).toBe('2026-10-01T09:00:00.000Z')
   })
 
+  it('reads the page profile', async () => {
+    capture('get', `${base}/${FB_PAGE}`, { name: 'Acme Page', followers_count: 9, picture: { data: { url: 'https://pic' } } })
+    expect(await adapter.getAccountProfile(account)).toEqual({ displayName: 'Acme Page', avatarUrl: 'https://pic', followersCount: 9 })
+  })
+
   it('lists recent page posts', async () => {
     capture('get', `${base}/${FB_PAGE}/posts`, {
       data: [{ id: `${FB_PAGE}_p1`, message: 'Sale', full_picture: 'https://pic', permalink_url: 'https://fb/p1', created_time: '2026-10-01T09:00:00+0000' }],

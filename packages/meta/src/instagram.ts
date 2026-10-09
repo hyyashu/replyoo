@@ -60,6 +60,17 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
       }
     },
 
+    async getAccountProfile(account) {
+      const res = await call<{ name?: string; profile_picture_url?: string; followers_count?: number }>(account, 'me', {
+        query: { fields: 'name,profile_picture_url,followers_count' },
+      })
+      return {
+        displayName: res.name ?? null,
+        avatarUrl: res.profile_picture_url ?? null,
+        followersCount: res.followers_count ?? null,
+      }
+    },
+
     async getMediaPublishedAt(account, mediaId) {
       const res = await call<{ timestamp?: string }>(account, mediaId, { query: { fields: 'timestamp' } })
       return res.timestamp ? new Date(res.timestamp) : null

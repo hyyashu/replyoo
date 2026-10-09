@@ -2,7 +2,7 @@ import { DelayedError, type Job, type JobsOptions, Queue, Worker } from 'bullmq'
 import type { Deps, FlowJobData, FollowCheckJobData, Jobs, OutboundJobData } from './deps'
 import { handleFlowJob, handleFollowCheck } from './flow'
 import { handleInbound } from './inbound'
-import { pruneWebhookEvents, refreshExpiringTokens, sweep } from './maintenance'
+import { pruneWebhookEvents, refreshAccountProfiles, refreshExpiringTokens, sweep } from './maintenance'
 import { handleOutbound } from './outbound'
 
 export type QueueName = 'inbound' | 'flow' | 'outbound' | 'maintenance'
@@ -90,6 +90,8 @@ export function startWorkers(
             return sweep(deps)
           case 'refresh-tokens':
             return refreshExpiringTokens(deps)
+          case 'refresh-profiles':
+            return refreshAccountProfiles(deps)
           case 'prune-webhooks':
             return pruneWebhookEvents(deps)
         }
@@ -108,5 +110,6 @@ export function startWorkers(
 export async function scheduleMaintenance(queues: Queues): Promise<void> {
   await queues.maintenance.upsertJobScheduler('sweep', { every: 60_000 }, { name: 'sweep' })
   await queues.maintenance.upsertJobScheduler('refresh-tokens', { pattern: '0 3 * * *' }, { name: 'refresh-tokens' })
+  await queues.maintenance.upsertJobScheduler('refresh-profiles', { pattern: '15 */6 * * *' }, { name: 'refresh-profiles' })
   await queues.maintenance.upsertJobScheduler('prune-webhooks', { pattern: '30 3 * * *' }, { name: 'prune-webhooks' })
 }

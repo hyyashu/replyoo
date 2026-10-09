@@ -46,6 +46,19 @@ export function createFacebookAdapter(options: { graphVersion?: string } = {}): 
       return { name: res.name ?? null, username: null, avatarUrl: res.profile_pic ?? null }
     },
 
+    async getAccountProfile(account) {
+      const res = await call<{ name?: string; followers_count?: number; picture?: { data?: { url?: string } } }>(
+        account,
+        account.externalId,
+        { query: { fields: 'name,followers_count,picture{url}' } },
+      )
+      return {
+        displayName: res.name ?? null,
+        avatarUrl: res.picture?.data?.url ?? null,
+        followersCount: res.followers_count ?? null,
+      }
+    },
+
     async getMediaPublishedAt(account, mediaId) {
       const res = await call<{ created_time?: string }>(account, mediaId, { query: { fields: 'created_time' } })
       return res.created_time ? new Date(res.created_time) : null

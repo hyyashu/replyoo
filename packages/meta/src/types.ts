@@ -28,6 +28,13 @@ export interface Profile {
   youFollow?: boolean | null
 }
 
+/** The connected account's own profile, refreshed periodically (picture links expire). */
+export interface AccountProfile {
+  displayName: string | null
+  avatarUrl: string | null
+  followersCount: number | null
+}
+
 /** A published post or reel, as shown in the dashboard's post picker. `id` matches the webhook's `mediaId`. */
 export interface MediaItem {
   id: string
@@ -81,6 +88,8 @@ export interface PlatformAdapter {
   sendPrivateReply(account: AccountCredentials, commentId: string, message: SendableMessage): Promise<SendResult>
   replyToComment(account: AccountCredentials, commentId: string, text: string): Promise<SendResult>
   getProfile(account: AccountCredentials, userId: string): Promise<Profile>
+  /** The connected account's own name, picture and follower count. */
+  getAccountProfile(account: AccountCredentials): Promise<AccountProfile>
   getMediaPublishedAt(account: AccountCredentials, mediaId: string): Promise<Date | null>
   /** The account's most recent posts, newest first. */
   listMedia(account: AccountCredentials, limit?: number): Promise<MediaItem[]>

@@ -101,6 +101,33 @@ export async function refreshExpiringTokens(deps: Deps) {
   return { refreshed, failed }
 }
 
+/** Instagram and Facebook picture links expire, so re-read each active account's profile. Missing fields keep their old value. */
+export async function refreshAccountProfiles(deps: Deps) {
+  const { db } = deps
+  const accounts = await db.select().from(connectedAccounts).where(eq(connectedAccounts.status, 'active'))
+  let refreshed = 0
+  let failed = 0
+  for (const account of accounts) {
+    try {
+      const profile = await deps.adapters[account.platform].getAccountProfile(credentials(account, deps.tokenKey))
+      const changes = {
+        ...(profile.displayName !== null ? { displayName: profile.displayName } : {}),
+        ...(profile.avatarUrl !== null ? { avatarUrl: profile.avatarUrl } : {}),
+        ...(profile.followersCount !== null ? { followersCount: profile.followersCount } : {}),
+      }
+      if (Object.keys(changes).length > 0) {
+        await db.update(connectedAccounts).set(changes).where(eq(connectedAccounts.id, account.id))
+      }
+      refreshed++
+    } catch (error) {
+      failed++
+      if (error instanceof MetaError && error.kind === 'reauth') await flagReauth(deps, account.id)
+      deps.log.warn({ err: error, accountId: account.id }, 'profile refresh failed')
+    }
+  }
+  return { refreshed, failed }
+}
+
 export async function pruneWebhookEvents(deps: Deps): Promise<number> {
   const cutoff = new Date(deps.now().getTime() - 30 * DAY)
   const deleted = await deps.db

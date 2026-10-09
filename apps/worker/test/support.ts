@@ -23,6 +23,7 @@ import type {
   MetaError,
   NormalizedEvent,
   PlatformAdapter,
+  AccountProfile,
   Profile,
   SendableMessage,
 } from '@replyooo/meta'
@@ -94,6 +95,7 @@ export class FakeAdapter implements PlatformAdapter {
   errors: MetaError[] = []
   following = false
   profile: Profile = { name: 'Priya Sharma', username: 'priya', avatarUrl: null }
+  accountProfile: AccountProfile = { displayName: 'Acme Co', avatarUrl: 'https://cdn.example/new.jpg', followersCount: 321 }
   mediaPublishedAt: Date | null = null
   private counter = 0
 
@@ -122,6 +124,12 @@ export class FakeAdapter implements PlatformAdapter {
   async getProfile(_: AccountCredentials, userId: string) {
     this.calls.push({ method: 'getProfile', args: [userId] })
     return this.profile
+  }
+  async getAccountProfile(_: AccountCredentials) {
+    this.calls.push({ method: 'getAccountProfile', args: [] })
+    const error = this.errors.shift()
+    if (error) throw error
+    return this.accountProfile
   }
   async getMediaPublishedAt(_: AccountCredentials, mediaId: string) {
     this.calls.push({ method: 'getMediaPublishedAt', args: [mediaId] })

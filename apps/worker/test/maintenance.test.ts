@@ -4,7 +4,7 @@ import type { FlowDefinition } from '@replyooo/shared'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { pruneWebhookEvents, refreshExpiringTokens, sweep } from '../src/maintenance'
+import { pruneWebhookEvents, refreshAccountProfiles, refreshExpiringTokens, sweep } from '../src/maintenance'
 import {
   createTestContext,
   dm,
@@ -121,6 +121,39 @@ describe('refreshExpiringTokens', () => {
     // Earlier tests may have left other expiring accounts; give every refresh a reauth error.
     for (let i = 0; i < 50; i++) ctx.adapters.instagram.errors.push(new MetaError('reauth', 'revoked'))
     await refreshExpiringTokens(ctx.deps)
+    const [row] = await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, account.id))
+    expect(row?.status).toBe('reauth_required')
+  })
+})
+
+describe('refreshAccountProfiles', () => {
+  it('re-reads the picture, name and follower count of active accounts', async () => {
+    const ctx = createTestContext()
+    const db = ctx.deps.db
+    const { account } = await seedAccount(db)
+    await refreshAccountProfiles(ctx.deps)
+    const [row] = await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, account.id))
+    expect(row).toMatchObject({ displayName: 'Acme Co', avatarUrl: 'https://cdn.example/new.jpg', followersCount: 321 })
+  })
+
+  it('keeps old values for fields Meta did not return', async () => {
+    const ctx = createTestContext()
+    const db = ctx.deps.db
+    const { account } = await seedAccount(db)
+    await db.update(connectedAccounts).set({ avatarUrl: 'https://cdn.example/old.jpg', followersCount: 5 }).where(eq(connectedAccounts.id, account.id))
+    ctx.adapters.instagram.accountProfile = { displayName: null, avatarUrl: null, followersCount: null }
+    await refreshAccountProfiles(ctx.deps)
+    const [row] = await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, account.id))
+    expect(row).toMatchObject({ avatarUrl: 'https://cdn.example/old.jpg', followersCount: 5 })
+  })
+
+  it('flags accounts whose token is no longer valid', async () => {
+    const ctx = createTestContext()
+    const db = ctx.deps.db
+    const { account } = await seedAccount(db)
+    // Earlier tests may have left other active accounts; give every lookup a reauth error.
+    for (let i = 0; i < 50; i++) ctx.adapters.instagram.errors.push(new MetaError('reauth', 'revoked'))
+    await refreshAccountProfiles(ctx.deps)
     const [row] = await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, account.id))
     expect(row?.status).toBe('reauth_required')
   })

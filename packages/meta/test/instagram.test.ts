@@ -43,6 +43,12 @@ describe('createInstagramAdapter', () => {
     expect(calls[0]?.auth).toBe('Bearer IGAAT')
   })
 
+  it('reads the account profile', async () => {
+    const calls = capture('get', `${base}/me`, { name: 'Acme', profile_picture_url: 'https://pic', followers_count: 42 })
+    expect(await adapter.getAccountProfile(account)).toEqual({ displayName: 'Acme', avatarUrl: 'https://pic', followersCount: 42 })
+    expect(calls[0]?.search.get('fields')).toBe('name,profile_picture_url,followers_count')
+  })
+
   it('sends private replies to a comment', async () => {
     const calls = capture('post', `${base}/${IG_ACCOUNT}/messages`, { message_id: 'mid.pr' })
     await adapter.sendPrivateReply(account, 'c1', {
