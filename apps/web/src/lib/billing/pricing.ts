@@ -6,6 +6,7 @@ import type { PlanCard } from './plan-cards'
 
 export type { Money } from './dodo-catalog'
 export type { PlanCard } from './plan-cards'
+export { isCurrentCard } from './plan-cards'
 
 const TTL_MS = 60 * 60 * 1000
 const RETRY_MS = 60 * 1000

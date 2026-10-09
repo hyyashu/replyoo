@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DodoConfig } from '@/lib/billing/dodo'
 import {
-  displayPrices, formatMoney, planCards, requestCountry, resetPriceCache, saveLabel, selectPrice, yearlySavingsPercent,
+  displayPrices, formatMoney, isCurrentCard, planCards, requestCountry, resetPriceCache, saveLabel, selectPrice, yearlySavingsPercent,
 } from '@/lib/billing/pricing'
 import { mockFetch } from './support'
 
@@ -158,5 +158,17 @@ describe('planCards and saveLabel', () => {
     ])
     expect(saveLabel(prices)).toBe('Save 16%')
     expect(saveLabel(await displayPrices('IN', null, 0))).toBeNull()
+  })
+})
+
+describe('isCurrentCard', () => {
+  it('marks the plan and interval the workspace pays for', () => {
+    const pro = { key: 'pro' as const }
+    expect(isCurrentCard(pro, { plan: 'pro', interval: 'year' }, 'year', true)).toBe(true)
+    expect(isCurrentCard(pro, { plan: 'pro', interval: 'year' }, 'month', true)).toBe(false)
+    expect(isCurrentCard({ key: 'free' }, { plan: 'free', interval: 'month' }, 'year', true)).toBe(true)
+  })
+  it('keeps a yearly plan current when yearly prices are unavailable', () => {
+    expect(isCurrentCard({ key: 'pro' }, { plan: 'pro', interval: 'year' }, 'month', false)).toBe(true)
   })
 })
