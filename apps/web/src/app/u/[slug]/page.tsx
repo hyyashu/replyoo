@@ -8,7 +8,7 @@ import { JsonLd } from '@/components/json-ld'
 import { isBotUserAgent, isSafeHttpUrl } from '@/lib/bio'
 import { getPublicBioPage, toBioView } from '@/lib/data'
 import { db } from '@/lib/db'
-import { siteUrl } from '@/lib/site'
+import { getSiteUrl } from '@/lib/site'
 import { single } from '@/lib/structured-data'
 
 // Public and always fresh; edits also call revalidatePath.
@@ -39,7 +39,7 @@ export default async function PublicBioPage({ params }: { params: Promise<{ slug
     await recordBioEvent(db(), { pageId: found.page.id, type: 'view' }).catch(() => {})
   }
   const { page } = found
-  const url = `${siteUrl}/u/${page.slug}`
+  const url = `${await getSiteUrl()}/u/${page.slug}`
   // Only what the page already shows publicly.
   const person = {
     '@type': 'Person',

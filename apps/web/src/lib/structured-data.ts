@@ -1,28 +1,27 @@
 import { PLAN_CATALOG, type PlanDisplay } from '@/lib/plans'
-import { siteUrl } from '@/lib/site'
 
 const CONTEXT = 'https://schema.org'
 // The plan prices in lib/plans.ts are display strings in USD ("$12").
 const CURRENCY = 'USD'
 
-export const organizationLd = {
+export const organizationLd = (siteUrl: string) => ({
   '@type': 'Organization',
   '@id': `${siteUrl}/#organization`,
   name: 'Replyooo',
   url: siteUrl,
   logo: `${siteUrl}/icon.svg`,
-}
+})
 
-export const websiteLd = {
+export const websiteLd = (siteUrl: string) => ({
   '@type': 'WebSite',
   '@id': `${siteUrl}/#website`,
   name: 'Replyooo',
   url: siteUrl,
   publisher: { '@id': `${siteUrl}/#organization` },
-}
+})
 
 /** Null when the display price isn't a plain amount, so we never publish a made-up number. */
-export function offerLd(plan: PlanDisplay) {
+export function offerLd(plan: PlanDisplay, siteUrl: string) {
   const price = Number(plan.price.replace(/^\$/, ''))
   if (!Number.isFinite(price)) return null
   return {
@@ -36,7 +35,7 @@ export function offerLd(plan: PlanDisplay) {
   }
 }
 
-export function softwareApplicationLd(plans: PlanDisplay[]) {
+export function softwareApplicationLd(plans: PlanDisplay[], siteUrl: string) {
   return {
     '@type': 'SoftwareApplication',
     '@id': `${siteUrl}/#software`,
@@ -46,7 +45,7 @@ export function softwareApplicationLd(plans: PlanDisplay[]) {
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
     publisher: { '@id': `${siteUrl}/#organization` },
-    offers: plans.map(offerLd).filter((offer) => offer !== null),
+    offers: plans.map((plan) => offerLd(plan, siteUrl)).filter((offer) => offer !== null),
   }
 }
 

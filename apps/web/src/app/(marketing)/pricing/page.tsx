@@ -2,14 +2,16 @@ import type { Metadata } from 'next'
 import { JsonLd } from '@/components/json-ld'
 import { MarketingFooter, MarketingHeader, PricingCards } from '@/components/marketing'
 import { PLAN_CATALOG } from '@/lib/plans'
+import { getSiteUrl } from '@/lib/site'
 import { graph, organizationLd, softwareApplicationLd } from '@/lib/structured-data'
 
 export const metadata: Metadata = { title: 'Pricing', alternates: { canonical: '/pricing' } }
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const siteUrl = await getSiteUrl()
   return (
     <div className="bg-sand">
-      <JsonLd data={graph(organizationLd, softwareApplicationLd(PLAN_CATALOG))} />
+      <JsonLd data={graph(organizationLd(siteUrl), softwareApplicationLd(PLAN_CATALOG, siteUrl))} />
       <MarketingHeader />
       <main className="px-6 py-16 text-center">
         <h1 className="font-display text-[52px] leading-tight font-bold tracking-[-0.04em]">Free until it’s working.</h1>

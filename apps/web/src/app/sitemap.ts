@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next'
-import { siteUrl } from '@/lib/site'
+import { getSiteUrl } from '@/lib/site'
 
 const pages = [
   { path: '/', changeFrequency: 'weekly', priority: 1 },
@@ -11,7 +11,8 @@ const pages = [
   { path: '/data-deletion', changeFrequency: 'yearly', priority: 0.3 },
 ] satisfies { path: string; changeFrequency: 'weekly' | 'monthly' | 'yearly'; priority: number }[]
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const siteUrl = await getSiteUrl()
   return pages.map(({ path, changeFrequency, priority }) => ({
     url: `${siteUrl}${path}`,
     changeFrequency,

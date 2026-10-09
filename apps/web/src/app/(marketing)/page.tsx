@@ -7,6 +7,7 @@ import { MarketingFooter, MarketingHeader, PricingCards } from '@/components/mar
 import { PhonePreview } from '@/components/phone-preview'
 import { ButtonLink, Keyword, cx } from '@/components/ui'
 import { DEFAULT_RECIPE, type Recipe } from '@/lib/recipe'
+import { getSiteUrl } from '@/lib/site'
 import { freePlan, graph, organizationLd, softwareApplicationLd, websiteLd } from '@/lib/structured-data'
 
 const FREE_CONTACTS = PLAN_LIMITS.free.contactsPerMonth.toLocaleString('en-US')
@@ -110,10 +111,11 @@ const FEATURES = [
   },
 ]
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const siteUrl = await getSiteUrl()
   return (
     <div className="bg-sand">
-      <JsonLd data={graph(organizationLd, websiteLd, softwareApplicationLd(freePlan))} />
+      <JsonLd data={graph(organizationLd(siteUrl), websiteLd(siteUrl), softwareApplicationLd(freePlan, siteUrl))} />
       <MarketingHeader />
 
       <section className="mx-auto grid max-w-[1200px] items-center gap-12 px-6 pt-10 pb-20 lg:grid-cols-[1.1fr_1fr]">
