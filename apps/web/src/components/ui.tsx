@@ -182,6 +182,10 @@ export const formatCompact = (n: number) =>
   new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 export const formatPercent = (n: number) => `${Math.round(n * 100)}%`
 
+export function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export function timeAgo(iso: string) {
   const seconds = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
   const units: [number, string][] = [

@@ -188,7 +188,7 @@ function AccountSwitcher({ account, accounts }: { account: ConnectedAccount; acc
           pending && 'opacity-60',
         )}
       >
-        <Avatar name={account.username} size={32} />
+        <Avatar name={account.username} size={32} src={account.avatarUrl} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13.5px] font-semibold">@{account.username}</span>
           <span className="flex items-center gap-1 text-[11.5px] text-subtle">
@@ -215,7 +215,7 @@ function AccountSwitcher({ account, accounts }: { account: ConnectedAccount; acc
               }}
               className="flex w-full items-center gap-2.5 rounded-[10px] p-2 text-left hover:bg-sand"
             >
-              <Avatar name={a.username} size={26} />
+              <Avatar name={a.username} size={26} src={a.avatarUrl} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] font-semibold">@{a.username}</span>
                 <span className="flex items-center gap-1 text-[11px] text-subtle">

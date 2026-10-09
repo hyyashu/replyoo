@@ -10,6 +10,7 @@ import {
   revokeInvitation,
   switchPlan,
 } from '@/app/actions'
+import { ConfirmAction } from '@/components/confirm-action'
 import { WorkspaceList } from '@/components/workspace-list'
 import { PlatformIcon } from '@/components/sidebar'
 import { Avatar, ButtonLink, Card, PageHeader, buttonClass, cx, formatCompact, formatNumber } from '@/components/ui'
@@ -73,37 +74,42 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <SettingsSection id="accounts" title="Connected accounts" description="Instagram professional accounts and Facebook Pages Replyooo replies on.">
         <Card className="divide-y divide-line">
           {accounts.map((account) => (
-            <div key={account.id} className="flex items-center gap-3 p-4">
-              <Avatar name={account.username} size={40} />
-              <div className="min-w-0 flex-1">
-                <div className="text-[14.5px] font-semibold">@{account.username}</div>
-                <div className="flex items-center gap-1.5 text-[12.5px] text-subtle">
-                  <PlatformIcon platform={account.platform} className="size-3" />
-                  {account.platform === 'instagram' ? 'Instagram' : 'Facebook Page'}
-                  {account.followers !== null && <> · {formatCompact(account.followers)} followers</>}
+            <div key={account.id} className="flex flex-wrap items-center gap-3 p-4 sm:flex-nowrap">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <Avatar name={account.username} size={40} src={account.avatarUrl} />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14.5px] font-semibold">@{account.username}</div>
+                  <div className="flex items-center gap-1.5 text-[12.5px] text-subtle">
+                    <PlatformIcon platform={account.platform} className="size-3 shrink-0" />
+                    {account.platform === 'instagram' ? 'Instagram' : 'Facebook Page'}
+                    {account.followers !== null && <> · {formatCompact(account.followers)} followers</>}
+                  </div>
                 </div>
               </div>
-              {account.status === 'reauth_required' ? (
-                <span className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-brand">
-                  <TriangleAlert className="size-3.5" /> Needs reconnect
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-green">
-                  <Check className="size-3.5" /> Connected
-                </span>
-              )}
-              {account.status === 'reauth_required' && (
-                <ButtonLink href={`/connect?platform=${account.platform}`} size="sm">
-                  Reconnect
-                </ButtonLink>
-              )}
-              {manager && (
-                <form action={disconnectAccount.bind(null, account.id)}>
-                  <button type="submit" className={buttonClass('ghost', 'sm')}>
-                    Disconnect
-                  </button>
-                </form>
-              )}
+              <div className="flex w-full flex-wrap items-center gap-2 pl-[52px] sm:w-auto sm:flex-nowrap sm:pl-0">
+                {account.status === 'reauth_required' ? (
+                  <span className="inline-flex items-center gap-1 text-[12.5px] font-semibold whitespace-nowrap text-brand">
+                    <TriangleAlert className="size-3.5" /> Needs reconnect
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[12.5px] font-semibold whitespace-nowrap text-green">
+                    <Check className="size-3.5" /> Connected
+                  </span>
+                )}
+                {account.status === 'reauth_required' && (
+                  <ButtonLink href={`/connect?platform=${account.platform}`} size="sm">
+                    Reconnect
+                  </ButtonLink>
+                )}
+                {manager && (
+                  <ConfirmAction
+                    action={disconnectAccount.bind(null, account.id)}
+                    label="Disconnect"
+                    title={`Disconnect @${account.username}?`}
+                    description="Automations on this account will stop replying until you connect it again. Your contacts and message history are kept."
+                  />
+                )}
+              </div>
             </div>
           ))}
           <div className="p-4">
@@ -117,39 +123,41 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <SettingsSection id="members" title="Members" description="People who can edit automations and see contacts.">
         <Card className="divide-y divide-line">
           {members.map((member) => (
-            <div key={member.id} className="flex items-center gap-3 p-4">
+            <div key={member.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4">
               <Avatar name={member.name} size={36} />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-40">
                 <div className="text-[14px] font-semibold">
                   {member.name}
                   {member.userId === workspace.user.id && <span className="font-normal text-subtle"> (you)</span>}
                 </div>
-                <div className="text-[12.5px] text-subtle">{member.email}</div>
+                <div className="text-[12.5px] break-all text-subtle">{member.email}</div>
               </div>
               <span className="rounded-full bg-sand px-2.5 py-0.5 text-[12px] font-medium capitalize">{member.role}</span>
               {manager && member.role !== 'owner' && member.userId !== workspace.user.id && (
-                <form action={removeMember.bind(null, member.id)}>
-                  <button type="submit" className={buttonClass('ghost', 'sm')}>
-                    Remove
-                  </button>
-                </form>
+                <ConfirmAction
+                  action={removeMember.bind(null, member.id)}
+                  label="Remove"
+                  title={`Remove ${member.name}?`}
+                  description="They lose access to this workspace’s automations and contacts straight away. You can invite them again later."
+                />
               )}
             </div>
           ))}
           {invitations.map((invitation) => (
-            <div key={invitation.id} className="flex items-center gap-3 p-4">
+            <div key={invitation.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-4">
               <Avatar name={invitation.email} size={36} />
-              <div className="min-w-0 flex-1">
-                <div className="text-[14px] font-semibold">{invitation.email}</div>
+              <div className="min-w-0 flex-1 basis-40">
+                <div className="text-[14px] font-semibold break-all">{invitation.email}</div>
                 <div className="text-[12.5px] text-subtle">Invited · joins when they sign up or log in with this email</div>
               </div>
               <span className="rounded-full bg-cream px-2.5 py-0.5 text-[12px] font-medium">Pending</span>
               {manager && (
-                <form action={revokeInvitation.bind(null, invitation.id)}>
-                  <button type="submit" className={buttonClass('ghost', 'sm')}>
-                    Revoke
-                  </button>
-                </form>
+                <ConfirmAction
+                  action={revokeInvitation.bind(null, invitation.id)}
+                  label="Revoke"
+                  title={`Revoke the invite for ${invitation.email}?`}
+                  description="The invite stops working. You can send a new one later."
+                />
               )}
             </div>
           ))}

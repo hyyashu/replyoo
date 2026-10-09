@@ -1,12 +1,24 @@
 import { PLAN_LIMITS } from '@replyooo/shared'
+import type { Metadata } from 'next'
 import { ArrowRight, AtSign, MessageCircleReply, MessagesSquare, Sparkles, UserPlus, Zap } from 'lucide-react'
 import { InstagramIcon } from '@/components/brand-icons'
+import { JsonLd } from '@/components/json-ld'
 import { MarketingFooter, MarketingHeader, PricingCards } from '@/components/marketing'
 import { PhonePreview } from '@/components/phone-preview'
 import { ButtonLink, Keyword, cx } from '@/components/ui'
 import { DEFAULT_RECIPE, type Recipe } from '@/lib/recipe'
+import { freePlan, graph, organizationLd, softwareApplicationLd, websiteLd } from '@/lib/structured-data'
 
 const FREE_CONTACTS = PLAN_LIMITS.free.contactsPerMonth.toLocaleString('en-US')
+
+const TITLE = 'Instagram comment-to-DM automation for creators'
+const DESCRIPTION = `Reply to every Instagram comment, story reply and DM in seconds. Send your link, ask for a follow before it unlocks, and collect emails in the chat. Free for ${FREE_CONTACTS} contacts a month.`
+
+export const metadata: Metadata = {
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: '/' },
+}
 
 const HERO_RECIPE: Recipe = {
   ...DEFAULT_RECIPE,
@@ -101,6 +113,7 @@ const FEATURES = [
 export default function LandingPage() {
   return (
     <div className="bg-sand">
+      <JsonLd data={graph(organizationLd, websiteLd, softwareApplicationLd(freePlan))} />
       <MarketingHeader />
 
       <section className="mx-auto grid max-w-[1200px] items-center gap-12 px-6 pt-10 pb-20 lg:grid-cols-[1.1fr_1fr]">

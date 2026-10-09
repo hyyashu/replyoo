@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { LegalPage } from '@/components/marketing'
 import { LEGAL } from '@/lib/legal'
 
-export const metadata: Metadata = { title: 'Privacy policy' }
+export const metadata: Metadata = { title: 'Privacy policy', alternates: { canonical: '/privacy' } }
 
 export default function PrivacyPage() {
   return (

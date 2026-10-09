@@ -11,6 +11,7 @@ const columns = {
   platform: connectedAccounts.platform,
   username: connectedAccounts.username,
   displayName: connectedAccounts.displayName,
+  avatarUrl: connectedAccounts.avatarUrl,
   followers: connectedAccounts.followersCount,
   status: connectedAccounts.status,
 }

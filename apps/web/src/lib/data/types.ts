@@ -8,6 +8,7 @@ export interface ConnectedAccount {
   platform: Platform
   username: string
   displayName: string | null
+  avatarUrl: string | null
   followers: number | null
   status: 'active' | 'reauth_required' | 'disconnected'
 }
@@ -33,6 +34,7 @@ export interface Automation {
   /** The draft differs from the published version (always true before the first publish). */
   hasUnpublishedChanges: boolean
   templateKey: string | null
+  createdAt: string
   updatedAt: string
   publishedAt: string | null
   stats: AutomationStats

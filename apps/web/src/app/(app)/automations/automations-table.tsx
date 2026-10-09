@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { deleteAutomation, setAutomationStatus } from '@/app/actions'
-import { ButtonLink, Card, EmptyState, Keyword, StatusPill, cx, formatNumber, formatPercent } from '@/components/ui'
+import { ConfirmDialog } from '@/components/confirm-action'
+import { ButtonLink, Card, EmptyState, Keyword, StatusPill, cx, formatDate, formatNumber, formatPercent } from '@/components/ui'
 import type { Automation, AutomationStatus, StatusResult } from '@/lib/data/types'
 import { flowSearchText, triggerChips, triggerLabel } from '@/lib/describe'
 
@@ -42,6 +43,7 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
     return automations
       .filter((a) => tab === 'all' || a.status === tab)
       .filter((a) => !q || flowSearchText(a.name, a.flow).includes(q))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [automations, tab, query])
 
   const count = (key: (typeof TABS)[number]['key']) =>
@@ -50,14 +52,14 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
   return (
     <Card className="mt-6 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <div className="flex rounded-full bg-sand p-1">
+        <div className="flex w-full rounded-full bg-sand p-1 sm:w-auto">
           {TABS.map((t) => (
             <button
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
               className={cx(
-                'h-8 rounded-full px-3.5 text-[13.5px] font-semibold transition-colors',
+                'h-8 flex-1 rounded-full px-2 text-[13.5px] font-semibold whitespace-nowrap transition-colors sm:flex-none sm:px-3.5',
                 tab === t.key ? 'bg-white text-ink shadow-[0_1px_2px_rgba(21,19,16,0.08)]' : 'text-ink-2 hover:text-ink',
               )}
             >
@@ -65,7 +67,7 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
             </button>
           ))}
         </div>
-        <label className="flex h-10 w-[280px] items-center gap-2 rounded-xl border border-line px-3 text-subtle focus-within:border-faint">
+        <label className="flex h-10 w-full items-center gap-2 rounded-xl border border-line px-3 text-subtle focus-within:border-faint sm:w-[280px]">
           <Search className="size-4" />
           <input
             value={query}
@@ -91,13 +93,15 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
         <table className="w-full text-left">
           <thead>
             <tr className="eyebrow border-y border-line bg-sand/70 [&>th]:h-10 [&>th]:font-medium">
-              <th className="pl-5">Automation</th>
-              <th>Trigger</th>
-              <th className="text-right">Runs</th>
-              <th className="text-right">DMs sent</th>
-              <th className="pr-2 text-right">Completion</th>
-              <th className="pl-6">Status</th>
-              <th className="w-14" />
+              <th className="pl-4 md:pl-5">Automation</th>
+              <th className="hidden md:table-cell">Trigger</th>
+              <th className="hidden text-right md:table-cell">Runs</th>
+              <th className="hidden text-right md:table-cell">DMs sent</th>
+              <th className="hidden pr-2 text-right md:table-cell">Completion</th>
+              <th className="hidden lg:table-cell">Created</th>
+              <th className="hidden lg:table-cell">Updated</th>
+              <th className="pl-3 md:pl-6">Status</th>
+              <th className="w-12 md:w-14" />
             </tr>
           </thead>
           <tbody>
@@ -123,16 +127,21 @@ function Row({ automation }: { automation: Automation }) {
       onClick={() => router.push(href)}
       className="group h-[68px] cursor-pointer border-b border-line last:border-b-0 hover:bg-sand/40 [&>td]:align-middle"
     >
-      <td className="pl-5">
+      <td className="pl-4 md:pl-5">
         <Link href={href} className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
           <TriggerIcon type={flow.trigger.type} />
-          <span>
+          <span className="min-w-0">
             <span className="block text-[14.5px] font-semibold">{automation.name}</span>
-            <span className="text-[12.5px] text-subtle">{triggerLabel(flow.trigger)}</span>
+            <span className="block text-[12.5px] text-subtle">{triggerLabel(flow.trigger)}</span>
+            {live && (
+              <span className="block text-[12px] text-subtle tabular-nums md:hidden">
+                {formatNumber(stats.runs)} runs · {formatNumber(stats.dmsSent)} DMs
+              </span>
+            )}
           </span>
         </Link>
       </td>
-      <td>
+      <td className="hidden md:table-cell">
         <div className="flex flex-wrap gap-1.5">
           {chips.slice(0, 3).map((chip) => (
             <Keyword key={chip}>{chip}</Keyword>
@@ -140,12 +149,18 @@ function Row({ automation }: { automation: Automation }) {
           {chips.length > 3 && <span className="text-[12px] text-subtle">+{chips.length - 3}</span>}
         </div>
       </td>
-      <td className="text-right text-[14.5px] tabular-nums">{live ? formatNumber(stats.runs) : '—'}</td>
-      <td className="text-right text-[14.5px] tabular-nums">{live ? formatNumber(stats.dmsSent) : '—'}</td>
-      <td className="pr-2 text-right text-[14.5px] font-semibold tabular-nums">
+      <td className="hidden text-right text-[14.5px] tabular-nums md:table-cell">{live ? formatNumber(stats.runs) : '—'}</td>
+      <td className="hidden text-right text-[14.5px] tabular-nums md:table-cell">{live ? formatNumber(stats.dmsSent) : '—'}</td>
+      <td className="hidden pr-2 text-right text-[14.5px] font-semibold tabular-nums md:table-cell">
         {live && stats.runs > 0 ? formatPercent(stats.completed / stats.runs) : '—'}
       </td>
-      <td className="pl-6">
+      <td className="hidden text-[13px] whitespace-nowrap text-subtle lg:table-cell" suppressHydrationWarning>
+        {formatDate(automation.createdAt)}
+      </td>
+      <td className="hidden text-[13px] whitespace-nowrap text-subtle lg:table-cell" suppressHydrationWarning>
+        {formatDate(automation.updatedAt)}
+      </td>
+      <td className="pl-3 md:pl-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <StatusPill status={automation.status} />
           {live && automation.hasUnpublishedChanges && (
@@ -153,7 +168,7 @@ function Row({ automation }: { automation: Automation }) {
           )}
         </div>
       </td>
-      <td className="pr-4" onClick={(e) => e.stopPropagation()}>
+      <td className="pr-2 md:pr-4" onClick={(e) => e.stopPropagation()}>
         <RowMenu automation={automation} />
       </td>
     </tr>
@@ -162,6 +177,7 @@ function Row({ automation }: { automation: Automation }) {
 
 function RowMenu({ automation }: { automation: Automation }) {
   const [open, setOpen] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [pending, startTransition] = useTransition()
   const [position, setPosition] = useState({ top: 0, right: 0 })
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -229,9 +245,8 @@ function RowMenu({ automation }: { automation: Automation }) {
             <MenuButton
               danger
               onClick={() => {
-                if (confirm(`Delete “${automation.name}”? In-flight conversations will stop.`)) {
-                  run(() => deleteAutomation(automation.id))
-                }
+                setOpen(false)
+                setConfirmingDelete(true)
               }}
             >
               Delete
@@ -239,6 +254,17 @@ function RowMenu({ automation }: { automation: Automation }) {
           </div>,
           document.body,
         )}
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        action={async () => {
+          await deleteAutomation(automation.id)
+          setConfirmingDelete(false)
+        }}
+        title={`Delete “${automation.name}”?`}
+        description="In-flight conversations will stop. This can’t be undone."
+        confirmLabel="Delete"
+      />
     </>
   )
 }

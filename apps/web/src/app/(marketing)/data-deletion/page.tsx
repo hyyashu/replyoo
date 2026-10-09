@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { LegalPage } from '@/components/marketing'
 import { LEGAL } from '@/lib/legal'
 
-export const metadata: Metadata = { title: 'Delete your data' }
+export const metadata: Metadata = { title: 'Delete your data', alternates: { canonical: '/data-deletion' } }
 
 export default function DataDeletionPage() {
   return (

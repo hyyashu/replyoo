@@ -48,18 +48,18 @@ export function TemplatePicker({
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-10 py-9">
+    <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-10 sm:py-9">
       <Link href="/automations" className="inline-flex items-center gap-1.5 text-[13.5px] text-muted hover:text-ink">
         <ArrowLeft className="size-4" /> Automations
       </Link>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-[34px] leading-tight font-bold tracking-[-0.04em]">Pick a starting point</h1>
+          <h1 className="font-display text-[28px] leading-tight sm:text-[34px] font-bold tracking-[-0.04em]">Pick a starting point</h1>
           <p className="mt-1 text-[15px] text-muted">
             Templates for @{username}. You can change every message before going live.
           </p>
         </div>
-        <label className="flex h-10 w-[300px] items-center gap-2 rounded-xl border border-line px-3 text-subtle focus-within:border-faint">
+        <label className="flex h-10 w-full items-center gap-2 rounded-xl border border-line px-3 text-subtle focus-within:border-faint sm:w-[300px]">
           <Search className="size-4" />
           <input
             autoFocus
@@ -71,15 +71,15 @@ export function TemplatePicker({
         </label>
       </div>
 
-      <div className="mt-7 grid grid-cols-[200px_1fr] gap-8">
-        <nav className="flex flex-col gap-0.5">
+      <div className="mt-7 grid grid-cols-1 gap-5 lg:grid-cols-[200px_1fr] lg:gap-8">
+        <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:-mx-10 sm:px-10 lg:mx-0 lg:flex-col lg:gap-0.5 lg:overflow-visible lg:px-0 lg:pb-0">
           {CATEGORIES.map((c) => (
             <button
               key={c.key}
               type="button"
               onClick={() => setCategory(c.key)}
               className={cx(
-                'h-9 rounded-[10px] px-3 text-left text-[14px] transition-colors',
+                'h-9 shrink-0 rounded-[10px] px-3 text-left text-[14px] whitespace-nowrap transition-colors',
                 category === c.key ? 'bg-sand font-semibold text-ink' : 'text-muted hover:text-ink',
               )}
             >
@@ -88,7 +88,7 @@ export function TemplatePicker({
           ))}
         </nav>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <button
             type="button"
             disabled={pending}
@@ -141,7 +141,7 @@ export function TemplatePicker({
           })}
 
           {visible.length === 0 && (
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <EmptyState icon={<Search className="size-5" />} title="No templates found" body="Try another search, or start from scratch." />
             </div>
           )}

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { LegalPage } from '@/components/marketing'
 import { LEGAL } from '@/lib/legal'
 
-export const metadata: Metadata = { title: 'Terms of service' }
+export const metadata: Metadata = { title: 'Terms of service', alternates: { canonical: '/terms' } }
 
 export default function TermsPage() {
   return (
