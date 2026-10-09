@@ -74,6 +74,7 @@ The worker's `/health` route is deliberately not exposed publicly; Docker checks
 In the Meta developer dashboard for your app:
 
 1. **Webhooks:** callback URL `https://app.example.com/webhooks/meta`, verify token = `META_WEBHOOK_VERIFY_TOKEN`.
+   (On Dokploy the webhook has its own host: `https://replyoo-hooks.sitebackend.com/webhooks/meta`.)
    Subscribe the Instagram comment and message fields (and the Page feed and message fields if you use Facebook).
 2. **OAuth redirect URIs:** add both of these (Instagram and Facebook Login use one each):
    - `https://app.example.com/api/meta/oauth/instagram/callback`
@@ -131,25 +132,28 @@ Dokploy runs its own Traefik on ports 80/443, which does the HTTPS certificates 
 The Caddy container would fail to bind those ports, so it stays off: it is only started by `COMPOSE_PROFILES=caddy`,
 which you leave out.
 
-1. **DNS:** point an A record for your hostname (for example `replyoo.sitebackend.com`) at the Dokploy server.
+1. **DNS:** point A records for two hostnames at the Dokploy server: the app (`replyoo.sitebackend.com`) and a
+   separate webhook host (`replyoo-hooks.sitebackend.com`) that only Meta calls.
 2. **Create the app:** Project → Create Service → **Compose**. Source: this Git repository, branch `main`.
    Compose type **Docker Compose**, compose path `./docker-compose.prod.yml`.
 3. **Environment tab:** paste the contents of `deploy/.env.example`, fill it in (see step 2 above for generating the
    secrets), and **delete the `COMPOSE_PROFILES=caddy` line**. Dokploy saves this as the `.env` the compose file reads.
 4. **Advanced tab:** turn on **Isolated Deployment**, so Dokploy connects the services to Traefik's network itself.
-5. **Domains tab:** add two entries for the same host, both with HTTPS on and certificate type Let's Encrypt:
+5. **Domains tab:** add two entries, both with HTTPS on and certificate type Let's Encrypt:
 
    | Host | Path | Service | Port |
    | --- | --- | --- | --- |
-   | `replyoo.sitebackend.com` | `/webhooks/meta` | `worker` | 3001 |
+   | `replyoo-hooks.sitebackend.com` | `/webhooks/meta` | `worker` | 3001 |
    | `replyoo.sitebackend.com` | `/` | `web` | 3000 |
+
+   Because the webhook has its own host, the path rule can't be shadowed by the web entry.
 
    "Preview Compose" shows the generated Traefik labels if you want to check them.
 6. **Deploy.** The first build takes several minutes. `migrate` runs first and exits; `web` and `worker` wait for it.
 7. **Check** from your own machine, as in step 3 above:
-   `curl "https://replyoo.sitebackend.com/webhooks/meta?hub.mode=subscribe&hub.verify_token=<token>&hub.challenge=ok"`
-   must print `ok`, and `https://replyoo.sitebackend.com/login` must load. If the webhook URL returns the web app's
-   404 page instead, the `/webhooks/meta` domain entry isn't taking priority: re-check its path and service.
+   `curl "https://replyoo-hooks.sitebackend.com/webhooks/meta?hub.mode=subscribe&hub.verify_token=<token>&hub.challenge=ok"`
+   must print `ok`, and `https://replyoo.sitebackend.com/login` must load. If the webhook URL returns a 404 page
+   instead, the `/webhooks/meta` domain entry has the wrong host, path or service: re-check it.
 
 Then continue with "Configure the Meta app" and "First live test". Updates are a redeploy from Dokploy. Postgres data
 lives in the named volume `pgdata`; back it up with `pg_dump` as above (run it through `docker exec` on the
