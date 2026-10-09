@@ -101,6 +101,30 @@ Without these two variables the "Continue with Google" button is hidden and emai
 4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (in `.env`, or the Dokploy Environment tab) and redeploy `web`.
 5. **Publish** the app (Audience → Publish app). While it is in Testing, only listed test users can sign in.
 
+### Billing with Dodo Payments (optional)
+
+Billing stays off until `DODO_API_KEY` and all four product IDs are set.
+
+1. In the Dodo dashboard (test mode first), create four **subscription** products: Pro monthly, Pro yearly,
+   Business monthly, Business yearly. The base price is in USD.
+2. For a regional price (for example India in INR), open the product, set pricing mode to **By country**, and add a
+   rule for the country. Do this on both the monthly and the yearly product, or the yearly "save X%" label is
+   hidden for that country. The site reads these prices from Dodo and refreshes them hourly.
+3. Put the IDs in `.env` as `DODO_PRODUCT_PRO_MONTHLY`, `DODO_PRODUCT_PRO_YEARLY`, `DODO_PRODUCT_BUSINESS_MONTHLY`,
+   `DODO_PRODUCT_BUSINESS_YEARLY`, plus `DODO_API_KEY` and `DODO_ENVIRONMENT` (`test_mode` or `live_mode`).
+4. Add a webhook endpoint `<APP_URL>/api/webhooks/dodo` subscribed to `subscription.*` events, and set
+   `DODO_WEBHOOK_SECRET` to its signing secret.
+5. The visitor's country comes from Cloudflare's `CF-IPCountry` header, so the site must be proxied through
+   Cloudflare (orange cloud) for regional prices to show. Without it, everyone sees the USD base price. Pricing pages
+   are rendered per request with `Cache-Control: private, no-store`; don't add a Cloudflare cache rule for them.
+   If you rely on this header, make the origin accept traffic only from Cloudflare; otherwise a client can spoof
+   `CF-IPCountry` (the effect is display-only: a different price is shown, never charged).
+
+**Upgrading an existing deployment.** Earlier versions used `DODO_PRODUCT_PRO` and `DODO_PRODUCT_BUSINESS`. Reuse those
+IDs as `DODO_PRODUCT_PRO_MONTHLY` and `DODO_PRODUCT_BUSINESS_MONTHLY`, create the two yearly products in Dodo, and set
+`DODO_PRODUCT_PRO_YEARLY` and `DODO_PRODUCT_BUSINESS_YEARLY` **before deploying**. Until all four are set, billing and
+the webhook endpoint stay off, and renewal events for existing subscribers are dropped.
+
 ## 5. First live test
 
 1. Sign up on your domain and confirm the email arrives.

@@ -12,6 +12,7 @@ import {
   createDb,
   flowRuns,
   messages,
+  subscriptions,
   workspaces,
 } from '../src'
 
@@ -166,5 +167,17 @@ describe('schema', () => {
       commentId: 'c1',
       status: 'received',
     })
+  })
+})
+
+describe('subscriptions.billing_interval', () => {
+  it('defaults to month and accepts year', async () => {
+    const workspace = one(await db.insert(workspaces).values({ name: 'Interval', ownerUserId: 'user_interval' }).returning())
+    const monthly = one(await db.insert(subscriptions).values({ workspaceId: workspace.id, plan: 'pro' }).returning())
+    expect(monthly.billingInterval).toBe('month')
+    const yearly = one(
+      await db.update(subscriptions).set({ billingInterval: 'year' }).where(eq(subscriptions.id, monthly.id)).returning(),
+    )
+    expect(yearly.billingInterval).toBe('year')
   })
 })

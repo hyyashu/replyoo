@@ -3,7 +3,7 @@ import { subscriptions } from '@replyooo/db'
 import { http, HttpResponse, type JsonBodyType } from 'msw'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { startPlanChange } from '@/lib/billing/checkout'
-import { createPortalSession, DodoError, type DodoConfig } from '@/lib/billing/dodo'
+import { createPortalSession, DodoError, parsePlanChoice, planForProduct, productFor, type DodoConfig } from '@/lib/billing/dodo'
 import { db } from '@/lib/db'
 import { createWorkspace, mockFetch } from './support'
 
@@ -12,7 +12,7 @@ beforeEach(() => server.reset())
 afterAll(() => server.restore())
 
 const DODO = 'https://test.dodopayments.com'
-const config: DodoConfig = { apiKey: 'dodo_key', baseUrl: DODO, products: { pro: 'pdt_pro', business: 'pdt_business' } }
+const config: DodoConfig = { apiKey: 'dodo_key', baseUrl: DODO, products: { pro: { month: 'pdt_pro', year: 'pdt_pro_year' }, business: { month: 'pdt_business', year: 'pdt_business_year' } } }
 const RETURN = 'http://localhost:3000/settings?billing=updated#billing'
 const uid = (prefix: string) => `${prefix}_${randomUUID()}`
 
@@ -38,7 +38,7 @@ describe('startPlanChange', () => {
     const workspace = await owner('Checkout')
     const calls = capture('post', '/checkouts', { session_id: 'cks_1', checkout_url: 'https://checkout.dodopayments.com/cks_1' })
 
-    expect(await startPlanChange(config, workspace, 'pro')).toBe('https://checkout.dodopayments.com/cks_1')
+    expect(await startPlanChange(config, workspace, { plan: 'pro', interval: 'month' })).toBe('https://checkout.dodopayments.com/cks_1')
     expect(calls).toEqual([
       {
         url: `${DODO}/checkouts`,
@@ -53,13 +53,44 @@ describe('startPlanChange', () => {
     ])
   })
 
+  it('checks out each of the four products and passes the visitor’s country as billing country', async () => {
+    for (const [plan, interval] of [['pro', 'month'], ['pro', 'year'], ['business', 'month'], ['business', 'year']] as const) {
+      const workspace = await owner(`Four ${plan} ${interval}`)
+      server.reset()
+      const calls = capture('post', '/checkouts', { session_id: 'cks_4', checkout_url: 'https://checkout.dodopayments.com/cks_4' })
+      await startPlanChange(config, workspace, { plan, interval }, { country: 'IN' })
+      expect(calls[0]?.body).toMatchObject({
+        product_cart: [{ product_id: config.products[plan][interval], quantity: 1 }],
+        billing_address: { country: 'IN' },
+      })
+    }
+  })
+
+  it('switches interval on the same plan', async () => {
+    const workspace = await owner('GoYearly')
+    const sub = uid('sub')
+    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', billingInterval: 'month', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
+    const calls = capture('post', `/subscriptions/${sub}/change-plan`, { payment_link: null })
+    expect(await startPlanChange(config, workspace, { plan: 'pro', interval: 'year' })).toBe(RETURN)
+    expect(calls[0]?.body).toEqual({ product_id: 'pdt_pro_year', quantity: 1, proration_billing_mode: 'prorated_immediately' })
+  })
+
+  it('moves a yearly subscriber to another plan’s monthly product', async () => {
+    const workspace = await owner('YearlyDown')
+    const sub = uid('sub')
+    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'business', billingInterval: 'year', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
+    const calls = capture('post', `/subscriptions/${sub}/change-plan`, { payment_link: null })
+    await startPlanChange(config, workspace, { plan: 'pro', interval: 'month' })
+    expect(calls[0]?.body).toMatchObject({ product_id: 'pdt_pro' })
+  })
+
   it('reuses the Dodo customer of a lapsed subscription', async () => {
     const workspace = await owner('Returning')
     const customer = uid('cus')
     await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'expired', dodoCustomerId: customer, dodoSubscriptionId: uid('sub') })
     const calls = capture('post', '/checkouts', { session_id: 'cks_2', checkout_url: 'https://checkout.dodopayments.com/cks_2' })
 
-    await startPlanChange(config, workspace, 'business')
+    await startPlanChange(config, workspace, { plan: 'business', interval: 'month' })
     expect(calls[0]?.body).toMatchObject({ customer: { customer_id: customer }, product_cart: [{ product_id: 'pdt_business', quantity: 1 }] })
   })
 
@@ -69,7 +100,7 @@ describe('startPlanChange', () => {
     await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
     const calls = capture('post', `/subscriptions/${sub}/change-plan`, { payment_link: null })
 
-    expect(await startPlanChange(config, workspace, 'business')).toBe(RETURN)
+    expect(await startPlanChange(config, workspace, { plan: 'business', interval: 'month' })).toBe(RETURN)
     expect(calls[0]?.body).toEqual({ product_id: 'pdt_business', quantity: 1, proration_billing_mode: 'prorated_immediately' })
   })
 
@@ -78,14 +109,14 @@ describe('startPlanChange', () => {
     const sub = uid('sub')
     await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
     capture('post', `/subscriptions/${sub}/change-plan`, { payment_link: 'https://checkout.dodopayments.com/pay_1' })
-    expect(await startPlanChange(config, workspace, 'business')).toBe('https://checkout.dodopayments.com/pay_1')
+    expect(await startPlanChange(config, workspace, { plan: 'business', interval: 'month' })).toBe('https://checkout.dodopayments.com/pay_1')
   })
 
   it('does nothing for the plan the workspace already pays for', async () => {
     const workspace = await owner('Same')
     const sub = uid('sub')
-    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
-    expect(await startPlanChange(config, workspace, 'pro')).toBe(RETURN)
+    await db().insert(subscriptions).values({ workspaceId: workspace.workspaceId, plan: 'pro', billingInterval: 'year', status: 'active', dodoCustomerId: uid('cus'), dodoSubscriptionId: sub })
+    expect(await startPlanChange(config, workspace, { plan: 'pro', interval: 'year' })).toBe(RETURN)
   })
 
   it('sends a subscription on hold to the portal instead of opening a second checkout', async () => {
@@ -95,7 +126,7 @@ describe('startPlanChange', () => {
     const checkouts = capture('post', '/checkouts', { session_id: 'cks_3', checkout_url: 'https://checkout.dodopayments.com/cks_3' })
     const portal = capture('post', `/customers/${customer}/customer-portal/session`, { link: 'https://customer.dodopayments.com/s_2' })
 
-    expect(await startPlanChange(config, workspace, 'business')).toBe('https://customer.dodopayments.com/s_2')
+    expect(await startPlanChange(config, workspace, { plan: 'business', interval: 'month' })).toBe('https://customer.dodopayments.com/s_2')
     expect(checkouts).toEqual([])
     expect(new URL(portal[0]?.url ?? '').searchParams.get('return_url')).toBe('http://localhost:3000/settings#billing')
   })
@@ -113,5 +144,24 @@ describe('createPortalSession', () => {
     const error = await createPortalSession(config, 'cus_x', 'http://localhost:3000/settings').catch((e: unknown) => e)
     expect(error).toBeInstanceOf(DodoError)
     expect(error).toMatchObject({ status: 404, message: 'Dodo POST /customers/cus_x/customer-portal/session failed (404): Customer not found' })
+  })
+})
+
+describe('product table', () => {
+  it('maps each of the four products to its plan and interval and back', () => {
+    for (const plan of ['pro', 'business'] as const) {
+      for (const interval of ['month', 'year'] as const) {
+        const id = productFor(config.products, { plan, interval })
+        expect(planForProduct(config.products, id)).toEqual({ plan, interval })
+      }
+    }
+    expect(planForProduct(config.products, 'pdt_other')).toBeNull()
+  })
+
+  it('accepts only known plan and interval form values', () => {
+    expect(parsePlanChoice('business', 'year')).toEqual({ plan: 'business', interval: 'year' })
+    expect(parsePlanChoice('pro', null)).toEqual({ plan: 'pro', interval: 'month' })
+    expect(parsePlanChoice('free', 'month')).toBeNull()
+    expect(parsePlanChoice('pro', 'week')).toBeNull()
   })
 })

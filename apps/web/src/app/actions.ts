@@ -2,10 +2,11 @@
 
 import { DraftFlowSchema } from '@replyooo/shared'
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { billingCustomer, startPlanChange } from '@/lib/billing/checkout'
-import { createPortalSession, dodoConfig, DodoError } from '@/lib/billing/dodo'
+import { createPortalSession, dodoConfig, DodoError, parsePlanChoice } from '@/lib/billing/dodo'
+import { requestCountry } from '@/lib/billing/pricing'
 import * as data from '@/lib/data'
 import { db } from '@/lib/db'
 import { appUrl } from '@/lib/env'
@@ -143,12 +144,13 @@ export async function deleteWorkspace(formData: FormData) {
 
 export async function switchPlan(formData: FormData) {
   const workspace = await requireManager()
-  const plan = String(formData.get('plan') ?? '')
+  const choice = parsePlanChoice(formData.get('plan'), formData.get('interval'))
   const config = dodoConfig()
-  if (!config || (plan !== 'pro' && plan !== 'business')) redirect('/settings?billing=unavailable#billing')
+  if (!config || !choice) redirect('/settings?billing=unavailable#billing')
+  const country = requestCountry(await headers())
   let destination: string
   try {
-    destination = await startPlanChange(config, workspace, plan)
+    destination = await startPlanChange(config, workspace, choice, { country })
   } catch (error) {
     if (!(error instanceof DodoError)) throw error
     console.error('dodo plan change failed', error)

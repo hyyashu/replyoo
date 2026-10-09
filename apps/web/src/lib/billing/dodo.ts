@@ -1,13 +1,19 @@
 import 'server-only'
-import { env } from '../env'
+import { BILLING_INTERVALS, type BillingInterval } from '@replyooo/shared'
+import { type Env, env } from '../env'
 
 export type PaidPlan = 'pro' | 'business'
+export interface PlanChoice {
+  plan: PaidPlan
+  interval: BillingInterval
+}
+/** One Dodo subscription product per (plan, interval). */
+export type ProductTable = Record<PaidPlan, Record<BillingInterval, string>>
 
 export interface DodoConfig {
   apiKey: string
   baseUrl: string
-  /** Dodo product ID per paid plan. */
-  products: Record<PaidPlan, string>
+  products: ProductTable
 }
 
 export const DODO_BASE_URLS = {
@@ -15,21 +21,39 @@ export const DODO_BASE_URLS = {
   live_mode: 'https://live.dodopayments.com',
 } as const
 
-/** Null until the API key and both product IDs are set; billing UI and endpoints stay off until then. */
-export function dodoConfig(): DodoConfig | null {
-  const e = env()
-  if (!e.DODO_API_KEY || !e.DODO_PRODUCT_PRO || !e.DODO_PRODUCT_BUSINESS) return null
+/** Null until the API key and all four product IDs are set; billing UI and endpoints stay off until then. */
+export function dodoConfig(e: Env = env()): DodoConfig | null {
+  const { DODO_API_KEY: apiKey, DODO_PRODUCT_PRO_MONTHLY: proMonth, DODO_PRODUCT_PRO_YEARLY: proYear } = e
+  const { DODO_PRODUCT_BUSINESS_MONTHLY: businessMonth, DODO_PRODUCT_BUSINESS_YEARLY: businessYear } = e
+  if (!apiKey || !proMonth || !proYear || !businessMonth || !businessYear) return null
   return {
-    apiKey: e.DODO_API_KEY,
+    apiKey,
     baseUrl: DODO_BASE_URLS[e.DODO_ENVIRONMENT],
-    products: { pro: e.DODO_PRODUCT_PRO, business: e.DODO_PRODUCT_BUSINESS },
+    products: { pro: { month: proMonth, year: proYear }, business: { month: businessMonth, year: businessYear } },
   }
 }
 
-export function planForProduct(products: DodoConfig['products'], productId: string): PaidPlan | null {
-  if (productId === products.pro) return 'pro'
-  if (productId === products.business) return 'business'
-  return null
+const CHOICES: readonly PlanChoice[] = (['pro', 'business'] as const).flatMap((plan) => BILLING_INTERVALS.map((interval) => ({ plan, interval })))
+
+export function productFor(products: ProductTable, choice: PlanChoice): string {
+  return products[choice.plan][choice.interval]
+}
+
+export function productIds(products: ProductTable): string[] {
+  return CHOICES.map((choice) => productFor(products, choice))
+}
+
+export function planForProduct(products: ProductTable, productId: string): PlanChoice | null {
+  const choice = CHOICES.find((c) => productFor(products, c) === productId)
+  return choice ? { ...choice } : null
+}
+
+/** Form values from the billing UI; a missing interval means monthly. */
+export function parsePlanChoice(plan: unknown, interval: unknown): PlanChoice | null {
+  if (plan !== 'pro' && plan !== 'business') return null
+  const value = interval ?? 'month'
+  if (value !== 'month' && value !== 'year') return null
+  return { plan, interval: value }
 }
 
 export class DodoError extends Error {
@@ -42,26 +66,35 @@ export class DodoError extends Error {
   }
 }
 
-async function post<T>(config: DodoConfig, path: string, init: { query?: Record<string, string>; body?: unknown } = {}): Promise<T> {
+/** One Dodo API call. Errors (network, non-2xx) become DodoError. */
+export async function dodoRequest<T>(
+  config: Pick<DodoConfig, 'apiKey' | 'baseUrl'>,
+  method: 'GET' | 'POST',
+  path: string,
+  init: { query?: Record<string, string>; body?: unknown; timeoutMs?: number } = {},
+): Promise<T> {
   const url = new URL(path, config.baseUrl)
   for (const [key, value] of Object.entries(init.query ?? {})) url.searchParams.set(key, value)
   let response: Response
   try {
     response = await fetch(url, {
-      method: 'POST',
+      method,
       headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(init.timeoutMs ?? 15_000),
     })
   } catch (cause) {
     throw new DodoError(`Dodo request failed: ${(cause as Error).message}`, 0)
   }
   const body = (await response.json().catch(() => ({}))) as { message?: string }
   if (!response.ok) {
-    throw new DodoError(`Dodo POST ${path} failed (${response.status}): ${body.message ?? response.statusText}`, response.status)
+    throw new DodoError(`Dodo ${method} ${path} failed (${response.status}): ${body.message ?? response.statusText}`, response.status)
   }
   return body as T
 }
+
+const post = <T>(config: DodoConfig, path: string, init: { query?: Record<string, string>; body?: unknown } = {}) =>
+  dodoRequest<T>(config, 'POST', path, init)
 
 /** A hosted checkout for a new subscription. The workspace id rides along as metadata for the webhook. */
 export async function createCheckout(
@@ -71,6 +104,7 @@ export async function createCheckout(
     workspaceId: string
     customer: { customerId: string } | { email: string; name: string }
     returnUrl: string
+    extra?: Record<string, unknown>
   },
 ): Promise<string> {
   const customer = 'customerId' in input.customer
@@ -82,6 +116,7 @@ export async function createCheckout(
       customer,
       return_url: input.returnUrl,
       metadata: { workspace_id: input.workspaceId },
+      ...input.extra,
     },
   })
   if (!session.checkout_url) throw new DodoError('Dodo returned no checkout URL', 200)

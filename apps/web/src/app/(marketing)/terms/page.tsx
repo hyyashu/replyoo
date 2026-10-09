@@ -28,7 +28,7 @@ export default function TermsPage() {
 
       <h2>Plans and billing</h2>
       <p>
-        Paid plans renew monthly until cancelled. Dodo Payments is our merchant of record and handles payment, invoices, taxes and
+        Paid plans renew monthly or yearly, depending on the billing period you choose, until cancelled. Dodo Payments is our merchant of record and handles payment, invoices, taxes and
         refunds under its own terms. You can change or cancel your plan in Settings → Billing; a cancelled plan stays active until the end
         of the period you paid for. Usage limits are listed on the <Link href="/pricing">pricing page</Link>.
       </p>

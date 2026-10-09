@@ -87,6 +87,7 @@ export async function getSubscription(workspaceId: string, now = new Date()): Pr
     db()
       .select({
         plan: subscriptions.plan,
+        billingInterval: subscriptions.billingInterval,
         status: subscriptions.status,
         currentPeriodEnd: subscriptions.currentPeriodEnd,
         dodoCustomerId: subscriptions.dodoCustomerId,
@@ -102,6 +103,7 @@ export async function getSubscription(workspaceId: string, now = new Date()): Pr
   return {
     plan,
     billedPlan: subscription?.plan ?? 'free',
+    billedInterval: subscription?.billingInterval ?? 'month',
     status: subscription?.status ?? 'active',
     hasBillingAccount: Boolean(subscription?.dodoCustomerId),
     renewsAt: subscription?.currentPeriodEnd?.toISOString() ?? null,

@@ -1,6 +1,7 @@
 import { PLAN_NAMES } from '@replyooo/shared'
 import { Check, Plus, TriangleAlert } from 'lucide-react'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import {
   deleteWorkspace,
   disconnectAccount,
@@ -15,11 +16,12 @@ import { WorkspaceList } from '@/components/workspace-list'
 import { PlatformIcon } from '@/components/sidebar'
 import { Avatar, ButtonLink, Card, PageHeader, buttonClass, cx, formatCompact, formatNumber } from '@/components/ui'
 import { dodoConfig } from '@/lib/billing/dodo'
+import { displayPrices, planCards, requestCountry, saveLabel } from '@/lib/billing/pricing'
 import { getSubscription, listAccounts, listInvitations, listMembers } from '@/lib/data'
 import { db } from '@/lib/db'
-import { PLAN_CATALOG } from '@/lib/plans'
 import { requireWorkspace } from '@/lib/session'
 import { canManage, listWorkspaces } from '@/lib/workspaces'
+import { BillingPlans } from './billing-plans'
 
 export const metadata: Metadata = { title: 'Settings' }
 
@@ -53,6 +55,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const usage = subscription.contactsReached / subscription.contactsLimit
   const notice = invite ? INVITE_NOTICES[invite] : undefined
   const billingEnabled = dodoConfig() !== null
+  const prices = await displayPrices(requestCountry(await headers()))
   const billingNotice = billing ? BILLING_NOTICES[billing] : undefined
 
   return (
@@ -208,58 +211,21 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </div>
           {subscription.renewsAt && subscription.plan !== 'free' && (
             <p className="mt-3 text-[12.5px] text-subtle">
-              {PLAN_NAMES[subscription.plan]} renews on{' '}
+              {PLAN_NAMES[subscription.plan]} ({subscription.billedInterval === 'year' ? 'yearly' : 'monthly'}) renews on{' '}
               {new Date(subscription.renewsAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
             </p>
           )}
         </Card>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          {PLAN_CATALOG.map((plan) => {
-            const current = plan.key === subscription.plan
-            const canAct = manager && billingEnabled
-            return (
-              <Card key={plan.key} className={cx('flex flex-col p-5', current && 'border-ink ring-1 ring-ink')}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[15px] font-semibold">{plan.name}</span>
-                  {current && <span className="rounded-full bg-lime px-2 py-0.5 text-[11px] font-semibold">Current</span>}
-                </div>
-                <div className="mt-2 font-display text-[30px] font-bold tracking-[-0.04em]">
-                  {plan.price}
-                  <span className="font-sans text-[13px] font-normal tracking-normal text-subtle">/month</span>
-                </div>
-                <ul className="mt-3 flex flex-col gap-1.5 text-[13px] text-muted">
-                  {plan.perks.map((perk) => (
-                    <li key={perk}>{perk}</li>
-                  ))}
-                </ul>
-                {current ? (
-                  <button type="button" disabled className={cx(buttonClass('secondary', 'sm'), 'mt-5')}>
-                    Your plan
-                  </button>
-                ) : plan.key === 'free' ? (
-                  canAct && subscription.hasBillingAccount ? (
-                    <form action={openBillingPortal} className="mt-5 flex">
-                      <button type="submit" className={cx(buttonClass('secondary', 'sm'), 'w-full')}>
-                        Cancel in billing portal
-                      </button>
-                    </form>
-                  ) : (
-                    <button type="button" disabled className={cx(buttonClass('secondary', 'sm'), 'mt-5')}>
-                      Included
-                    </button>
-                  )
-                ) : (
-                  <form action={switchPlan} className="mt-5 flex">
-                    <input type="hidden" name="plan" value={plan.key} />
-                    <button type="submit" disabled={!canAct} className={cx(buttonClass('dark', 'sm'), 'w-full')}>
-                      Switch to {plan.name}
-                    </button>
-                  </form>
-                )}
-              </Card>
-            )
-          })}
-        </div>
+        <BillingPlans
+          cards={planCards(prices)}
+          yearly={prices.yearly}
+          saveLabel={saveLabel(prices)}
+          current={{ plan: subscription.plan, interval: subscription.billedInterval }}
+          canAct={manager && billingEnabled}
+          hasBillingAccount={subscription.hasBillingAccount}
+          switchPlan={switchPlan}
+          openBillingPortal={openBillingPortal}
+        />
         {manager && billingEnabled && subscription.hasBillingAccount && (
           <form action={openBillingPortal} className="mt-4">
             <button type="submit" className="text-[13px] font-semibold text-ink hover:underline">

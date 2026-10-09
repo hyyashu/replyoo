@@ -20,12 +20,14 @@ const EnvSchema = z.object({
   META_GRAPH_VERSION: z.preprocess(blank, z.string().default('v24.0')),
   GOOGLE_CLIENT_ID: optional,
   GOOGLE_CLIENT_SECRET: optional,
-  /** Dodo Payments (spec §3.6). Billing is disabled until the key and both product IDs are set. */
+  /** Dodo Payments. Billing is disabled until the key and all four product IDs are set. */
   DODO_API_KEY: optional,
   DODO_WEBHOOK_SECRET: optional,
   DODO_ENVIRONMENT: z.preprocess(blank, z.enum(['test_mode', 'live_mode']).default('test_mode')),
-  DODO_PRODUCT_PRO: optional,
-  DODO_PRODUCT_BUSINESS: optional,
+  DODO_PRODUCT_PRO_MONTHLY: optional,
+  DODO_PRODUCT_PRO_YEARLY: optional,
+  DODO_PRODUCT_BUSINESS_MONTHLY: optional,
+  DODO_PRODUCT_BUSINESS_YEARLY: optional,
 })
 
 export type Env = z.infer<typeof EnvSchema>

@@ -1,4 +1,4 @@
-import type { FlowDefinition, PlanKey, Platform } from '@replyooo/shared'
+import type { BillingInterval, FlowDefinition, PlanKey, Platform } from '@replyooo/shared'
 import type { Role } from '../workspaces'
 
 export type { Role } from '../workspaces'
@@ -103,6 +103,8 @@ export interface Subscription {
   plan: PlanKey
   /** The plan on the subscription row, paid or not. */
   billedPlan: PlanKey
+  /** Billing period of the subscription row; `month` when there is none. */
+  billedInterval: BillingInterval
   status: string
   /** A Dodo customer exists, so the customer portal can open. */
   hasBillingAccount: boolean
