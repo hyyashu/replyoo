@@ -87,6 +87,20 @@ In the Meta developer dashboard for your app:
    Verification.
 5. The Instagram account must be a Professional (Business or Creator) account.
 
+### Google sign-in (optional)
+
+Without these two variables the "Continue with Google" button is hidden and email/password still works.
+
+1. In Google Cloud Console → **Google Auth Platform**, set **Audience** to External and fill in **Branding** (app name,
+   support email, privacy page `https://app.example.com/privacy`).
+2. **Data Access:** add only `openid`, `.../auth/userinfo.email` and `.../auth/userinfo.profile`. They are non-sensitive,
+   so no Google verification is needed.
+3. **Clients** → Create client → **Web application**, with these authorized redirect URIs:
+   - `https://app.example.com/api/auth/callback/google`
+   - `http://localhost:3217/api/auth/callback/google` (local development)
+4. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (in `.env`, or the Dokploy Environment tab) and redeploy `web`.
+5. **Publish** the app (Audience → Publish app). While it is in Testing, only listed test users can sign in.
+
 ## 5. First live test
 
 1. Sign up on your domain and confirm the email arrives.
