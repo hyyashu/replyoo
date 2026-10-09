@@ -4,7 +4,7 @@ import type { BillingInterval, PlanKey } from '@replyooo/shared'
 import { useState } from 'react'
 import { IntervalToggle } from '@/components/pricing-cards'
 import { Card, buttonClass, cx } from '@/components/ui'
-import { isCurrentCard, type PlanCard } from '@/lib/billing/plan-cards'
+import { isCurrentCard, switchInterval, type PlanCard } from '@/lib/billing/plan-cards'
 
 export function BillingPlans({
   cards,
@@ -78,7 +78,7 @@ export function BillingPlans({
               ) : (
                 <form action={switchPlan} className="mt-5 flex">
                   <input type="hidden" name="plan" value={plan.key} />
-                  <input type="hidden" name="interval" value={shown} />
+                  <input type="hidden" name="interval" value={switchInterval(current, yearly, shown)} />
                   <button type="submit" disabled={!canAct} className={cx(buttonClass('dark', 'sm'), 'w-full')}>
                     {samePlanOtherInterval ? `Switch to ${shown === 'year' ? 'yearly' : 'monthly'}` : `Switch to ${plan.name}`}
                   </button>

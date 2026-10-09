@@ -117,6 +117,13 @@ Billing stays off until `DODO_API_KEY` and all four product IDs are set.
 5. The visitor's country comes from Cloudflare's `CF-IPCountry` header, so the site must be proxied through
    Cloudflare (orange cloud) for regional prices to show. Without it, everyone sees the USD base price. Pricing pages
    are rendered per request with `Cache-Control: private, no-store`; don't add a Cloudflare cache rule for them.
+   If you rely on this header, make the origin accept traffic only from Cloudflare; otherwise a client can spoof
+   `CF-IPCountry` (the effect is display-only: a different price is shown, never charged).
+
+**Upgrading an existing deployment.** Earlier versions used `DODO_PRODUCT_PRO` and `DODO_PRODUCT_BUSINESS`. Reuse those
+IDs as `DODO_PRODUCT_PRO_MONTHLY` and `DODO_PRODUCT_BUSINESS_MONTHLY`, create the two yearly products in Dodo, and set
+`DODO_PRODUCT_PRO_YEARLY` and `DODO_PRODUCT_BUSINESS_YEARLY` **before deploying**. Until all four are set, billing and
+the webhook endpoint stay off, and renewal events for existing subscribers are dropped.
 
 ## 5. First live test
 

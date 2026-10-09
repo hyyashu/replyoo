@@ -4,6 +4,7 @@ import type { DodoConfig } from '@/lib/billing/dodo'
 import {
   displayPrices, formatMoney, isCurrentCard, planCards, requestCountry, resetPriceCache, saveLabel, selectPrice, yearlySavingsPercent,
 } from '@/lib/billing/pricing'
+import { switchInterval } from '@/lib/billing/plan-cards'
 import { mockFetch } from './support'
 
 const DODO = 'https://test.dodopayments.com'
@@ -170,5 +171,19 @@ describe('isCurrentCard', () => {
   })
   it('keeps a yearly plan current when yearly prices are unavailable', () => {
     expect(isCurrentCard({ key: 'pro' }, { plan: 'pro', interval: 'year' }, 'month', false)).toBe(true)
+  })
+})
+
+describe('switchInterval', () => {
+  it('keeps a yearly subscriber on yearly when yearly prices are unavailable', () => {
+    expect(switchInterval({ plan: 'pro', interval: 'year' }, false, 'month')).toBe('year')
+  })
+  it('uses month for monthly subscribers and free workspaces without yearly prices', () => {
+    expect(switchInterval({ plan: 'pro', interval: 'month' }, false, 'month')).toBe('month')
+    expect(switchInterval({ plan: 'free', interval: 'month' }, false, 'month')).toBe('month')
+  })
+  it('follows the toggle when yearly prices are available', () => {
+    expect(switchInterval({ plan: 'pro', interval: 'month' }, true, 'year')).toBe('year')
+    expect(switchInterval({ plan: 'pro', interval: 'year' }, true, 'month')).toBe('month')
   })
 })

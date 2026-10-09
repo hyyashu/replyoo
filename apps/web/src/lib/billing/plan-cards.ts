@@ -24,3 +24,16 @@ export function isCurrentCard(
   if (card.key !== current.plan) return false
   return card.key === 'free' || !yearly || current.interval === shown
 }
+
+/**
+ * Interval to post when switching plans. Without yearly prices the toggle is hidden, so a yearly
+ * subscriber keeps their own interval instead of being silently moved to monthly.
+ */
+export function switchInterval(
+  current: { plan: PlanKey; interval: BillingInterval },
+  yearly: boolean,
+  shown: BillingInterval,
+): BillingInterval {
+  if (yearly) return shown
+  return current.plan !== 'free' ? current.interval : 'month'
+}
