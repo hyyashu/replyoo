@@ -10,10 +10,12 @@ export function IntervalToggle({
   value,
   onChange,
   saveLabel,
+  labels = { period: 'Billing period', month: 'Monthly', year: 'Yearly' },
 }: {
   value: BillingInterval
   onChange: (value: BillingInterval) => void
   saveLabel: string | null
+  labels?: { period: string; month: string; year: string }
 }) {
   const option = (interval: BillingInterval, label: string) => (
     <button
@@ -28,9 +30,9 @@ export function IntervalToggle({
   )
   return (
     <div className="inline-flex items-center gap-3">
-      <div role="radiogroup" aria-label="Billing period" className="inline-flex rounded-full border border-line bg-white p-1">
-        {option('month', 'Monthly')}
-        {option('year', 'Yearly')}
+      <div role="radiogroup" aria-label={labels.period} className="inline-flex rounded-full border border-line bg-white p-1">
+        {option('month', labels.month)}
+        {option('year', labels.year)}
       </div>
       {saveLabel && <span className="rounded-full bg-lime px-2.5 py-0.5 text-[12px] font-semibold text-ink">{saveLabel}</span>}
     </div>

@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import type { FlowTemplate, Platform, TemplateCategory } from '@replyooo/shared'
 import { ArrowLeft, ArrowRight, Plus, Search } from 'lucide-react'
 import Link from 'next/link'
@@ -10,25 +12,19 @@ import { Card, EmptyState, cx } from '@/components/ui'
 import { triggerLabel } from '@/lib/describe'
 import { TriggerIcon } from '../automations-table'
 
-const CATEGORIES: { key: TemplateCategory | 'all'; label: string }[] = [
-  { key: 'all', label: 'All templates' },
-  { key: 'recommended', label: 'Recommended' },
-  { key: 'sell_products', label: 'Sell products' },
-  { key: 'collect_leads', label: 'Collect leads' },
-  { key: 'grow_followers', label: 'Grow followers' },
-  { key: 'engage_audience', label: 'Engage with audience' },
-  { key: 'setup_inbox', label: 'Set up your inbox' },
-]
-
-export function TemplatePicker({
-  templates,
-  platform,
-  username,
-}: {
-  templates: FlowTemplate[]
-  platform: Platform
-  username: string
-}) {
+export function TemplatePicker({ templates, platform, username }: { templates: FlowTemplate[]; platform: Platform; username: string }) {
+  const tr = useTranslations('automations')
+  const describe = useTranslations('shared')
+  
+  const CATEGORIES: { key: TemplateCategory | 'all'; label: string }[] = [
+    { key: 'all', label: tr('all_templates') },
+    { key: 'recommended', label: tr('recommended') },
+    { key: 'sell_products', label: tr('sell_products') },
+    { key: 'collect_leads', label: tr('collect_leads') },
+    { key: 'grow_followers', label: tr('grow_followers') },
+    { key: 'engage_audience', label: tr('engage_with_audience') },
+    { key: 'setup_inbox', label: tr('set_up_your_inbox') },
+  ]
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]['key']>('all')
   const [query, setQuery] = useState('')
   const [pending, startTransition] = useTransition()
@@ -50,14 +46,12 @@ export function TemplatePicker({
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-10 sm:py-9">
       <Link href="/automations" className="inline-flex items-center gap-1.5 text-[13.5px] text-muted hover:text-ink">
-        <ArrowLeft className="size-4" /> Automations
+        <ArrowLeft className="size-4" /> {tr('automations')}{' '}
       </Link>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-[28px] leading-tight sm:text-[34px] font-bold tracking-[-0.04em]">Pick a starting point</h1>
-          <p className="mt-1 text-[15px] text-muted">
-            Templates for @{username}. You can change every message before going live.
-          </p>
+          <h1 className="font-display text-[28px] leading-tight sm:text-[34px] font-bold tracking-[-0.04em]">{tr('pick_a_starting_point')}</h1>
+          <p className="mt-1 text-[15px] text-muted">{tr('templates_for_you_can_change_every_message_before_going_live', { v0: username })}</p>
         </div>
         <label className="flex h-10 w-full items-center gap-2 rounded-xl border border-line px-3 text-subtle focus-within:border-faint sm:w-[300px]">
           <Search className="size-4" />
@@ -65,7 +59,7 @@ export function TemplatePicker({
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search templates"
+            placeholder={tr('search_templates')}
             className="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-subtle"
           />
         </label>
@@ -98,7 +92,7 @@ export function TemplatePicker({
             <span className="grid size-10 place-items-center rounded-xl bg-sand">
               <Plus className="size-5" />
             </span>
-            <span className="text-[14.5px] font-semibold">{chosen === 'scratch' ? 'Creating…' : 'Start from scratch'}</span>
+            <span className="text-[14.5px] font-semibold">{chosen === 'scratch' ? tr('creating') : tr('start_from_scratch')}</span>
           </button>
 
           {visible.map((template) => {
@@ -114,9 +108,7 @@ export function TemplatePicker({
                 <div className="flex items-start justify-between">
                   <TriggerIcon type={template.flow.trigger.type} />
                   <div className="flex items-center gap-1.5 text-subtle">
-                    {template.isNew && (
-                      <span className="rounded-full bg-lime px-2 py-0.5 text-[11px] font-semibold text-ink">New</span>
-                    )}
+                    {template.isNew && <span className="rounded-full bg-lime px-2 py-0.5 text-[11px] font-semibold text-ink">{tr('new')}</span>}
                     {template.platforms.includes('instagram') && <InstagramIcon className="size-3.5" />}
                     {template.platforms.includes('facebook') && <FacebookIcon className="size-3.5" />}
                   </div>
@@ -124,7 +116,7 @@ export function TemplatePicker({
                 <h3 className="mt-4 text-[15.5px] leading-snug font-semibold">{template.title}</h3>
                 <p className="mt-1 text-[13.5px] leading-snug text-muted">{template.description}</p>
                 <div className="mt-auto flex items-center justify-between pt-4 text-[12.5px] text-subtle">
-                  {supported ? triggerLabel(template.flow.trigger) : `Instagram only`}
+                  {supported ? triggerLabel(template.flow.trigger, describe) : tr('instagram_only', {})}
                   {supported && (
                     <button
                       type="button"
@@ -132,7 +124,7 @@ export function TemplatePicker({
                       onClick={() => create(template.key)}
                       className="inline-flex items-center gap-1 font-semibold text-brand after:absolute after:inset-0 disabled:opacity-60"
                     >
-                      {chosen === template.key ? 'Creating…' : 'Use'} <ArrowRight className="size-3.5" />
+                      {chosen === template.key ? tr('creating') : tr('use')} <ArrowRight className="size-3.5" />
                     </button>
                   )}
                 </div>
@@ -142,7 +134,11 @@ export function TemplatePicker({
 
           {visible.length === 0 && (
             <div className="sm:col-span-2">
-              <EmptyState icon={<Search className="size-5" />} title="No templates found" body="Try another search, or start from scratch." />
+              <EmptyState
+                icon={<Search className="size-5" />}
+                title={tr('no_templates_found')}
+                body={tr('try_another_search_or_start_from_scratch')}
+              />
             </div>
           )}
         </div>

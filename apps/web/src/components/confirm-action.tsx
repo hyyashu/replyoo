@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal, useFormStatus } from 'react-dom'
@@ -10,10 +12,11 @@ const DANGER_OUTLINE = `${PILL} border border-[#c2330e] bg-white text-[#c2330e] 
 const DANGER_SOLID = `${PILL} bg-[#c2330e] text-white hover:bg-[#a52a0a] disabled:pointer-events-none disabled:opacity-50`
 
 function ConfirmSubmit({ label }: { label: string }) {
+  const tr = useTranslations('shared')
   const { pending } = useFormStatus()
   return (
     <button type="submit" disabled={pending} className={DANGER_SOLID}>
-      {pending ? 'Working…' : label}
+      {pending ? tr('working') : label}
     </button>
   )
 }
@@ -34,6 +37,7 @@ export function ConfirmDialog({
   description: string
   confirmLabel: string
 }) {
+  const tr = useTranslations('shared')
   useEffect(() => {
     if (!open) return
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
@@ -50,7 +54,7 @@ export function ConfirmDialog({
           <h2 className="text-[16px] font-semibold">{title}</h2>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={tr('close')}
             onClick={onClose}
             className="grid size-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-sand"
           >
@@ -60,7 +64,7 @@ export function ConfirmDialog({
         <p className="mt-2 text-[13.5px] text-muted">{description}</p>
         <form action={action} className="mt-5 flex justify-end gap-2">
           <button type="button" autoFocus onClick={onClose} className={buttonClass('secondary', 'sm')}>
-            Cancel
+            {tr('cancel')}
           </button>
           <ConfirmSubmit label={confirmLabel} />
         </form>
@@ -90,14 +94,7 @@ export function ConfirmAction({
       <button type="button" onClick={() => setOpen(true)} className={DANGER_OUTLINE}>
         {label}
       </button>
-      <ConfirmDialog
-        open={open}
-        onClose={() => setOpen(false)}
-        action={action}
-        title={title}
-        description={description}
-        confirmLabel={confirmLabel}
-      />
+      <ConfirmDialog open={open} onClose={() => setOpen(false)} action={action} title={title} description={description} confirmLabel={confirmLabel} />
     </>
   )
 }

@@ -1,5 +1,7 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
+
 import { Search, X } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -7,6 +9,7 @@ import { cx } from '@/components/ui'
 import type { ContactFilters } from '@/lib/data/types'
 
 export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: ContactFilters }) {
+  const tr = useTranslations('contacts')
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -37,7 +40,7 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search name, username, email"
+          placeholder={tr('search_name_username_email')}
           className="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-subtle"
         />
       </label>
@@ -49,7 +52,7 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
           filters.has === 'lead' ? 'border-ink bg-ink text-white' : 'border-line text-muted hover:text-ink',
         )}
       >
-        Leads only
+        {tr('leads_only')}
       </button>
       <button
         type="button"
@@ -59,7 +62,7 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
           filters.rel === 'follows_you' ? 'border-ink bg-ink text-white' : 'border-line text-muted hover:text-ink',
         )}
       >
-        Follows you
+        {tr('follows_you')}
       </button>
       {(['email', 'phone'] as const).map((kind) => (
         <button
@@ -71,7 +74,7 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
             filters.has === kind ? 'border-ink bg-ink text-white' : 'border-line text-muted hover:text-ink',
           )}
         >
-          Has {kind}
+          {tr(`has_${kind}`)}
         </button>
       ))}
       <select
@@ -79,7 +82,7 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
         onChange={(e) => set('tag', e.target.value || undefined)}
         className="h-10 rounded-xl border border-line bg-white px-3 text-[13.5px] text-muted outline-none"
       >
-        <option value="">Any tag</option>
+        <option value="">{tr('any_tag')}</option>
         {tags.map((tag) => (
           <option key={tag} value={tag}>
             {tag}
@@ -95,7 +98,7 @@ export function ContactFiltersBar({ tags, filters }: { tags: string[]; filters: 
           }}
           className="inline-flex items-center gap-1 text-[13px] font-medium text-muted hover:text-ink"
         >
-          <X className="size-3.5" /> Clear
+          <X className="size-3.5" /> {tr('clear')}{' '}
         </button>
       )}
     </div>

@@ -23,21 +23,11 @@ export function buttonClass(variant: ButtonVariant = 'primary', size: 'sm' | 'md
   )
 }
 
-export function Button({
-  variant,
-  size,
-  className,
-  ...props
-}: ComponentProps<'button'> & { variant?: ButtonVariant; size?: 'sm' | 'md' }) {
+export function Button({ variant, size, className, ...props }: ComponentProps<'button'> & { variant?: ButtonVariant; size?: 'sm' | 'md' }) {
   return <button type="button" className={cx(buttonClass(variant, size), className)} {...props} />
 }
 
-export function ButtonLink({
-  variant,
-  size,
-  className,
-  ...props
-}: ComponentProps<typeof Link> & { variant?: ButtonVariant; size?: 'sm' | 'md' }) {
+export function ButtonLink({ variant, size, className, ...props }: ComponentProps<typeof Link> & { variant?: ButtonVariant; size?: 'sm' | 'md' }) {
   return <Link className={cx(buttonClass(variant, size), className)} {...props} />
 }
 
@@ -47,9 +37,7 @@ export function Logo({ dark = false }: { dark?: boolean }) {
       <span className={cx('grid size-[30px] place-items-center rounded-[9px]', dark ? 'bg-lime text-ink' : 'bg-ink text-lime')}>
         <MessageCircleReply className="size-4" strokeWidth={2.25} />
       </span>
-      <span className={cx('font-display text-[21px] font-bold tracking-[-0.04em]', dark ? 'text-white' : 'text-ink')}>
-        replyooo
-      </span>
+      <span className={cx('font-display text-[21px] font-bold tracking-[-0.04em]', dark ? 'text-white' : 'text-ink')}>replyooo</span>
     </span>
   )
 }
@@ -64,22 +52,22 @@ const STATUS = {
   draft: { label: 'Draft', className: 'bg-cream text-muted', dot: 'bg-subtle' },
 } as const
 
-export function StatusPill({ status }: { status: AutomationStatus }) {
+export function StatusPill({ status, label }: { status: AutomationStatus; label?: string }) {
   const s = STATUS[status]
   return (
     <span className={cx('inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold', s.className)}>
       <span className={cx('size-1.5 rounded-full', s.dot)} />
-      {s.label}
+      {label ?? s.label}
     </span>
   )
 }
 
-export function Keyword({ children, onRemove }: { children: ReactNode; onRemove?: () => void }) {
+export function Keyword({ children, onRemove, removeLabel = 'Remove' }: { children: ReactNode; onRemove?: () => void; removeLabel?: string }) {
   return (
     <span className="inline-flex h-6 items-center gap-1 rounded-md border border-line bg-cream px-2 font-mono text-[11px] font-semibold text-ink">
       {children}
       {onRemove && (
-        <button type="button" onClick={onRemove} className="-mr-0.5 text-subtle hover:text-ink" aria-label="Remove">
+        <button type="button" onClick={onRemove} className="-mr-0.5 text-subtle hover:text-ink" aria-label={removeLabel}>
           ×
         </button>
       )}
@@ -131,7 +119,10 @@ export function Avatar({ name, size = 36, src }: { name: string; size?: number; 
       style={{ width: size, height: size, background: AVATAR_COLORS[hash % AVATAR_COLORS.length] }}
       aria-hidden
     >
-      {name.replace(/[^a-zA-Z]/g, '').slice(0, 1).toUpperCase()}
+      {name
+        .replace(/[^a-zA-Z]/g, '')
+        .slice(0, 1)
+        .toUpperCase()}
       {/* Sits over the initial; a photo that fails to load (Instagram links expire) simply doesn't show. */}
       {src && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -178,8 +169,7 @@ export function EmptyState({ icon, title, body, action }: { icon: ReactNode; tit
 }
 
 export const formatNumber = (n: number) => new Intl.NumberFormat('en-US').format(n)
-export const formatCompact = (n: number) =>
-  new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+export const formatCompact = (n: number) => new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 export const formatPercent = (n: number) => `${Math.round(n * 100)}%`
 
 export function formatDate(iso: string) {

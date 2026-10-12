@@ -1,16 +1,12 @@
 'use client'
 
+import { useDashboardError } from '@/i18n/use-errors'
+import { useTranslations } from 'next-intl'
+
 import { ArrowDown, ArrowUp, BarChart3, Check, Copy, Eye, EyeOff, Heading, Link2, Pencil, Plus, Trash2, ExternalLink, Smartphone } from 'lucide-react'
 import type { BioOverview } from '@replyooo/db'
 import { useRef, useState, useTransition } from 'react'
-import {
-  createBioBlock,
-  moveBioBlock,
-  removeBioBlock,
-  saveBioBlock,
-  saveBioDetails,
-  setBioBlockHidden,
-} from '@/app/bio-actions'
+import { createBioBlock, moveBioBlock, removeBioBlock, saveBioBlock, saveBioDetails, setBioBlockHidden } from '@/app/bio-actions'
 import { BioPageView, type BioViewBlock } from '@/components/bio-page-view'
 import { Button, Card, PageHeader, cx } from '@/components/ui'
 import { BlockInsights, PageStats } from './stats'
@@ -22,8 +18,7 @@ interface Details {
   theme: string
 }
 
-const inputClass =
-  'h-10 w-full rounded-xl border border-line bg-white px-3 text-[14.5px] outline-none focus:border-ink'
+const inputClass = 'h-10 w-full rounded-xl border border-line bg-white px-3 text-[14.5px] outline-none focus:border-ink'
 
 export function BioEditor({
   publicUrl,
@@ -42,6 +37,8 @@ export function BioEditor({
   initialBlocks: BioViewBlock[]
   stats: BioOverview
 }) {
+  const tr = useTranslations('bio')
+  const translateError = useDashboardError()
   const [tab, setTab] = useState<'links' | 'design'>('links')
   const [details, setDetails] = useState(initial)
   const [saved, setSaved] = useState(initial)
@@ -105,8 +102,7 @@ export function BioEditor({
     setDrafts((current) => [...current, { id: `draft-${draftCount.current}`, type, label: '', ...(type === 'link' && { url: '' }), hidden: false }])
   }
 
-  const patchDraft = (id: string, patch: Partial<BioViewBlock>) =>
-    setDrafts((current) => current.map((b) => (b.id === id ? { ...b, ...patch } : b)))
+  const patchDraft = (id: string, patch: Partial<BioViewBlock>) => setDrafts((current) => current.map((b) => (b.id === id ? { ...b, ...patch } : b)))
 
   const saveDraft = (draft: BioViewBlock) =>
     startTransition(async () => {
@@ -118,8 +114,7 @@ export function BioEditor({
       setDrafts((current) => current.filter((b) => b.id !== draft.id))
     })
 
-  const patchBlock = (id: string, patch: Partial<BioViewBlock>) =>
-    setBlocks((current) => current.map((b) => (b.id === id ? { ...b, ...patch } : b)))
+  const patchBlock = (id: string, patch: Partial<BioViewBlock>) => setBlocks((current) => current.map((b) => (b.id === id ? { ...b, ...patch } : b)))
 
   const saveBlock = (block: BioViewBlock) =>
     startTransition(async () => {
@@ -171,7 +166,7 @@ export function BioEditor({
 
   const previewPanel = (
     <>
-      <h2 className="text-[15px] font-semibold">Live preview</h2>
+      <h2 className="text-[15px] font-semibold">{tr('live_preview')}</h2>
       <div className="mt-5">
         <div className="mx-auto w-[290px] rounded-[46px] bg-ink p-2.5 shadow-[0_24px_60px_rgba(21,19,16,0.22)]">
           <div className="h-[580px] overflow-y-auto rounded-[38px] bg-white [scrollbar-width:none]">
@@ -180,7 +175,7 @@ export function BioEditor({
         </div>
       </div>
       <p className="mx-auto mt-5 max-w-[290px] text-center text-[12.5px] leading-relaxed text-subtle">
-        Updates as you type. Unsaved changes only show here until you save.
+        {tr('updates_as_you_type_unsaved_changes_only_show_here_until_you')}
       </p>
     </>
   )
@@ -188,23 +183,34 @@ export function BioEditor({
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-10 sm:py-9">
       <PageHeader
-        title="Bio page"
-        subtitle="One link for your Instagram bio. Share everything you want people to find."
+        title={tr('bio_page')}
+        subtitle={tr('one_link_for_your_instagram_bio_share_everything_you_want_people')}
         actions={
           <Button variant="secondary" className="xl:hidden" onClick={() => setPreviewOpen(!previewOpen)} aria-expanded={previewOpen}>
-            <Smartphone className="size-4" /> {previewOpen ? 'Hide preview' : 'Preview'}
+            <Smartphone className="size-4" /> {previewOpen ? tr('hide_preview') : tr('preview')}
           </Button>
         }
       />
 
       <div className="mt-6 flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white p-3">
         <Link2 className="ml-1 size-4 shrink-0 text-subtle" />
-        <input readOnly value={publicUrl} aria-label="Public URL" onFocus={(e) => e.currentTarget.select()} className="h-9 min-w-0 flex-1 bg-transparent text-[14px] outline-none" />
+        <input
+          readOnly
+          value={publicUrl}
+          aria-label={tr('public_url')}
+          onFocus={(e) => e.currentTarget.select()}
+          className="h-9 min-w-0 flex-1 bg-transparent text-[14px] outline-none"
+        />
         <Button variant="secondary" size="sm" onClick={copy}>
-          {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />} {copied ? 'Copied' : 'Copy'}
+          {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />} {copied ? tr('copied') : tr('copy')}
         </Button>
-        <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-2 rounded-full bg-ink px-3 text-[13px] font-semibold text-white hover:bg-ink-2">
-          <ExternalLink className="size-3.5" /> Open
+        <a
+          href={publicUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-8 items-center gap-2 rounded-full bg-ink px-3 text-[13px] font-semibold text-white hover:bg-ink-2"
+        >
+          <ExternalLink className="size-3.5" /> {tr('open')}{' '}
         </a>
       </div>
 
@@ -227,57 +233,56 @@ export function BioEditor({
                   tab === value ? 'bg-white text-ink shadow-[0_1px_2px_rgba(21,19,16,0.08)]' : 'text-muted hover:text-ink',
                 )}
               >
-                {value}
+                {tr(`tabs_${value}`)}
               </button>
             ))}
           </div>
 
           {notice && (
             <p role="alert" className="mt-4 rounded-xl bg-brand-tint px-4 py-2.5 text-[13.5px]">
-              {notice}
+              {translateError(notice)}
             </p>
           )}
 
           {tab === 'links' ? (
             <div className="mt-5 flex flex-col gap-5">
               {editingDetails ? (
-              <Card className="p-5">
-                <h2 className="text-[16px] font-semibold">Page details</h2>
-                <label className="mt-4 block text-[13px] font-medium text-muted" htmlFor="bio-name">
-                  Display name
-                </label>
-                <input
-                  id="bio-name"
-                  value={details.displayName}
-                  maxLength={NAME_MAX}
-                  onChange={(e) => setDetails({ ...details, displayName: e.target.value })}
-                  className={cx(inputClass, 'mt-1.5')}
-                />
-                <div className="mt-4 flex items-center justify-between text-[13px] font-medium text-muted">
-                  <label htmlFor="bio-text">Bio</label>
-                  <span className={details.bio.length >= BIO_MAX ? 'text-brand' : 'text-subtle'}>
-                    {details.bio.length}/{BIO_MAX}
-                  </span>
-                </div>
-                <textarea
-                  id="bio-text"
-                  value={details.bio}
-                  maxLength={BIO_MAX}
-                  rows={3}
-                  onChange={(e) => setDetails({ ...details, bio: e.target.value })}
-                  className="mt-1.5 w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-[14.5px] outline-none focus:border-ink"
-                />
-                <div className="mt-4 flex items-center gap-3">
-                  <Button onClick={saveDetails} disabled={pending || !detailsDirty}>
-                    Save changes
-                  </Button>
-                  <Button variant="secondary" onClick={cancelDetails} disabled={pending}>
-                    Cancel
-                  </Button>
-                  {errors.details && <span className="text-[13px] text-brand">{errors.details}</span>}
-                </div>
-              </Card>
-
+                <Card className="p-5">
+                  <h2 className="text-[16px] font-semibold">{tr('page_details')}</h2>
+                  <label className="mt-4 block text-[13px] font-medium text-muted" htmlFor="bio-name">
+                    {tr('display_name')}
+                  </label>
+                  <input
+                    id="bio-name"
+                    value={details.displayName}
+                    maxLength={NAME_MAX}
+                    onChange={(e) => setDetails({ ...details, displayName: e.target.value })}
+                    className={cx(inputClass, 'mt-1.5')}
+                  />
+                  <div className="mt-4 flex items-center justify-between text-[13px] font-medium text-muted">
+                    <label htmlFor="bio-text">{tr('bio')}</label>
+                    <span className={details.bio.length >= BIO_MAX ? 'text-brand' : 'text-subtle'}>
+                      {details.bio.length}/{BIO_MAX}
+                    </span>
+                  </div>
+                  <textarea
+                    id="bio-text"
+                    value={details.bio}
+                    maxLength={BIO_MAX}
+                    rows={3}
+                    onChange={(e) => setDetails({ ...details, bio: e.target.value })}
+                    className="mt-1.5 w-full resize-none rounded-xl border border-line bg-white px-3 py-2 text-[14.5px] outline-none focus:border-ink"
+                  />
+                  <div className="mt-4 flex items-center gap-3">
+                    <Button onClick={saveDetails} disabled={pending || !detailsDirty}>
+                      {tr('save_changes')}
+                    </Button>
+                    <Button variant="secondary" onClick={cancelDetails} disabled={pending}>
+                      {tr('cancel')}
+                    </Button>
+                    {errors.details && <span className="text-[13px] text-brand">{translateError(errors.details)}</span>}
+                  </div>
+                </Card>
               ) : (
                 <Card className="flex items-center gap-3 p-4">
                   <div className="grid size-10 shrink-0 place-items-center rounded-full bg-sand text-[15px] font-semibold">
@@ -286,30 +291,30 @@ export function BioEditor({
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[15px] font-semibold">{saved.displayName}</div>
                     <div className="truncate text-[13px] text-subtle">
-                      @{slug} · {BIO_THEMES[saved.theme as keyof typeof BIO_THEMES]?.label.toLowerCase() ?? saved.theme} theme
+                      @{slug} · {BIO_THEMES[saved.theme as keyof typeof BIO_THEMES]?.label.toLowerCase() ?? saved.theme} {tr('theme')}{' '}
                     </div>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => setEditingDetails(true)}>
-                    <Pencil className="size-3.5" /> Edit
+                    <Pencil className="size-3.5" /> {tr('edit')}{' '}
                   </Button>
                 </Card>
               )}
 
               <Card className="p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-[16px] font-semibold">Blocks</h2>
+                  <h2 className="text-[16px] font-semibold">{tr('blocks')}</h2>
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => addBlock('link')}>
-                      <Plus className="size-3.5" /> Link
+                      <Plus className="size-3.5" /> {tr('link')}{' '}
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => addBlock('header')}>
-                      <Heading className="size-3.5" /> Header
+                      <Heading className="size-3.5" /> {tr('header')}{' '}
                     </Button>
                   </div>
                 </div>
                 {blocks.length === 0 && drafts.length === 0 ? (
                   <p className="mt-4 rounded-xl bg-sand px-4 py-6 text-center text-[14px] text-muted">
-                    No blocks yet. Add a link to get started.
+                    {tr('no_blocks_yet_add_a_link_to_get_started')}
                   </p>
                 ) : (
                   <ul className="mt-4 flex flex-col gap-3">
@@ -320,17 +325,29 @@ export function BioEditor({
                         <li key={block.id} className={cx('rounded-2xl border border-line p-3.5', block.hidden && 'bg-sand/60')}>
                           <div className="flex items-start gap-3">
                             <div className="flex flex-col gap-0.5">
-                              <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => move(index, 'up')} className="grid size-7 place-items-center rounded-lg text-muted hover:bg-sand disabled:opacity-30">
+                              <button
+                                type="button"
+                                aria-label={tr('move_up')}
+                                disabled={index === 0}
+                                onClick={() => move(index, 'up')}
+                                className="grid size-7 place-items-center rounded-lg text-muted hover:bg-sand disabled:opacity-30"
+                              >
                                 <ArrowUp className="size-4" />
                               </button>
-                              <button type="button" aria-label="Move down" disabled={index === blocks.length - 1} onClick={() => move(index, 'down')} className="grid size-7 place-items-center rounded-lg text-muted hover:bg-sand disabled:opacity-30">
+                              <button
+                                type="button"
+                                aria-label={tr('move_down')}
+                                disabled={index === blocks.length - 1}
+                                onClick={() => move(index, 'down')}
+                                className="grid size-7 place-items-center rounded-lg text-muted hover:bg-sand disabled:opacity-30"
+                              >
                                 <ArrowDown className="size-4" />
                               </button>
                             </div>
                             <div className="flex min-w-0 flex-1 flex-col gap-2">
                               <input
-                                aria-label={block.type === 'link' ? 'Link title' : 'Header text'}
-                                placeholder={block.type === 'link' ? 'Link title' : 'Header text'}
+                                aria-label={block.type === 'link' ? tr('link_title') : tr('header_text')}
+                                placeholder={block.type === 'link' ? tr('link_title') : tr('header_text')}
                                 value={block.label}
                                 maxLength={LABEL_MAX}
                                 onChange={(e) => patchBlock(block.id, { label: e.target.value })}
@@ -338,33 +355,53 @@ export function BioEditor({
                               />
                               {block.type === 'link' && (
                                 <input
-                                  aria-label="Link URL"
-                                  placeholder="https://example.com"
+                                  aria-label={tr('link_url')}
+                                  placeholder={tr('https_example_com')}
                                   inputMode="url"
                                   value={block.url ?? ''}
                                   onChange={(e) => patchBlock(block.id, { url: e.target.value })}
                                   className={inputClass}
                                 />
                               )}
-                              {errors[block.id] && <p className="text-[12.5px] text-brand">{errors[block.id]}</p>}
+                              {errors[block.id] && <p className="text-[12.5px] text-brand">{translateError(errors[block.id])}</p>}
                               {dirty && (
                                 <div>
                                   <Button size="sm" onClick={() => saveBlock(block)} disabled={pending}>
-                                    Save {block.type}
+                                    {tr('save', { v0: block.type })}
                                   </Button>
                                 </div>
                               )}
                             </div>
                             <div className="flex flex-col gap-0.5">
                               {block.type === 'link' && (
-                                <button type="button" aria-label="Link insights" aria-pressed={insightsFor === block.id} onClick={() => setInsightsFor(insightsFor === block.id ? null : block.id)} className={cx('grid size-8 place-items-center rounded-lg text-muted hover:bg-sand', insightsFor === block.id && 'bg-sand text-ink')}>
+                                <button
+                                  type="button"
+                                  aria-label={tr('link_insights')}
+                                  aria-pressed={insightsFor === block.id}
+                                  onClick={() => setInsightsFor(insightsFor === block.id ? null : block.id)}
+                                  className={cx(
+                                    'grid size-8 place-items-center rounded-lg text-muted hover:bg-sand',
+                                    insightsFor === block.id && 'bg-sand text-ink',
+                                  )}
+                                >
                                   <BarChart3 className="size-4" />
                                 </button>
                               )}
-                              <button type="button" aria-label={block.hidden ? 'Show on page' : 'Hide from page'} aria-pressed={block.hidden} onClick={() => toggle(block)} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-sand">
+                              <button
+                                type="button"
+                                aria-label={block.hidden ? tr('show_on_page') : tr('hide_from_page')}
+                                aria-pressed={block.hidden}
+                                onClick={() => toggle(block)}
+                                className="grid size-8 place-items-center rounded-lg text-muted hover:bg-sand"
+                              >
                                 {block.hidden ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                               </button>
-                              <button type="button" aria-label="Delete block" onClick={() => remove(block)} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-brand-tint hover:text-brand">
+                              <button
+                                type="button"
+                                aria-label={tr('delete_block')}
+                                onClick={() => remove(block)}
+                                className="grid size-8 place-items-center rounded-lg text-muted hover:bg-brand-tint hover:text-brand"
+                              >
                                 <Trash2 className="size-4" />
                               </button>
                             </div>
@@ -378,8 +415,8 @@ export function BioEditor({
                         <div className="flex items-start gap-3">
                           <div className="flex min-w-0 flex-1 flex-col gap-2">
                             <input
-                              aria-label={draft.type === 'link' ? 'Link title' : 'Header text'}
-                              placeholder={draft.type === 'link' ? 'Link title' : 'Header text'}
+                              aria-label={draft.type === 'link' ? tr('link_title') : tr('header_text')}
+                              placeholder={draft.type === 'link' ? tr('link_title') : tr('header_text')}
                               value={draft.label}
                               maxLength={LABEL_MAX}
                               onChange={(e) => patchDraft(draft.id, { label: e.target.value })}
@@ -387,22 +424,31 @@ export function BioEditor({
                             />
                             {draft.type === 'link' && (
                               <input
-                                aria-label="Link URL"
-                                placeholder="https://example.com"
+                                aria-label={tr('link_url')}
+                                placeholder={tr('https_example_com')}
                                 inputMode="url"
                                 value={draft.url ?? ''}
                                 onChange={(e) => patchDraft(draft.id, { url: e.target.value })}
                                 className={inputClass}
                               />
                             )}
-                            {errors[draft.id] && <p className="text-[12.5px] text-brand">{errors[draft.id]}</p>}
+                            {errors[draft.id] && <p className="text-[12.5px] text-brand">{translateError(errors[draft.id])}</p>}
                             <div>
-                              <Button size="sm" onClick={() => saveDraft(draft)} disabled={pending || (!draft.label.trim() && !(draft.url ?? '').trim())}>
-                                Save {draft.type}
+                              <Button
+                                size="sm"
+                                onClick={() => saveDraft(draft)}
+                                disabled={pending || (!draft.label.trim() && !(draft.url ?? '').trim())}
+                              >
+                                {tr('save', { v0: draft.type })}
                               </Button>
                             </div>
                           </div>
-                          <button type="button" aria-label="Discard draft" onClick={() => setDrafts((current) => current.filter((b) => b.id !== draft.id))} className="grid size-8 place-items-center rounded-lg text-muted hover:bg-brand-tint hover:text-brand">
+                          <button
+                            type="button"
+                            aria-label={tr('discard_draft')}
+                            onClick={() => setDrafts((current) => current.filter((b) => b.id !== draft.id))}
+                            className="grid size-8 place-items-center rounded-lg text-muted hover:bg-brand-tint hover:text-brand"
+                          >
                             <Trash2 className="size-4" />
                           </button>
                         </div>
@@ -414,9 +460,9 @@ export function BioEditor({
             </div>
           ) : (
             <Card className="mt-5 p-5">
-              <h2 className="text-[16px] font-semibold">Theme</h2>
-              <p className="mt-1 text-[13.5px] text-muted">Pick a look. The preview updates right away; it goes live when you save.</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Theme">
+              <h2 className="text-[16px] font-semibold">{tr('theme_2')}</h2>
+              <p className="mt-1 text-[13.5px] text-muted">{tr('pick_a_look_the_preview_updates_right_away_it_goes_live')}</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label={tr('theme_2')}>
                 {THEME_IDS.map((id) => {
                   const theme = BIO_THEMES[id]
                   const active = details.theme === id
@@ -427,28 +473,40 @@ export function BioEditor({
                       role="radio"
                       aria-checked={active}
                       onClick={() => setDetails({ ...details, theme: id })}
-                      className={cx('rounded-2xl border-2 p-2.5 text-left transition-colors', active ? 'border-ink' : 'border-line hover:border-faint')}
+                      className={cx(
+                        'rounded-2xl border-2 p-2.5 text-left transition-colors',
+                        active ? 'border-ink' : 'border-line hover:border-faint',
+                      )}
                     >
-                      <div style={{ background: theme.vars['--bio-bg'] }} className="flex h-28 flex-col items-center justify-center gap-1.5 rounded-xl px-4">
+                      <div
+                        style={{ background: theme.vars['--bio-bg'] }}
+                        className="flex h-28 flex-col items-center justify-center gap-1.5 rounded-xl px-4"
+                      >
                         <div style={{ background: theme.vars['--bio-avatar-bg'] }} className="size-6 rounded-full" />
-                        <div style={{ background: theme.vars['--bio-card-bg'], border: `1px solid ${theme.vars['--bio-card-border']}` }} className="h-5 w-full rounded-lg" />
-                        <div style={{ background: theme.vars['--bio-card-bg'], border: `1px solid ${theme.vars['--bio-card-border']}` }} className="h-5 w-full rounded-lg" />
+                        <div
+                          style={{ background: theme.vars['--bio-card-bg'], border: `1px solid ${theme.vars['--bio-card-border']}` }}
+                          className="h-5 w-full rounded-lg"
+                        />
+                        <div
+                          style={{ background: theme.vars['--bio-card-bg'], border: `1px solid ${theme.vars['--bio-card-border']}` }}
+                          className="h-5 w-full rounded-lg"
+                        />
                       </div>
                       <div className="mt-2.5 flex items-center justify-between px-1">
-                        <span className="text-[14px] font-semibold">{theme.label}</span>
+                        <span className="text-[14px] font-semibold">{tr(`theme_${id}`)}</span>
                         {active && <Check className="size-4" />}
                       </div>
-                      <p className="px-1 text-[12px] text-subtle">{theme.blurb}</p>
+                      <p className="px-1 text-[12px] text-subtle">{tr(`theme_${id}Description`)}</p>
                     </button>
                   )
                 })}
               </div>
               <div className="mt-5 flex items-center gap-3">
                 <Button onClick={saveDetails} disabled={pending || !detailsDirty}>
-                  Save
+                  {tr('save_2')}
                 </Button>
-                {errors.details && <span className="text-[13px] text-brand">{errors.details}</span>}
-                {!errors.details && !detailsDirty && <span className="text-[13px] text-subtle">All changes saved</span>}
+                {errors.details && <span className="text-[13px] text-brand">{translateError(errors.details)}</span>}
+                {!errors.details && !detailsDirty && <span className="text-[13px] text-subtle">{tr('all_changes_saved')}</span>}
               </div>
             </Card>
           )}

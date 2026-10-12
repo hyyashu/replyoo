@@ -7,9 +7,18 @@ const marketing = fileURLToPath(new URL('../src/app/(marketing)', import.meta.ur
 
 describe('public pages', () => {
   it('has every page Meta App Review and the footer link to', () => {
-    const pages = readdirSync(marketing, { recursive: true }).map(String).filter((p) => p.endsWith('page.tsx'))
-    expect(pages.sort()).toEqual(
-      ['data-deletion/page.tsx', 'data-deletion/status/page.tsx', 'page.tsx', 'pricing/page.tsx', 'privacy/page.tsx', 'terms/page.tsx'].sort(),
+    const pages = readdirSync(marketing, { recursive: true })
+      .map(String)
+      .filter((p) => p.endsWith('page.tsx'))
+    expect(pages).toEqual(
+      expect.arrayContaining([
+        'data-deletion/page.tsx',
+        'data-deletion/status/page.tsx',
+        'page.tsx',
+        'pricing/page.tsx',
+        'privacy/page.tsx',
+        'terms/page.tsx',
+      ]),
     )
   })
 

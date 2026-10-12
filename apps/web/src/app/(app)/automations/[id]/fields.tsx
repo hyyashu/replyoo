@@ -1,5 +1,8 @@
 'use client'
 
+import { useDashboardError } from '@/i18n/use-errors'
+import { useTranslations } from 'next-intl'
+
 import { Braces } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Keyword, cx } from '@/components/ui'
@@ -89,6 +92,8 @@ export function MessageInput({
   /** Which variables the Variables menu offers. */
   variables?: typeof VARIABLES
 }) {
+  const tr = useTranslations('automations')
+  const translateError = useDashboardError()
   const ref = useRef<HTMLTextAreaElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menu, setMenu] = useState(false)
@@ -127,14 +132,14 @@ export function MessageInput({
         value={value}
         rows={rows}
         aria-label={label}
-        placeholder={placeholder}
+        placeholder={placeholder ?? tr('add_keyword')}
         onChange={(e) => onChange(e.target.value)}
         className="block w-full resize-none rounded-t-xl bg-transparent px-3.5 pt-3 pb-1 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
       />
       {problems.length > 0 && (
         <ul role="alert" className="space-y-0.5 px-3.5 pb-2 text-[12.5px] text-brand">
           {problems.map((problem) => (
-            <li key={problem}>{problem}</li>
+            <li key={translateError(problem)}>{translateError(problem)}</li>
           ))}
         </ul>
       )}
@@ -150,7 +155,7 @@ export function MessageInput({
             onClick={() => setMenu(!menu)}
             className="inline-flex items-center gap-1 font-mono text-[11px] text-subtle hover:text-ink"
           >
-            <Braces className="size-3.5" /> Variables
+            <Braces className="size-3.5" /> {tr('variables')}{' '}
           </button>
           {menu && (
             <div className="absolute right-0 bottom-full z-20 mb-1 w-44 rounded-xl border border-line bg-white p-1 shadow-[0_12px_32px_rgba(21,19,16,0.12)]">
@@ -161,7 +166,7 @@ export function MessageInput({
                   onClick={() => insert(v.token)}
                   className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[13px] hover:bg-sand"
                 >
-                  {v.label}
+                  {tr(`variable_${v.token.includes('first_name') ? 'first_name' : v.token.replace(/[{}]/g, '')}`)}
                   <span className="font-mono text-[10.5px] text-subtle">{v.token.replace('|there', '')}</span>
                 </button>
               ))}
@@ -176,7 +181,7 @@ export function MessageInput({
 export function KeywordInput({
   value,
   onChange,
-  placeholder = 'Add keyword…',
+  placeholder,
   max = KEYWORD_LIMITS.max,
   maxLength = KEYWORD_LIMITS.maxLength,
   label,
@@ -193,6 +198,8 @@ export function KeywordInput({
   /** Keywords that are matched against messages: say that capitalisation doesn't matter. */
   ignoresCase?: boolean
 }) {
+  const tr = useTranslations('automations')
+  
   const [draft, setDraft] = useState('')
   const [dropped, setDropped] = useState(0)
 
@@ -210,6 +217,7 @@ export function KeywordInput({
         {value.map((word, index) => (
           <Keyword
             key={`${index}:${word}`}
+            removeLabel={tr('remove')}
             onRemove={() => {
               setDropped(0)
               onChange(value.filter((_, i) => i !== index))
@@ -231,22 +239,18 @@ export function KeywordInput({
             }
           }}
           onBlur={commit}
-          placeholder={value.length === 0 ? placeholder : 'Add…'}
+          placeholder={value.length === 0 ? placeholder : tr('add')}
           className="min-w-[120px] flex-1 bg-transparent px-1 text-[14px] outline-none placeholder:text-faint"
         />
       </div>
       {ignoresCase && (
         <p className="mt-1.5 text-[12.5px] text-subtle">
-          Capital letters don’t matter: <span className="font-medium text-ink">LINK</span>,{' '}
-          <span className="font-medium text-ink">Link</span> and <span className="font-medium text-ink">link</span> all
-          match.
+          {tr('capital_letters_don_t_matter')} <span className="font-medium text-ink">{tr('link')}</span>,{' '}
+          <span className="font-medium text-ink">{tr('link_2')}</span> {tr('and')} <span className="font-medium text-ink">{tr('link_3')}</span>{' '}
+          {tr('all_match')}{' '}
         </p>
       )}
-      {dropped > 0 && (
-        <p className="mt-1.5 text-[12.5px] text-brand">
-          {dropped} not added (max {max})
-        </p>
-      )}
+      {dropped > 0 && <p className="mt-1.5 text-[12.5px] text-brand">{tr('not_added_max', { v0: dropped, v1: max })}</p>}
     </>
   )
 }

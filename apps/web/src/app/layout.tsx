@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from 'next/font/google'
 import { getSiteUrl } from '@/lib/site'
+import { headers } from 'next/headers'
+import { DASHBOARD_HEADER, locales } from '@/i18n/locales'
+import { getDashboardLocale } from '@/i18n/request'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -17,9 +20,10 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = (await headers()).get(DASHBOARD_HEADER) === '1' ? await getDashboardLocale() : 'en'
   return (
-    <html lang="en" className={`${inter.variable} ${bricolage.variable} ${jetbrains.variable}`}>
+    <html lang={locale} dir={locales[locale].direction} className={`${inter.variable} ${bricolage.variable} ${jetbrains.variable}`}>
       <body>{children}</body>
     </html>
   )

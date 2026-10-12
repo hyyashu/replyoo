@@ -1,12 +1,17 @@
 'use client'
 
+import { useDashboardFormatters } from '@/i18n/use-format'
+
+import { useDashboardError } from '@/i18n/use-errors'
+import { useTranslations } from 'next-intl'
+
 import { stepTargets, type Platform } from '@replyooo/shared'
 import { ArrowLeft, Check, CircleAlert, Eye, LoaderCircle, Pause, Pencil, Play, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { listPosts, listStories, publishAutomation, saveDraft, setAutomationStatus } from '@/app/actions'
-import { Button, StatusPill, cx, formatNumber, formatPercent, timeAgo } from '@/components/ui'
+import { Button, StatusPill, cx } from '@/components/ui'
 import type { RecentPost } from '@/lib/data'
 import type { Automation } from '@/lib/data/types'
 import { recipeFromFlow, type Recipe } from '@/lib/recipe'
@@ -31,15 +36,11 @@ const MAX_UNCONFIRMED = 10
 type PendingFlush = { name: string; flow: unknown; snap: string; promise: Promise<SaveResult> }
 const pendingFlushes = new Map<string, PendingFlush>()
 
-export function Editor({
-  automation,
-  platform,
-  username,
-}: {
-  automation: Automation
-  platform: Platform
-  username: string
-}) {
+export function Editor({ automation, platform, username }: { automation: Automation; platform: Platform; username: string }) {
+  const { formatNumber, formatPercent } = useDashboardFormatters()
+  const tr = useTranslations('automations')
+  const common = useTranslations('common')
+  const translateError = useDashboardError()
   const [name, setName] = useState(automation.name)
   const [recipe, setRecipe] = useState<Recipe>(() => recipeFromFlow(automation.flow))
   const [status, setStatus] = useState(automation.status)
@@ -309,11 +310,11 @@ export function Editor({
   }
 
   const progressSteps: { id: RecipeSection; label: string; ready: boolean }[] = [
-    { id: 'trigger', label: 'Trigger', ready: sectionIssues('trigger').length === 0 },
+    { id: 'trigger', label: tr('trigger'), ready: sectionIssues('trigger').length === 0 },
     ...(recipe.trigger.type === 'comment_keyword'
-      ? [{ id: 'publicReply' as const, label: 'Public reply', ready: sectionIssues('publicReply').length === 0 }]
+      ? [{ id: 'publicReply' as const, label: tr('public_reply_2'), ready: sectionIssues('publicReply').length === 0 }]
       : []),
-    ...(recipe.trigger.type === 'ice_breaker' ? [] : [{ id: 'dm' as const, label: 'DM', ready: sectionIssues('dm').length === 0 }]),
+    ...(recipe.trigger.type === 'ice_breaker' ? [] : [{ id: 'dm' as const, label: tr('dm'), ready: sectionIssues('dm').length === 0 }]),
   ]
   const isIceBreaker = recipe.trigger.type === 'ice_breaker'
   const hasPublicReply = recipe.trigger.type === 'comment_keyword'
@@ -324,7 +325,7 @@ export function Editor({
         ? recipe.trigger.stories.mediaIds[0]
         : undefined
   const previewMedia = chosenId ? media[chosenId] : undefined
-  const previewTabs = previewModes(recipe.trigger)
+  const previewTabs = previewModes(recipe.trigger).map((tab) => ({ ...tab, label: tr(`preview_${tab.value}`) }))
   const previewMode = previewTabs.some((tab) => tab.value === preview) ? preview : 'dm'
   const stepCount = Object.keys(flow.steps).length
   const branchCount = Object.values(flow.steps).filter((step) => new Set(stepTargets(step)).size > 1).length
@@ -334,14 +335,14 @@ export function Editor({
   const previewPanel = (
     <>
       <div className="flex items-center justify-between">
-        <h2 className="text-[15px] font-semibold">Live preview</h2>
+        <h2 className="text-[15px] font-semibold">{tr('live_preview')}</h2>
         {previewTabs.length > 1 && <Segmented value={previewMode} onChange={setPreview} options={previewTabs} />}
       </div>
       <div className="mt-6">
         <PhonePreview recipe={recipe} mode={previewMode} username={username} media={previewMedia} />
       </div>
       <p className="mx-auto mt-5 max-w-[290px] text-center text-[12.5px] leading-relaxed text-subtle">
-        This is what @sam.eats sees. Variables like {'{{first_name}}'} fill in automatically.
+        {tr('this_is_what_sam_eats_sees_variables_like_fill_in_automatically', { v0: '{{first_name}}' })}
       </p>
     </>
   )
@@ -352,30 +353,30 @@ export function Editor({
         <Link
           href="/automations"
           onClick={goBack}
-          aria-label="Back to automations"
+          aria-label={tr('back_to_automations')}
           className="grid size-9 shrink-0 place-items-center rounded-xl border border-line hover:bg-sand sm:size-10"
         >
           <ArrowLeft className="size-4" />
         </Link>
         <div className="min-w-0 flex-1 sm:flex-none">
-          <div className="hidden text-[12.5px] text-subtle sm:block">Automations</div>
+          <div className="hidden text-[12.5px] text-subtle sm:block">{tr('automations')}</div>
           {/* On phones the row is one line tall and clipped: if the name can't get ~9 characters it wraps out of view. */}
           <div className="flex h-7 flex-wrap items-center gap-2.5 overflow-hidden sm:h-auto sm:overflow-visible">
             <label className="group flex min-w-0 flex-[1_1_9ch] items-center gap-1.5 sm:flex-none">
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                aria-label="Automation name"
+                aria-label={tr('automation_name')}
                 className="field-sizing-content w-full min-w-0 max-w-full truncate sm:w-auto rounded-md bg-transparent font-display text-[17px] sm:min-w-[8ch] sm:max-w-[420px] sm:text-[20px] font-bold tracking-[-0.03em] outline-none focus:bg-sand"
               />
               <Pencil className="size-3.5 shrink-0 text-faint group-hover:text-muted" />
             </label>
             <span className="hidden sm:inline-flex">
-              <StatusPill status={status} />
+              <StatusPill label={common(`status_${status}`)} status={status} />
             </span>
           </div>
           <div className="mt-0.5 flex items-center gap-2 sm:hidden">
-            <StatusPill status={status} />
+            <StatusPill label={common(`status_${status}`)} status={status} />
             <SaveIndicator state={save} conflict={conflict} onRetry={() => setSaveAttempt((n) => n + 1)} />
           </div>
         </div>
@@ -388,42 +389,42 @@ export function Editor({
             variant="secondary"
             className="min-[1180px]:hidden"
             aria-haspopup="dialog"
-            aria-label="Preview"
+            aria-label={tr('preview')}
             onClick={() => setPreviewOpen(true)}
           >
-            <Eye className="size-4" /> <span className="hidden sm:inline">Preview</span>
+            <Eye className="size-4" /> <span className="hidden sm:inline">{tr('preview')}</span>
           </Button>
           {status !== 'draft' && (
             <Button
               variant="secondary"
-              aria-label={status === 'active' ? 'Pause' : 'Resume'}
+              aria-label={status === 'active' ? tr('pause') : tr('resume')}
               onClick={toggleLive}
               disabled={publishing || statusPending}
             >
               {status === 'active' ? <Pause className="size-4" /> : <Play className="size-4" />}
-              <span className="hidden sm:inline">{status === 'active' ? 'Pause' : 'Resume'}</span>
+              <span className="hidden sm:inline">{status === 'active' ? tr('pause') : tr('resume')}</span>
             </Button>
           )}
           <Button
             className="justify-center sm:min-w-[168px]"
             onClick={publish}
             disabled={!canPublish}
-            title={issues.length ? 'Fix the issues below first' : undefined}
+            title={issues.length ? tr('fix_the_issues_below_first') : undefined}
           >
             {publishing ? (
               <LoaderCircle className="size-4 animate-spin" />
             ) : published ? (
               <>
-                Published <Check className="size-4" />
+                {tr('published')} <Check className="size-4" />
               </>
             ) : status === 'draft' ? (
               <>
-                Publish <Check className="size-4" />
+                {tr('publish')} <Check className="size-4" />
               </>
             ) : (
               <>
-                <span className="sm:hidden">Publish</span>
-                <span className="hidden sm:inline">Publish changes</span> <Check className="size-4" />
+                <span className="sm:hidden">{tr('publish')}</span>
+                <span className="hidden sm:inline">{tr('publish_changes')}</span> <Check className="size-4" />
               </>
             )}
           </Button>
@@ -435,18 +436,25 @@ export function Editor({
           {publishErrors.length > 0 && (
             <div className="rounded-2xl border border-[#ffb59a] bg-brand-tint px-5 py-3.5 text-[13.5px] text-[#a12b0b]">
               <div className="flex items-center gap-2 font-semibold">
-                <CircleAlert className="size-4" /> Couldn’t publish
+                <CircleAlert className="size-4" /> {tr('couldn_t_publish')}{' '}
               </div>
               <ul className="mt-1 list-disc pl-6">
                 {publishErrors.map((error) => (
-                  <li key={error}>{error}</li>
+                  <li key={translateError(error)}>{translateError(error)}</li>
                 ))}
               </ul>
             </div>
           )}
 
           <Accordion>
-            <TriggerSection recipe={recipe} update={update} platform={platform} accountId={automation.accountId} onMedia={rememberMedia} issues={sectionIssues} />
+            <TriggerSection
+              recipe={recipe}
+              update={update}
+              platform={platform}
+              accountId={automation.accountId}
+              onMedia={rememberMedia}
+              issues={sectionIssues}
+            />
             <PublicReplySection recipe={recipe} update={update} issues={sectionIssues} />
             <DmSection index={hasPublicReply ? 3 : 2} recipe={recipe} update={update} issues={sectionIssues} />
             <BoostersSection index={hasPublicReply ? 4 : 3} recipe={recipe} update={update} platform={platform} issues={sectionIssues} />
@@ -455,20 +463,20 @@ export function Editor({
               {status === 'draft' || unpublished ? (
                 <>
                   <span className={cx('eyebrow', issues.length ? 'text-[#ffb59a]' : 'text-lime')}>
-                    {issues.length ? 'Needs attention' : 'Ready to publish'}
+                    {issues.length ? tr('needs_attention') : tr('ready_to_publish')}
                   </span>
                   <ProgressCue steps={progressSteps} />
-                  <Metric value={stepCount} label={stepCount === 1 ? 'step' : 'steps'} />
-                  {!isIceBreaker && <Metric value={branchCount} label={branchCount === 1 ? 'branch' : 'branches'} />}
-                  <Metric value={issues.length} label={issues.length === 1 ? 'issue' : 'issues'} />
+                  <Metric value={tr('metricSteps', { count: stepCount })} label="" />
+                  {!isIceBreaker && <Metric value={tr('metricBranches', { count: branchCount })} label="" />}
+                  <Metric value={tr('metricIssues', { count: issues.length })} label="" />
                 </>
               ) : (
                 <>
-                  <span className="eyebrow text-lime">Last 30 days</span>
-                  <Metric value={formatNumber(stats.dmsSent)} label="DMs sent" />
-                  <Metric value={formatNumber(stats.runs)} label="runs" />
-                  <Metric value={stats.runs ? formatPercent(stats.completed / stats.runs) : '—'} label="completed" />
-                  <Metric value={formatNumber(stats.leads)} label="leads" />
+                  <span className="eyebrow text-lime">{tr('last_30_days')}</span>
+                  <Metric value={formatNumber(stats.dmsSent)} label={tr('dms_sent')} />
+                  <Metric value={formatNumber(stats.runs)} label={tr('runs')} />
+                  <Metric value={stats.runs ? formatPercent(stats.completed / stats.runs) : '—'} label={tr('completed')} />
+                  <Metric value={formatNumber(stats.leads)} label={tr('leads')} />
                 </>
               )}
             </div>
@@ -481,12 +489,12 @@ export function Editor({
       </div>
 
       {previewOpen && (
-        <div className="fixed inset-0 z-40 flex justify-end min-[1180px]:hidden" role="dialog" aria-modal="true" aria-label="Live preview">
+        <div className="fixed inset-0 z-40 flex justify-end min-[1180px]:hidden" role="dialog" aria-modal="true" aria-label={tr('live_preview')}>
           <div className="absolute inset-0 bg-ink/40" onClick={() => setPreviewOpen(false)} />
           <div className="relative h-full w-[440px] max-w-full overflow-y-auto bg-sand px-6 py-6">
             <button
               type="button"
-              aria-label="Close preview"
+              aria-label={tr('close_preview')}
               onClick={() => setPreviewOpen(false)}
               className="absolute top-4 right-4 grid size-8 place-items-center rounded-lg text-muted hover:bg-white"
             >
@@ -510,6 +518,10 @@ function Metric({ value, label }: { value: number | string; label: string }) {
 }
 
 function SaveIndicator({ state, conflict, onRetry }: { state: SaveState; conflict: boolean; onRetry: () => void }) {
+  const { timeAgo } = useDashboardFormatters()
+  const tr = useTranslations('automations')
+  
+  const translateError = useDashboardError()
   const [, rerender] = useState(0)
   useEffect(() => {
     const timer = setInterval(() => rerender((n) => n + 1), 30_000)
@@ -519,23 +531,23 @@ function SaveIndicator({ state, conflict, onRetry }: { state: SaveState; conflic
   if (conflict) {
     return (
       <span className="flex items-center gap-2 text-[13px] text-brand">
-        Not saved. Changed in another tab.
+        {tr('not_saved_changed_in_another_tab')}{' '}
         <button type="button" onClick={() => location.reload()} className="font-semibold underline">
-          Reload
+          {tr('reload')}
         </button>
       </span>
     )
   }
-  if (state.kind === 'saving') return <span className="text-[13px] text-subtle">Saving…</span>
+  if (state.kind === 'saving') return <span className="text-[13px] text-subtle">{tr('saving')}</span>
   if (state.kind === 'error') {
     return (
       <span className="flex items-center gap-2 text-[13px] text-brand">
-        Not saved. {state.message}
+        {tr('not_saved')} {translateError(state.message)}
         <button type="button" onClick={onRetry} className="font-semibold underline">
-          Retry
+          {tr('retry')}
         </button>
       </span>
     )
   }
-  return <span className="text-[13px] text-subtle">Saved {timeAgo(state.at)}</span>
+  return <span className="text-[13px] text-subtle">{tr('saved', { v0: timeAgo(state.at) })}</span>
 }
