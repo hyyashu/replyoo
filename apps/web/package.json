@@ -8,7 +8,8 @@
     "start": "next start",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
-    "db:seed": "tsx --env-file=.env.local --conditions=react-server scripts/seed-demo.ts"
+    "db:seed": "tsx --env-file=.env.local --conditions=react-server scripts/seed-demo.ts",
+    "translations:check": "tsx scripts/check-translations.ts"
   },
   "dependencies": {
     "@replyooo/db": "workspace:*",
@@ -20,12 +21,14 @@
     "drizzle-orm": "^0.45.3",
     "lucide-react": "^1.52.0",
     "next": "^16.3.8",
+    "next-intl": "^4.14.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "server-only": "^0.0.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@formatjs/icu-messageformat-parser": "^3.5.21",
     "@tailwindcss/postcss": "^4.3.3",
     "@testcontainers/postgresql": "^12.2.0",
     "@types/node": "^26.6.4",

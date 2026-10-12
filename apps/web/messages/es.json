@@ -1,0 +1,14 @@
+{
+  "common": {
+    "language": "Idioma",
+    "languageDescription": "Elige el idioma que usas en Replyooo. Solo cambia tu panel.",
+    "saveFailed": "No se pudo guardar el idioma. Inténtalo de nuevo.",
+    "invalidLocale": "Elige un idioma disponible.",
+    "daysLeft": "{count, plural, one {Queda # día} other {Quedan # días}}",
+    "genericError": "Algo salió mal. Inténtalo de nuevo.",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "working": "Procesando…"
+  }
+}

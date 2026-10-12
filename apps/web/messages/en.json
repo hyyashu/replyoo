@@ -1,0 +1,14 @@
+{
+  "common": {
+    "language": "Language",
+    "languageDescription": "Choose the language you use in Replyooo. This only changes your dashboard.",
+    "saveFailed": "Could not save your language. Try again.",
+    "invalidLocale": "Choose a supported language.",
+    "daysLeft": "{count, plural, one {# day left} other {# days left}}",
+    "genericError": "Something went wrong. Try again.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "working": "Working…"
+  }
+}

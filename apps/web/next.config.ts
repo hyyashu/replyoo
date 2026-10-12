@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import createNextIntlPlugin from 'next-intl/plugin'
 
 const config: NextConfig = {
   transpilePackages: ['@replyooo/shared', '@replyooo/engine', '@replyooo/db', '@replyooo/meta', '@replyooo/email'],
@@ -6,4 +7,4 @@ const config: NextConfig = {
   serverExternalPackages: ['nodemailer'],
 }
 
-export default config
+export default createNextIntlPlugin('./src/i18n/request.ts')(config)
