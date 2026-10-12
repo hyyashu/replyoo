@@ -1,5 +1,17 @@
 import 'server-only'
-import { type Tx, automationVersions, automations, connectedAccounts, contacts, flowRuns, linkStatsByAutomation, messages } from '@replyooo/db'
+import {
+  type LinkInsight,
+  type Tx,
+  automationLinkDaily,
+  automationLinkInsights,
+  automationVersions,
+  automations,
+  connectedAccounts,
+  contacts,
+  flowRuns,
+  linkStatsByAutomation,
+  messages,
+} from '@replyooo/db'
 import { MetaError } from '@replyooo/meta'
 import { FlowDefinitionSchema, getTemplate, validateFlow, type DraftFlow, type FlowDefinition } from '@replyooo/shared'
 import { and, eq, gte, inArray, max, ne, or, type SQL, sql } from 'drizzle-orm'
@@ -141,6 +153,27 @@ export async function getAutomation(workspaceId: string, id: string, now = new D
   if (!row) return null
   const stats = await automationStats([row.id], statsSince(now))
   return toAutomation(row, stats.get(row.id))
+}
+
+async function ownsAutomation(workspaceId: string, id: string): Promise<boolean> {
+  if (!isUuid(id)) return false
+  const [row] = await db()
+    .select({ id: automations.id })
+    .from(automations)
+    .where(and(eq(automations.workspaceId, workspaceId), eq(automations.id, id)))
+  return Boolean(row)
+}
+
+/** Per-destination link numbers for the last 30 days; null when the automation isn't in this workspace. */
+export async function linkInsights(workspaceId: string, id: string, now = new Date()): Promise<LinkInsight[] | null> {
+  if (!(await ownsAutomation(workspaceId, id))) return null
+  return automationLinkInsights(db(), id, statsSince(now))
+}
+
+/** Clicks per day on one destination over the last 14 days; null when the automation isn't in this workspace. */
+export async function linkDaily(workspaceId: string, id: string, url: string): Promise<{ day: string; clicks: number }[] | null> {
+  if (!(await ownsAutomation(workspaceId, id))) return null
+  return automationLinkDaily(db(), id, url, 14)
 }
 
 export async function createAutomation(

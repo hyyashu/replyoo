@@ -13,6 +13,7 @@ import type { Automation } from '@/lib/data/types'
 import { recipeFromFlow, type Recipe } from '@/lib/recipe'
 import { checkRecipe, type RecipeSection } from '@/lib/validation'
 import { Segmented } from './fields'
+import { LinkInsights } from './link-insights'
 import { PhonePreview, previewModes, type PreviewMode } from '@/components/phone-preview'
 import { Accordion, BoostersSection, DmSection, ProgressCue, PublicReplySection, TriggerSection, type Update } from './sections'
 
@@ -476,6 +477,7 @@ export function Editor({
               )}
             </div>
           </Accordion>
+          {status !== 'draft' && stats.recipients > 0 && <LinkInsights automationId={automation.id} />}
         </div>
 
         <aside className="hidden border-line bg-sand min-[1180px]:block min-[1180px]:border-l">

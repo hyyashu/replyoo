@@ -35,6 +35,18 @@ export async function switchWorkspace(workspaceId: string) {
   redirect('/home')
 }
 
+export async function getLinkInsights(automationId: string) {
+  const { workspaceId } = await requireWorkspace()
+  const links = await data.linkInsights(workspaceId, automationId)
+  return links ? ({ ok: true, links } as const) : ({ ok: false, error: 'Automation not found' } as const)
+}
+
+export async function getLinkDaily(automationId: string, url: string) {
+  const { workspaceId } = await requireWorkspace()
+  const days = await data.linkDaily(workspaceId, automationId, url)
+  return days ? ({ ok: true, days } as const) : ({ ok: false, error: 'Automation not found' } as const)
+}
+
 export async function createAutomation(templateKey: string | null) {
   const { workspace, account } = await getCurrentAccount()
   const automation = await data.createAutomation(workspace.workspaceId, account.id, templateKey)
