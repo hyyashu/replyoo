@@ -1,6 +1,7 @@
 'use client'
 
-import { useTranslations } from 'next-intl'
+import { createTranslator } from 'next-intl'
+import englishMessages from '../../messages/preview-en.json'
 
 import { renderText, type ContactState } from '@replyooo/engine'
 import { useState } from 'react'
@@ -9,6 +10,9 @@ import { Avatar, cx } from '@/components/ui'
 import type { RecentPost } from '@/lib/data'
 import type { Recipe, RecipeTrigger } from '@/lib/recipe'
 import { openerRequired } from '@/lib/recipe'
+
+const englishTranslator = createTranslator({ locale: 'en', messages: englishMessages })
+const defaultTranslate: PreviewTranslate = (key, values) => englishTranslator(key as keyof typeof englishMessages, values)
 
 const SAMPLE: ContactState = { username: 'sam.eats', name: 'Sam Rivera', email: null, phone: null, tags: [], fields: {} }
 
@@ -117,7 +121,9 @@ export function PhonePreview({
   mode,
   username,
   media,
+  translate = defaultTranslate,
 }: {
+  translate?: PreviewTranslate
   recipe: Recipe
   mode: PreviewMode
   username: string
@@ -136,19 +142,29 @@ export function PhonePreview({
           </span>
         </div>
         {mode === 'dm' ? (
-          <DmView recipe={recipe} starter={starter} onStarter={setStarter} />
+          <DmView translate={translate} recipe={recipe} starter={starter} onStarter={setStarter} />
         ) : mode === 'story' ? (
-          <StoryView recipe={recipe} username={username} media={media} />
+          <StoryView translate={translate} recipe={recipe} username={username} media={media} />
         ) : (
-          <CommentView recipe={recipe} username={username} media={media} view={mode === 'post' ? 'post' : 'comments'} />
+          <CommentView translate={translate} recipe={recipe} username={username} media={media} view={mode === 'post' ? 'post' : 'comments'} />
         )}
       </div>
     </div>
   )
 }
 
-function DmView({ recipe, starter, onStarter }: { recipe: Recipe; starter: number | null; onStarter: (index: number | null) => void }) {
-  const tr = useTranslations('shared')
+function DmView({
+  recipe,
+  starter,
+  onStarter,
+  translate,
+}: {
+  translate: PreviewTranslate
+  recipe: Recipe
+  starter: number | null
+  onStarter: (index: number | null) => void
+}) {
+  const tr = translate
   const starters = recipe.trigger.type === 'ice_breaker' ? recipe.trigger.items : []
   const selected = starter !== null && starter < starters.length ? starter : null
   const bubbles = conversation(recipe, selected, tr)
@@ -237,8 +253,8 @@ function DmView({ recipe, starter, onStarter }: { recipe: Recipe; starter: numbe
   )
 }
 
-function StoryView({ recipe, username, media }: { recipe: Recipe; username: string; media?: RecentPost }) {
-  const tr = useTranslations('shared')
+function StoryView({ recipe, username, media, translate }: { translate: PreviewTranslate; recipe: Recipe; username: string; media?: RecentPost }) {
+  const tr = translate
   const trigger = recipe.trigger
   if (trigger.type !== 'story_reply') return null
   const reply = trigger.keywords[0] ?? '🔥🔥'
@@ -271,8 +287,20 @@ function StoryView({ recipe, username, media }: { recipe: Recipe; username: stri
   )
 }
 
-function CommentView({ recipe, username, media, view }: { recipe: Recipe; username: string; media?: RecentPost; view: 'post' | 'comments' }) {
-  const tr = useTranslations('shared')
+function CommentView({
+  recipe,
+  username,
+  media,
+  view,
+  translate,
+}: {
+  translate: PreviewTranslate
+  recipe: Recipe
+  username: string
+  media?: RecentPost
+  view: 'post' | 'comments'
+}) {
+  const tr = translate
   const trigger = recipe.trigger
   if (trigger.type !== 'comment_keyword') {
     return (

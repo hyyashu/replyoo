@@ -291,7 +291,7 @@ export function BioEditor({
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[15px] font-semibold">{saved.displayName}</div>
                     <div className="truncate text-[13px] text-subtle">
-                      @{slug} · {BIO_THEMES[saved.theme as keyof typeof BIO_THEMES]?.label.toLowerCase() ?? saved.theme} {tr('theme')}{' '}
+                      @{slug} · {tr(`theme_${saved.theme}`)} {tr('theme')}{' '}
                     </div>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => setEditingDetails(true)}>
@@ -367,7 +367,7 @@ export function BioEditor({
                               {dirty && (
                                 <div>
                                   <Button size="sm" onClick={() => saveBlock(block)} disabled={pending}>
-                                    {tr('save', { v0: block.type })}
+                                    {tr('save', { v0: tr(block.type === 'link' ? 'link' : 'header') })}
                                   </Button>
                                 </div>
                               )}
@@ -439,7 +439,7 @@ export function BioEditor({
                                 onClick={() => saveDraft(draft)}
                                 disabled={pending || (!draft.label.trim() && !(draft.url ?? '').trim())}
                               >
-                                {tr('save', { v0: draft.type })}
+                                {tr('save', { v0: tr(draft.type === 'link' ? 'link' : 'header') })}
                               </Button>
                             </div>
                           </div>

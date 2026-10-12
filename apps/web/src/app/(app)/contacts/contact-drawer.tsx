@@ -91,7 +91,7 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
           </dd>
           {Object.entries(contact.fields).map(([key, value]) => (
             <div key={key} className="contents">
-              <dt className="font-mono text-[12px] text-subtle">{tr('fields', { v0: key })}</dt>
+              <dt className="font-mono text-[12px] text-subtle">fields.{key}</dt>
               <dd>{value}</dd>
             </div>
           ))}

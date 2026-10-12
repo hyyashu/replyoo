@@ -93,7 +93,9 @@ export function BillingPlans({
                   <input type="hidden" name="plan" value={plan.key} />
                   <input type="hidden" name="interval" value={switchInterval(current, yearly, shown)} />
                   <button type="submit" disabled={!canAct} className={cx(buttonClass('dark', 'sm'), 'w-full')}>
-                    {samePlanOtherInterval ? tr('switch_to', { v0: shown === 'year' ? 'yearly' : 'monthly' }) : tr('switch_to', { v0: plan.name })}
+                    {samePlanOtherInterval
+                      ? tr('switch_to', { v0: tr(shown === 'year' ? 'yearly' : 'monthly') })
+                      : tr('switch_to', { v0: plan.name })}
                   </button>
                 </form>
               )}

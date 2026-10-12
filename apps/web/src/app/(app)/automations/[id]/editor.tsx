@@ -39,6 +39,7 @@ const pendingFlushes = new Map<string, PendingFlush>()
 export function Editor({ automation, platform, username }: { automation: Automation; platform: Platform; username: string }) {
   const { formatNumber, formatPercent } = useDashboardFormatters()
   const tr = useTranslations('automations')
+  const previewTranslate = useTranslations('shared')
   const common = useTranslations('common')
   const translateError = useDashboardError()
   const [name, setName] = useState(automation.name)
@@ -339,7 +340,7 @@ export function Editor({ automation, platform, username }: { automation: Automat
         {previewTabs.length > 1 && <Segmented value={previewMode} onChange={setPreview} options={previewTabs} />}
       </div>
       <div className="mt-6">
-        <PhonePreview recipe={recipe} mode={previewMode} username={username} media={previewMedia} />
+        <PhonePreview translate={previewTranslate} recipe={recipe} mode={previewMode} username={username} media={previewMedia} />
       </div>
       <p className="mx-auto mt-5 max-w-[290px] text-center text-[12.5px] leading-relaxed text-subtle">
         {tr('this_is_what_sam_eats_sees_variables_like_fill_in_automatically', { v0: '{{first_name}}' })}
@@ -375,7 +376,7 @@ export function Editor({ automation, platform, username }: { automation: Automat
               <StatusPill label={common(`status_${status}`)} status={status} />
             </span>
           </div>
-          <div className="mt-0.5 flex items-center gap-2 sm:hidden">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
             <StatusPill label={common(`status_${status}`)} status={status} />
             <SaveIndicator state={save} conflict={conflict} onRetry={() => setSaveAttempt((n) => n + 1)} />
           </div>
@@ -520,7 +521,7 @@ function Metric({ value, label }: { value: number | string; label: string }) {
 function SaveIndicator({ state, conflict, onRetry }: { state: SaveState; conflict: boolean; onRetry: () => void }) {
   const { timeAgo } = useDashboardFormatters()
   const tr = useTranslations('automations')
-  
+
   const translateError = useDashboardError()
   const [, rerender] = useState(0)
   useEffect(() => {

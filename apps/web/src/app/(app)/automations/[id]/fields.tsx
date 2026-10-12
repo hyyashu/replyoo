@@ -132,7 +132,7 @@ export function MessageInput({
         value={value}
         rows={rows}
         aria-label={label}
-        placeholder={placeholder ?? tr('add_keyword')}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="block w-full resize-none rounded-t-xl bg-transparent px-3.5 pt-3 pb-1 text-[14.5px] leading-relaxed outline-none placeholder:text-faint"
       />
@@ -199,7 +199,7 @@ export function KeywordInput({
   ignoresCase?: boolean
 }) {
   const tr = useTranslations('automations')
-  
+
   const [draft, setDraft] = useState('')
   const [dropped, setDropped] = useState(0)
 
@@ -239,7 +239,7 @@ export function KeywordInput({
             }
           }}
           onBlur={commit}
-          placeholder={value.length === 0 ? placeholder : tr('add')}
+          placeholder={value.length === 0 ? (placeholder ?? tr('add_keyword')) : tr('add')}
           className="min-w-[120px] flex-1 bg-transparent px-1 text-[14px] outline-none placeholder:text-faint"
         />
       </div>

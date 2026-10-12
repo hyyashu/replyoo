@@ -2,6 +2,7 @@
 
 import { useDashboardFormatters } from '@/i18n/use-format'
 
+import { useDashboardError } from '@/i18n/use-errors'
 import { useTranslations } from 'next-intl'
 
 import { Clapperboard, Ellipsis, MessageCircleQuestion, MessageSquare, MessagesSquare, Search, Zap } from 'lucide-react'
@@ -33,9 +34,7 @@ export function TriggerIcon({ type }: { type: Automation['flow']['trigger']['typ
 
 export function AutomationsTable({ automations }: { automations: Automation[] }) {
   const tr = useTranslations('automations')
-  
-  
-  
+
   const TABS: { key: 'all' | AutomationStatus; label: string }[] = [
     { key: 'all', label: tr('all') },
     { key: 'active', label: tr('live') },
@@ -122,13 +121,14 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
 function Row({ automation }: { automation: Automation }) {
   const { formatNumber, formatPercent, formatDate } = useDashboardFormatters()
   const tr = useTranslations('automations')
-  
+
   const common = useTranslations('common')
-  
+
   const router = useRouter()
   const { stats, flow } = automation
   const live = automation.version > 0
-  const chips = triggerChips(flow.trigger)
+  const describe = useTranslations('shared')
+  const chips = triggerChips(flow.trigger, describe)
   const href = `/automations/${automation.id}`
 
   return (
@@ -141,7 +141,7 @@ function Row({ automation }: { automation: Automation }) {
           <TriggerIcon type={flow.trigger.type} />
           <span className="min-w-0">
             <span className="block text-[14.5px] font-semibold">{automation.name}</span>
-            <span className="block text-[12.5px] text-subtle">{triggerLabel(flow.trigger)}</span>
+            <span className="block text-[12.5px] text-subtle">{triggerLabel(flow.trigger, describe)}</span>
             {live && (
               <span className="block text-[12px] text-subtle tabular-nums md:hidden">
                 {tr('runs_dms', { v0: formatNumber(stats.runs), v1: formatNumber(stats.dmsSent) })}
@@ -183,10 +183,9 @@ function Row({ automation }: { automation: Automation }) {
 }
 
 function RowMenu({ automation }: { automation: Automation }) {
+  const translateError = useDashboardError()
   const tr = useTranslations('automations')
-  
-  
-  
+
   const [open, setOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -222,7 +221,7 @@ function RowMenu({ automation }: { automation: Automation }) {
     setOpen(false)
     startTransition(async () => {
       const result = await action()
-      if (result && !result.ok) alert(result.error)
+      if (result && !result.ok) alert(translateError(result.error))
     })
   }
 
