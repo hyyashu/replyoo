@@ -478,3 +478,41 @@ export const bioEvents = pgTable(
   },
   (t) => [index('bio_events_page_type_idx').on(t.pageId, t.type, t.createdAt), index('bio_events_block_idx').on(t.blockId, t.createdAt)],
 )
+
+// ---------- link click tracking ----------
+
+/**
+ * One row per link button of a sent DM; `/l/<code>` redirects to `url`. Every foreign key is SET NULL so a link
+ * already sitting in someone's DM keeps working after the automation, message or contact is deleted.
+ */
+export const trackedLinks = pgTable(
+  'tracked_links',
+  {
+    id: id(),
+    code: text('code').notNull(),
+    messageId: uuid('message_id').references(() => messages.id, { onDelete: 'set null' }),
+    /** The button's index in the message, so a retried send finds the same row. */
+    position: integer('position').notNull(),
+    url: text('url').notNull(),
+    contactId: uuid('contact_id').references(() => contacts.id, { onDelete: 'set null' }),
+    automationId: uuid('automation_id').references(() => automations.id, { onDelete: 'set null' }),
+    createdAt: tz('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('tracked_links_code_uq').on(t.code),
+    uniqueIndex('tracked_links_message_position_uq').on(t.messageId, t.position),
+    index('tracked_links_automation_idx').on(t.automationId, t.createdAt),
+  ],
+)
+
+export const linkClicks = pgTable(
+  'link_clicks',
+  {
+    id: id(),
+    linkId: uuid('link_id')
+      .notNull()
+      .references(() => trackedLinks.id, { onDelete: 'cascade' }),
+    createdAt: tz('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('link_clicks_link_idx').on(t.linkId, t.createdAt)],
+)

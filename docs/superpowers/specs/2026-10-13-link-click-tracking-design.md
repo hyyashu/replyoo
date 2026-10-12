@@ -56,7 +56,7 @@ worker send()                         web GET /l/<code>
 
 **Stats** (window = the existing `STATS_WINDOW_DAYS` = 30; the 14-day trend uses its own range)
 - Recipients: distinct `contact_id` over `tracked_links` whose message has `status = 'sent'`, by `created_at` in the window.
-- Clickers: distinct `contact_id` with at least one `link_clicks` row in the window.
+- Clickers: distinct `contact_id` among those recipients' links that have at least one `link_clicks` row (links are counted by creation date, clicks at any time), so clickers never exceed recipients.
 - CTR = clickers / recipients (shown as "—" when recipients is 0).
 - Per link: grouped by `url` within the automation (labels can change, destinations identify the link): recipients, clickers, clicks, CTR.
 

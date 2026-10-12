@@ -1,5 +1,6 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import type { Db, Tx } from './client'
+import { generateLinkCode } from './link-codes'
 import {
   authUsers,
   type BioBlockConfig,
@@ -8,6 +9,9 @@ import {
   bioEvents,
   bioPages,
   connectedAccounts,
+  linkClicks,
+  messages,
+  trackedLinks,
   workspaceMembers,
   workspaces,
 } from './schema'
@@ -195,6 +199,134 @@ export async function bioBlockDaily(
     left join ${bioEvents} e
       on e.page_id = ${pageId} and e.block_id = ${blockId} and e.type = 'click'
       and (e.created_at at time zone 'utc')::date = d.day::date
+    group by d.day
+    order by d.day
+  `)
+  return Array.from(rows)
+}
+
+// ---------- link click tracking ----------
+
+export interface LinkToTrack {
+  /** The button's index in the message. */
+  position: number
+  url: string
+}
+
+/**
+ * Creates the tracked link for each button of a message, or finds it again when the message is retried.
+ * Returns the codes by button position. A code that collides with an existing one is simply drawn again.
+ */
+export async function createTrackedLinks(
+  db: Db | Tx,
+  input: { messageId: string; contactId: string; automationId: string; links: LinkToTrack[] },
+): Promise<Map<number, string>> {
+  const codes = new Map<number, string>()
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const missing = input.links.filter((link) => !codes.has(link.position))
+    if (missing.length === 0) return codes
+    await db
+      .insert(trackedLinks)
+      .values(
+        missing.map((link) => ({
+          code: generateLinkCode(),
+          messageId: input.messageId,
+          position: link.position,
+          url: link.url,
+          contactId: input.contactId,
+          automationId: input.automationId,
+        })),
+      )
+      .onConflictDoNothing()
+    const rows = await db
+      .select({ position: trackedLinks.position, code: trackedLinks.code })
+      .from(trackedLinks)
+      .where(eq(trackedLinks.messageId, input.messageId))
+    for (const row of rows) codes.set(row.position, row.code)
+  }
+  if (input.links.some((link) => !codes.has(link.position))) throw new Error('Could not allocate link codes')
+  return codes
+}
+
+export async function getTrackedLink(db: Db | Tx, code: string): Promise<{ id: string; url: string } | null> {
+  const [row] = await db.select({ id: trackedLinks.id, url: trackedLinks.url }).from(trackedLinks).where(eq(trackedLinks.code, code))
+  return row ?? null
+}
+
+export async function recordLinkClick(db: Db | Tx, linkId: string): Promise<void> {
+  await db.insert(linkClicks).values({ linkId })
+}
+
+export interface LinkStats {
+  /** People sent at least one tracked link (in a message that was actually sent). */
+  recipients: number
+  /** Of those, people who opened at least one. */
+  clickers: number
+}
+
+/** Link numbers per automation for links created since `since`. Automations with no links are absent. */
+export async function linkStatsByAutomation(db: Db | Tx, automationIds: string[], since: Date): Promise<Map<string, LinkStats>> {
+  const stats = new Map<string, LinkStats>()
+  if (automationIds.length === 0) return stats
+  const rows = await db
+    .select({
+      automationId: trackedLinks.automationId,
+      recipients: sql<number>`count(distinct ${trackedLinks.contactId})::int`,
+      clickers: sql<number>`count(distinct ${trackedLinks.contactId}) filter (where ${linkClicks.id} is not null)::int`,
+    })
+    .from(trackedLinks)
+    .innerJoin(messages, eq(messages.id, trackedLinks.messageId))
+    .leftJoin(linkClicks, eq(linkClicks.linkId, trackedLinks.id))
+    .where(and(inArray(trackedLinks.automationId, automationIds), eq(messages.status, 'sent'), gte(trackedLinks.createdAt, since)))
+    .groupBy(trackedLinks.automationId)
+  for (const row of rows) {
+    if (row.automationId) stats.set(row.automationId, { recipients: row.recipients, clickers: row.clickers })
+  }
+  return stats
+}
+
+export interface LinkInsight extends LinkStats {
+  url: string
+  clicks: number
+}
+
+/** Per-destination numbers for one automation, most clicked first. */
+export async function automationLinkInsights(db: Db | Tx, automationId: string, since: Date): Promise<LinkInsight[]> {
+  return db
+    .select({
+      url: trackedLinks.url,
+      recipients: sql<number>`count(distinct ${trackedLinks.contactId})::int`,
+      clickers: sql<number>`count(distinct ${trackedLinks.contactId}) filter (where ${linkClicks.id} is not null)::int`,
+      clicks: sql<number>`count(${linkClicks.id})::int`,
+    })
+    .from(trackedLinks)
+    .innerJoin(messages, eq(messages.id, trackedLinks.messageId))
+    .leftJoin(linkClicks, eq(linkClicks.linkId, trackedLinks.id))
+    .where(and(eq(trackedLinks.automationId, automationId), eq(messages.status, 'sent'), gte(trackedLinks.createdAt, since)))
+    .groupBy(trackedLinks.url)
+    .orderBy(desc(sql`count(${linkClicks.id})`), desc(sql`count(distinct ${trackedLinks.contactId})`), asc(trackedLinks.url))
+}
+
+/** Clicks per day on one destination of an automation over the last `days` days, oldest first (UTC days, zeros included). */
+export async function automationLinkDaily(
+  db: Db | Tx,
+  automationId: string,
+  url: string,
+  days = 14,
+): Promise<{ day: string; clicks: number }[]> {
+  const rows = await db.execute<{ day: string; clicks: number }>(sql`
+    select to_char(d.day, 'YYYY-MM-DD') as day, count(c.id)::int as clicks
+    from generate_series(
+      (now() at time zone 'utc')::date - (${days}::int - 1),
+      (now() at time zone 'utc')::date,
+      interval '1 day'
+    ) as d(day)
+    left join (
+      select lc.id, lc.created_at
+      from ${linkClicks} lc
+      join ${trackedLinks} tl on tl.id = lc.link_id
+      where tl.automation_id = ${automationId} and tl.url = ${url}
+    ) c on (c.created_at at time zone 'utc')::date = d.day::date
     group by d.day
     order by d.day
   `)
