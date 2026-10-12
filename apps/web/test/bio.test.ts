@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { clickRate, isBotUserAgent, isSafeHttpUrl, normalizeHttpUrl, slugCandidate, slugify } from '@/lib/bio'
+import { clickRate, isSafeHttpUrl, normalizeHttpUrl, slugCandidate, slugify } from '@/lib/bio'
+import { isBotUserAgent } from '@/lib/bots'
 
 describe('slugify', () => {
   it('lowercases, strips accents and punctuation', () => {

@@ -115,12 +115,6 @@ export function isSafeHttpUrl(value: string | undefined | null): value is string
   }
 }
 
-/** Crawlers and link-preview fetchers shouldn't count as visitors. */
-export function isBotUserAgent(userAgent: string | null | undefined): boolean {
-  if (!userAgent) return true
-  return /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|discord|curl|wget|headless|monitor/i.test(userAgent)
-}
-
 /** Share of page views that led to a click, as a whole percent capped at 100. */
 export function clickRate(clicks: number, views: number): number {
   if (views <= 0) return 0

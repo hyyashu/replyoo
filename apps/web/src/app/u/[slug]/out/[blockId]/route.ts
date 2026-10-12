@@ -1,5 +1,6 @@
 import { getBioPageBySlug, listBioBlocks, recordBioEvent } from '@replyooo/db'
-import { isBotUserAgent, isSafeHttpUrl } from '@/lib/bio'
+import { isSafeHttpUrl } from '@/lib/bio'
+import { isBotUserAgent } from '@/lib/bots'
 import { isUuid } from '@/lib/data/ids'
 import { db } from '@/lib/db'
 
