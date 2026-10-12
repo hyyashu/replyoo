@@ -19,6 +19,20 @@ const params = (code: string) => ({ params: Promise.resolve({ code }) })
 const clicks = async (linkId: string) => (await db().select().from(linkClicks).where(eq(linkClicks.linkId, linkId))).length
 
 describe('GET /l/[code]', () => {
+  it('redirects Unicode destinations using an encoded Location header', async () => {
+    const url = 'https://例子.com/你好?q=世界'
+    const { code, id } = await link(url)
+    const response = await GET(request(code, { 'user-agent': IPHONE }), params(code))
+    expect(response.status).toBe(302)
+    expect(response.headers.get('location')).toBe('https://xn--fsqu00a.com/%E4%BD%A0%E5%A5%BD?q=%E4%B8%96%E7%95%8C')
+    expect(await clicks(id)).toBe(1)
+
+    const head = await HEAD(request(code, { 'user-agent': IPHONE }, 'HEAD'), params(code))
+    expect(head.status).toBe(302)
+    expect(head.headers.get('location')).toBe('https://xn--fsqu00a.com/%E4%BD%A0%E5%A5%BD?q=%E4%B8%96%E7%95%8C')
+    expect(await clicks(id)).toBe(1)
+  })
+
   it('redirects a visitor to the destination and counts the click', async () => {
     const { code, id } = await link('https://example.com/guide')
     const response = await GET(request(code, { 'user-agent': IPHONE }), params(code))

@@ -14,7 +14,7 @@ async function open(request: Request, code: string, count: boolean): Promise<Res
     // A failed count must never stop the person reaching the link.
     await recordLinkClick(db(), link.id).catch(() => {})
   }
-  return new Response(null, { status: 302, headers: { Location: link.url, 'Cache-Control': 'no-store' } })
+  return new Response(null, { status: 302, headers: { Location: new URL(link.url).href, 'Cache-Control': 'no-store' } })
 }
 
 /** Short link from a DM button: counts the tap, then sends the person to the real destination. */
