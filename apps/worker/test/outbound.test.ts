@@ -1,11 +1,11 @@
-import { connectedAccounts, contacts, flowRuns, messages, usageCounters } from '@replyooo/db'
+import { connectedAccounts, contacts, flowRuns, messages, trackedLinks, usageCounters } from '@replyooo/db'
 import { MetaError } from '@replyooo/meta'
 import type { FlowDefinition } from '@replyooo/shared'
 import { decodePostback } from '@replyooo/shared'
 import { and, eq, inArray } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { OutboundBody } from '../src/flow'
-import { handleOutbound } from '../src/outbound'
+import { handleOutbound, withTrackedLinks } from '../src/outbound'
 import { createTestContext, insertRun, NOW, publishAutomation, seedAccount, seedContact, seedMember } from './support'
 
 const flow: FlowDefinition = {
@@ -81,7 +81,7 @@ describe('handleOutbound', () => {
           text: 'Want it?',
           buttons: [
             { type: 'postback', label: 'Send it', payload: `r:${run.id}:s1:b1` },
-            { type: 'url', label: 'Shop', url: 'https://shop' },
+            { type: 'url', label: 'Shop', url: expect.stringMatching(/^http:\/\/localhost:3000\/l\/[0-9A-Za-z]{8}$/) },
           ],
         },
       ],
@@ -182,5 +182,102 @@ describe('handleOutbound', () => {
     expect(await usage()).toEqual({ '2026-10': 1, '2026-11': 1 })
     const [row] = await db.select().from(contacts).where(and(eq(contacts.id, contact.id)))
     expect(row?.lastCountedPeriod).toBe('2026-11')
+  })
+})
+
+describe('link tracking', () => {
+  const shop = (url = 'https://shop.example/a'): OutboundBody => ({
+    type: 'message',
+    message: {
+      text: 'Want it?',
+      buttons: [
+        { type: 'url', label: 'Shop', url },
+        { type: 'reply', label: 'Send it', stepId: 's1', buttonId: 'b1' },
+        { type: 'url', label: 'Docs', url: 'https://docs.example/b' },
+      ],
+    },
+  })
+
+  const sentButtons = (adapters: Awaited<ReturnType<typeof setup>>['adapters']) =>
+    (adapters.instagram.sent('sendMessage')[0]?.args[1] as { buttons: { type: string; label: string; url?: string }[] }).buttons
+
+  it('sends a tracked link for each url button and keeps the real destination in the database', async () => {
+    const { db, deps, adapters, contact, run, queue } = await setup()
+    const [id] = await queue({ kind: 'dm', body: shop() })
+    await handleOutbound(deps, { messageIds: [id!] })
+
+    const rows = await db.select().from(trackedLinks).where(eq(trackedLinks.messageId, id!))
+    expect(rows.map((r) => [r.position, r.url]).sort()).toEqual([
+      [0, 'https://shop.example/a'],
+      [2, 'https://docs.example/b'],
+    ])
+    expect(rows.every((r) => r.contactId === contact.id)).toBe(true)
+    const [runRow] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
+    expect(rows.every((r) => r.automationId === runRow!.automationId)).toBe(true)
+
+    const byPosition = Object.fromEntries(rows.map((r) => [r.position, r.code]))
+    const buttons = sentButtons(adapters)
+    expect(buttons[0]).toEqual({ type: 'url', label: 'Shop', url: `http://localhost:3000/l/${byPosition[0]}` })
+    expect(buttons[1]?.type).toBe('postback')
+    expect(buttons[2]).toEqual({ type: 'url', label: 'Docs', url: `http://localhost:3000/l/${byPosition[2]}` })
+  })
+
+  it('uses the app URL without a trailing slash', async () => {
+    const { deps, adapters, queue } = await setup()
+    const [id] = await queue({ kind: 'dm', body: shop() })
+    await handleOutbound({ ...deps, appUrl: 'https://app.example.com/' }, { messageIds: [id!] })
+    expect(sentButtons(adapters)[0]?.url).toMatch(/^https:\/\/app\.example\.com\/l\/[0-9A-Za-z]{8}$/)
+  })
+
+  it('reuses the same codes when a message is retried', async () => {
+    const { db, deps, adapters, queue } = await setup()
+    const [id] = await queue({ kind: 'dm', body: shop() })
+    const [row] = await db.select().from(messages).where(eq(messages.id, id!))
+
+    const first = await withTrackedLinks(deps, row!)
+    const second = await withTrackedLinks(deps, row!)
+    expect(second.body).toEqual(first.body)
+    expect(await db.select().from(trackedLinks).where(eq(trackedLinks.messageId, id!))).toHaveLength(2)
+    expect(adapters.instagram.sent()).toEqual([])
+  })
+
+  it('tracks private replies too', async () => {
+    const { db, deps, queue } = await setup()
+    const [id] = await queue({ kind: 'private_reply', commentId: 'c-link-tracking', body: shop() })
+    await handleOutbound(deps, { messageIds: [id!] })
+    expect(await db.select().from(trackedLinks).where(eq(trackedLinks.messageId, id!))).toHaveLength(2)
+  })
+
+  it('leaves messages without url buttons, images and comment replies alone', async () => {
+    const { db, deps, adapters, queue } = await setup()
+    const ids = await queue(
+      { kind: 'dm', body: { type: 'image', url: 'https://img.example/a.png' } },
+      { kind: 'dm', body: text('plain') },
+      { kind: 'dm', body: { type: 'message', message: { text: 'Pick', buttons: [{ type: 'reply', label: 'Yes', stepId: 's1', buttonId: 'b1' }] } } },
+      { kind: 'comment_reply', commentId: 'c9', body: { type: 'comment', text: 'Check your DMs https://x.example/y' } },
+    )
+    await handleOutbound(deps, { messageIds: ids })
+    expect(await db.select().from(trackedLinks).where(inArray(trackedLinks.messageId, ids))).toEqual([])
+    expect(adapters.instagram.sent('sendMessage')).toHaveLength(3)
+  })
+
+  it('falls back to the original links when tracking fails', async () => {
+    const { db, deps, queue } = await setup()
+    const [id] = await queue({ kind: 'dm', body: shop() })
+    const [row] = await db.select().from(messages).where(eq(messages.id, id!))
+    const failing = async () => {
+      throw new Error('database unavailable')
+    }
+    const result = await withTrackedLinks(deps, row!, failing)
+    expect(result).toBe(row)
+  })
+
+  it('sends the original links when the message has no flow run to attribute them to', async () => {
+    const { db, deps, adapters, queue } = await setup()
+    const [id] = await queue({ kind: 'dm', body: shop() })
+    await db.update(messages).set({ flowRunId: null }).where(eq(messages.id, id!))
+    await handleOutbound(deps, { messageIds: [id!] })
+    expect(sentButtons(adapters)[0]?.url).toBe('https://shop.example/a')
+    expect(await db.select().from(trackedLinks).where(eq(trackedLinks.messageId, id!))).toEqual([])
   })
 })

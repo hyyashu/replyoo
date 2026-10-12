@@ -1,5 +1,5 @@
 import type { Db } from '@replyooo/db'
-import { connectedAccounts, contacts, messages, usageCounters } from '@replyooo/db'
+import { connectedAccounts, contacts, createTrackedLinks, flowRuns, messages, usageCounters } from '@replyooo/db'
 import type { AccountCredentials, PlatformAdapter, SendableButton, SendableMessage, SendResult } from '@replyooo/meta'
 import { MetaError } from '@replyooo/meta'
 import { encodePostback } from '@replyooo/shared'
@@ -47,7 +47,7 @@ export async function handleOutbound(
     if (waitMs > 0) return { status: 'rate_limited', retryInMs: waitMs }
 
     try {
-      const result = await send(deps.adapters[account.platform], credentials(account, deps.tokenKey), contact, message)
+      const result = await send(deps.adapters[account.platform], credentials(account, deps.tokenKey), contact, await withTrackedLinks(deps, message))
       await db
         .update(messages)
         .set({ status: 'sent', externalId: result.messageId, sentAt: now, error: null })
@@ -70,6 +70,38 @@ export async function handleOutbound(
 
 function withinWindow(lastInboundAt: Date | null, now: Date): boolean {
   return lastInboundAt !== null && now.getTime() - lastInboundAt.getTime() <= DM_WINDOW_MS
+}
+
+/**
+ * Swaps each url button of a DM for a short tracked link (`${APP_URL}/l/<code>`). A retried message finds its
+ * existing links, so codes stay stable. Tracking must never stop a DM: on any error the original message is sent.
+ */
+export async function withTrackedLinks(
+  deps: Deps,
+  message: MessageRow,
+  create: typeof createTrackedLinks = createTrackedLinks,
+): Promise<MessageRow> {
+  if ((message.kind !== 'dm' && message.kind !== 'private_reply') || !message.flowRunId) return message
+  const body = message.body as unknown as OutboundBody
+  if (body.type !== 'message') return message
+  const buttons = body.message.buttons ?? []
+  const links = buttons.flatMap((button, position) => (button.type === 'url' ? [{ position, url: button.url }] : []))
+  if (links.length === 0) return message
+  try {
+    const [run] = await deps.db.select({ automationId: flowRuns.automationId }).from(flowRuns).where(eq(flowRuns.id, message.flowRunId))
+    if (!run) return message
+    const codes = await create(deps.db, { messageId: message.id, contactId: message.contactId, automationId: run.automationId, links })
+    const origin = deps.appUrl.replace(/\/+$/, '')
+    const tracked = buttons.map((button, position) => {
+      const code = codes.get(position)
+      return button.type === 'url' && code ? { ...button, url: `${origin}/l/${code}` } : button
+    })
+    const trackedBody: OutboundBody = { type: 'message', message: { ...body.message, buttons: tracked } }
+    return { ...message, body: trackedBody as unknown as Record<string, unknown> }
+  } catch (error) {
+    deps.log.warn({ messageId: message.id, err: error }, 'link tracking failed; sending the original links')
+    return message
+  }
 }
 
 async function failMessages(db: Db, ids: string[], error: string): Promise<void> {
