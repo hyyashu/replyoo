@@ -103,5 +103,5 @@ The route is public: the proxy only guards an explicit list of paths and `/l/` i
 
 - **Link prefetch** by Meta or the in-app browser could be counted as a click. The bot filter covers known user agents; the live check shows whether more is needed.
 - **Table growth:** one `tracked_links` row per link per DM. No retention policy in v1; revisit pruning (for example rows older than a year with no clicks) if the table gets large.
-- **Link shows our domain** instead of the destination. Same trade-off Reachlee makes; users should know before relying on it. A one-line note in the editor next to the link fields is enough.
+- **Link shows our domain** instead of the destination. Same trade-off Reachlee makes; users should know before relying on it. A one-line note in the "Link clicks" section says people see a short replyooo link.
 - **Counts exclude old DMs:** the numbers start from the release; say so in the empty state.
