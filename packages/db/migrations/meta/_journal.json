@@ -57,6 +57,13 @@
       "when": 1791552317518,
       "tag": "0007_billing_interval",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791838163541,
+      "tag": "0008_fresh_hawkeye",
+      "breakpoints": true
     }
   ]
 }
