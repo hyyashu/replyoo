@@ -254,7 +254,7 @@ describe('link tracking', () => {
       { kind: 'dm', body: { type: 'image', url: 'https://img.example/a.png' } },
       { kind: 'dm', body: text('plain') },
       { kind: 'dm', body: { type: 'message', message: { text: 'Pick', buttons: [{ type: 'reply', label: 'Yes', stepId: 's1', buttonId: 'b1' }] } } },
-      { kind: 'comment_reply', commentId: 'c9', body: { type: 'comment', text: 'Check your DMs https://x.example/y' } },
+      { kind: 'comment_reply', commentId: 'c-link-tracking-reply', body: { type: 'comment', text: 'Check your DMs https://x.example/y' } },
     )
     await handleOutbound(deps, { messageIds: ids })
     expect(await db.select().from(trackedLinks).where(inArray(trackedLinks.messageId, ids))).toEqual([])
