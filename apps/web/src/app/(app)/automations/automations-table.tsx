@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { deleteAutomation, setAutomationStatus } from '@/app/actions'
 import { ConfirmDialog } from '@/components/confirm-action'
 import { ButtonLink, Card, EmptyState, Keyword, StatusPill, cx, formatDate, formatNumber, formatPercent } from '@/components/ui'
+import { clickRate } from '@/lib/bio'
 import type { Automation, AutomationStatus, StatusResult } from '@/lib/data/types'
 import { flowSearchText, triggerChips, triggerLabel } from '@/lib/describe'
 
@@ -97,6 +98,7 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
               <th className="hidden md:table-cell">Trigger</th>
               <th className="hidden text-right md:table-cell">Runs</th>
               <th className="hidden text-right md:table-cell">DMs sent</th>
+              <th className="hidden text-right md:table-cell">Click rate</th>
               <th className="hidden pr-2 text-right md:table-cell">Completion</th>
               <th className="hidden lg:table-cell">Created</th>
               <th className="hidden lg:table-cell">Updated</th>
@@ -136,6 +138,7 @@ function Row({ automation }: { automation: Automation }) {
             {live && (
               <span className="block text-[12px] text-subtle tabular-nums md:hidden">
                 {formatNumber(stats.runs)} runs · {formatNumber(stats.dmsSent)} DMs
+                {stats.recipients > 0 && ` · ${clickRate(stats.clickers, stats.recipients)}% clicked`}
               </span>
             )}
           </span>
@@ -151,6 +154,12 @@ function Row({ automation }: { automation: Automation }) {
       </td>
       <td className="hidden text-right text-[14.5px] tabular-nums md:table-cell">{live ? formatNumber(stats.runs) : '—'}</td>
       <td className="hidden text-right text-[14.5px] tabular-nums md:table-cell">{live ? formatNumber(stats.dmsSent) : '—'}</td>
+      <td
+        className="hidden text-right text-[14.5px] tabular-nums md:table-cell"
+        title={live && stats.recipients > 0 ? `${stats.clickers} of ${stats.recipients} people opened a link` : undefined}
+      >
+        {live && stats.recipients > 0 ? `${clickRate(stats.clickers, stats.recipients)}%` : '—'}
+      </td>
       <td className="hidden pr-2 text-right text-[14.5px] font-semibold tabular-nums md:table-cell">
         {live && stats.runs > 0 ? formatPercent(stats.completed / stats.runs) : '—'}
       </td>

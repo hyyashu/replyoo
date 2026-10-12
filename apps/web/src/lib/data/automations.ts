@@ -1,5 +1,5 @@
 import 'server-only'
-import { type Tx, automationVersions, automations, connectedAccounts, contacts, flowRuns, messages } from '@replyooo/db'
+import { type Tx, automationVersions, automations, connectedAccounts, contacts, flowRuns, linkStatsByAutomation, messages } from '@replyooo/db'
 import { MetaError } from '@replyooo/meta'
 import { FlowDefinitionSchema, getTemplate, validateFlow, type DraftFlow, type FlowDefinition } from '@replyooo/shared'
 import { and, eq, gte, inArray, max, ne, or, type SQL, sql } from 'drizzle-orm'
@@ -14,7 +14,7 @@ import type { Automation, AutomationStats, AutomationStatus, PublishResult, Stat
 export const STATS_WINDOW_DAYS = 30
 export const DM_KINDS = ['dm', 'private_reply'] as const
 const NOT_FOUND = 'Automation not found'
-const EMPTY_STATS: AutomationStats = { runs: 0, completed: 0, dmsSent: 0, leads: 0 }
+const EMPTY_STATS: AutomationStats = { runs: 0, completed: 0, dmsSent: 0, leads: 0, recipients: 0, clickers: 0 }
 
 export function statsSince(now: Date): Date {
   return new Date(now.getTime() - STATS_WINDOW_DAYS * 86_400_000)
@@ -107,10 +107,13 @@ async function automationStats(ids: string[], since: Date): Promise<Map<string, 
     .groupBy(flowRuns.automationId)
 
   for (const row of runRows) {
-    stats.set(row.automationId, { runs: row.runs, completed: row.completed, leads: row.leads, dmsSent: 0 })
+    stats.set(row.automationId, { runs: row.runs, completed: row.completed, leads: row.leads, dmsSent: 0, recipients: 0, clickers: 0 })
   }
   for (const row of sentRows) {
     stats.set(row.automationId, { ...(stats.get(row.automationId) ?? EMPTY_STATS), dmsSent: row.dmsSent })
+  }
+  for (const [automationId, link] of await linkStatsByAutomation(db(), ids, since)) {
+    stats.set(automationId, { ...(stats.get(automationId) ?? EMPTY_STATS), ...link })
   }
   return stats
 }

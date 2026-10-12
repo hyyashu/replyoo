@@ -1,6 +1,7 @@
-import { automationVersions, automations } from '@replyooo/db'
+import { automationVersions, automations, linkClicks, trackedLinks } from '@replyooo/db'
 import { TEMPLATES, type FlowDefinition } from '@replyooo/shared'
 import { asc, eq } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import * as data from '@/lib/data/automations'
 import { db } from '@/lib/db'
@@ -318,7 +319,35 @@ describe('listAutomations', () => {
     await createMessage({ contactId: lead.id, accountId, runId: run.id, kind: 'comment_reply', body: { type: 'comment', text: 'Sent!' } })
 
     const [listed] = await data.listAutomations(workspaceId, accountId)
-    expect(listed?.stats).toEqual({ runs: 2, completed: 1, dmsSent: 2, leads: 1 })
+    expect(listed?.stats).toEqual({ runs: 2, completed: 1, dmsSent: 2, leads: 1, recipients: 0, clickers: 0 })
+  })
+
+  it('counts the people sent a link and the people who opened it from the last 30 days', async () => {
+    const { workspaceId, accountId } = await setup()
+    const automation = await created(workspaceId, accountId, 'comment_to_dm')
+    await data.publishAutomation(workspaceId, automation.id)
+    const [a, b, c] = [
+      await createContact(workspaceId, accountId),
+      await createContact(workspaceId, accountId),
+      await createContact(workspaceId, accountId),
+    ]
+    const tracked = async (contactId: string, status: 'sent' | 'failed' = 'sent') => {
+      const run = await createRun({ automationId: automation.id, contactId, accountId, status: 'completed' })
+      const message = await createMessage({ contactId, accountId, runId: run.id, kind: 'dm', status })
+      const [link] = await db()
+        .insert(trackedLinks)
+        .values({ code: randomUUID().replace(/-/g, '').slice(0, 8), messageId: message.id, position: 0, url: 'https://example.com', contactId, automationId: automation.id })
+        .returning()
+      return link!
+    }
+    const linkA = await tracked(a.id)
+    await tracked(b.id)
+    await tracked(c.id, 'failed')
+    await db().insert(linkClicks).values([{ linkId: linkA.id }, { linkId: linkA.id }])
+
+    const [listed] = await data.listAutomations(workspaceId, accountId)
+    expect(listed?.stats).toMatchObject({ recipients: 2, clickers: 1 })
+    expect((await data.getAutomation(workspaceId, automation.id))?.stats).toMatchObject({ recipients: 2, clickers: 1 })
   })
 
   it('lists live automations before paused ones and drafts', async () => {

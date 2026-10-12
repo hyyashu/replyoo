@@ -20,6 +20,9 @@ export interface AutomationStats {
   completed: number
   dmsSent: number
   leads: number
+  /** People sent a tracked link in the last 30 days, and how many of them opened one. */
+  recipients: number
+  clickers: number
 }
 
 export interface Automation {

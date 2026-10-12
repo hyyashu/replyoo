@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { listPosts, listStories, publishAutomation, saveDraft, setAutomationStatus } from '@/app/actions'
 import { Button, StatusPill, cx, formatNumber, formatPercent, timeAgo } from '@/components/ui'
+import { clickRate } from '@/lib/bio'
 import type { RecentPost } from '@/lib/data'
 import type { Automation } from '@/lib/data/types'
 import { recipeFromFlow, type Recipe } from '@/lib/recipe'
@@ -469,6 +470,8 @@ export function Editor({
                   <Metric value={formatNumber(stats.runs)} label="runs" />
                   <Metric value={stats.runs ? formatPercent(stats.completed / stats.runs) : '—'} label="completed" />
                   <Metric value={formatNumber(stats.leads)} label="leads" />
+                  <Metric value={formatNumber(stats.clickers)} label="link clickers" />
+                  <Metric value={stats.recipients > 0 ? `${clickRate(stats.clickers, stats.recipients)}%` : '—'} label="click rate" />
                 </>
               )}
             </div>
