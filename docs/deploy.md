@@ -43,6 +43,7 @@ openssl rand -hex 16      # META_WEBHOOK_VERIFY_TOKEN
 ```
 
 - Set `DOMAIN` to the hostname from step 1 (no `https://`).
+- The worker builds `/l/<code>` link-tracking URLs from `APP_URL`, so it must be the public address of the web app, not the webhooks host. Compose sets it to `https://${DOMAIN}`; on Dokploy, `DOMAIN` must be the app hostname.
 - Keep `COMPOSE_PROFILES=caddy`: it is what starts the Caddy container. Without it nothing serves HTTPS.
 - Set a real `EMAIL_PROVIDER` (`resend` or `smtp`), `EMAIL_FROM`, and the matching credentials (`RESEND_API_KEY`
   or `SMTP_HOST` and friends). The worker refuses to start with `EMAIL_PROVIDER=log` in production, because it
