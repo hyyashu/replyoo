@@ -236,6 +236,15 @@ async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<FlowJobData | null
 
   const candidate = ctx.candidates.find((c) => c.automationId === route.automationId)
   if (!candidate) return null
+  if (event.type === 'comment_created' && event.restrictToAutomationId) {
+    // A re-run comment is old news; it must not cancel a conversation the person is in the middle of.
+    const [waiting] = await tx
+      .select({ id: flowRuns.id })
+      .from(flowRuns)
+      .where(and(eq(flowRuns.contactId, contact.id), eq(flowRuns.status, 'waiting')))
+      .limit(1)
+    if (waiting) return null
+  }
   if (!(await mayStartRun(tx, account.workspaceId, contact, now))) {
     ctx.log.info({ workspaceId: account.workspaceId, automationId: candidate.automationId }, 'monthly contact limit reached; run not started')
     return null
