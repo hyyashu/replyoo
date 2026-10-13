@@ -20,7 +20,7 @@ Billing is subscription-based via Dodo Payments, metered on contacts reached per
 | Reply model | Keyword rules + multi-step flows + templates (ManyChat/LinkDM style) |
 | Platforms | Instagram **and** Facebook from day one |
 | Editor | **Recipe form** (Pencil design `App — Automation Editor`): trigger → public reply → DM → toggleable boosters (follow gate, ask for email). The form compiles to a `FlowDefinition`; the engine stays generic. Step-list editor (Pencil frame `App — Automation Editor (Step list)`) is a post-v1 "advanced editor". |
-| Integrations | Kit (ConvertKit) email sync for captured emails in v1 |
+| Integrations | None in v1; captured emails are exported as CSV (Google Sheets sync is a post-v1 option) |
 | Design source | Pencil screens exported to `docs/design/` (brand in designs: "replyo") |
 | AI | None in v1; step system leaves room for an `ai_reply` step later |
 | Stack | TypeScript monorepo — Next.js, Hono worker, Drizzle + Postgres, Redis + BullMQ |
@@ -46,7 +46,7 @@ Link in bio shipped, but these extras are deferred until after launch:
   1. Core: conversation list, chat view, manual DM replies within the 24-hour window, unread, archive, search. Design: [2026-10-08-inbox-core-design.md](2026-10-08-inbox-core-design.md).
   2. Workflow tools: labels, private notes, contact details panel, saved replies (`/`).
   3. Advanced: scheduled sends, image attachments, the Outreach tab (DMs sent by hand in the Instagram app), sound alert.
-- **Competitor gaps** (click tracking in automation DMs, Kit/Google Sheets sync, scheduled DMs, re-run on old posts, team seats, AI): see [../../competitors/reachlee.md](../../competitors/reachlee.md) for the comparison and suggested order.
+- **Competitor gaps** (click tracking in automation DMs, Google Sheets sync, scheduled DMs, re-run on old posts, team seats, AI): see [../../competitors/reachlee.md](../../competitors/reachlee.md) for the comparison and suggested order.
 - **Production hardening** (the current `Dockerfile` + `docker-compose.prod.yml` stack is enough to launch). The full write-up is Plan 5, kept on the `plan-5-deployment` branch (`docs/superpowers/plans/2026-10-07-plan-5-deployment.md`):
   - Advisory-locked migration runner, so two concurrent migrate runs can't race (matters for multiple replicas or an automated deploy pipeline).
   - Readiness probes: `/health/ready` on the worker (Postgres + Redis) and `/api/health/ready` on web (Postgres).

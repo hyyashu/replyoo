@@ -29,7 +29,6 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 | **Carousel / multi-link DMs** | Yes (Pro) | **No** |
 | **Team seats** | Up to 5 | **No** (only a `workspace_invitations` table in the schema) |
 | **Google Sheets, Meta Ads export** | Yes (Business) | **No** |
-| **Kit (ConvertKit) sync** | Not mentioned | **No**, although the main spec promised it for v1 |
 | **AI replies, goals, MCP connector** | Yes | **No** (none in v1 by design) |
 | **Per-automation analytics** | Click trends, lifetime | Basic counts |
 | Facebook comment triggers | Yes | Not checked |
@@ -40,7 +39,7 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 ## Suggested priority
 
 1. **Click tracking on automation links.** Cheapest gap to close, given to every plan by them, and it enables per-automation analytics and "follow up if no click".
-2. **Kit and Google Sheets sync.** Email capture is a core use case and the spec already promised Kit.
+2. **Google Sheets sync.** Email capture is a core use case. Kit (ConvertKit) sync was dropped from the plan on 2026-10-13.
 3. **Inbox**, then scheduled DMs and re-run on old posts. The inbox design is already written.
 4. **Meta App Review and Business Verification**, which also earns the "Meta-verified" trust badge.
 
