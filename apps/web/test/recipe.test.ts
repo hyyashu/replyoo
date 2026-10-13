@@ -57,6 +57,46 @@ describe('compileRecipe', () => {
     expect(issues).toContainEqual({ section: 'boosters', message: 'Follow checks are only available on Instagram' })
   })
 
+  it('adds https:// to a link typed without a scheme, so it passes validation and is saved with it', () => {
+    const typed = recipe({
+      message: {
+        text: 'Hi',
+        imageUrl: ' cdn.example.com/pic.png ',
+        links: [
+          { label: 'Bare', url: 'example.com' },
+          { label: 'Path', url: ' www.example.com/a?b=1#c ' },
+          { label: 'Slashes', url: '//example.com/x' },
+        ],
+      },
+    })
+    const { flow, issues } = checkRecipe(typed, 'instagram')
+    expect(issues).toEqual([])
+    const deliver = flow.steps.deliver
+    expect(deliver?.type === 'send_message' && deliver.imageUrl).toBe('https://cdn.example.com/pic.png')
+    expect(deliver?.type === 'send_message' && deliver.buttons?.map((b) => b.type === 'url' && b.url)).toEqual([
+      'https://example.com',
+      'https://www.example.com/a?b=1#c',
+      'https://example.com/x',
+    ])
+  })
+
+  it('leaves a link that already has http:// or https:// exactly as typed', () => {
+    const { flow, issues } = checkRecipe(
+      recipe({ message: { text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'http://example.com' }] } }),
+      'instagram',
+    )
+    expect(issues).toEqual([])
+    const deliver = flow.steps.deliver
+    expect(deliver?.type === 'send_message' && deliver.buttons?.[0]).toMatchObject({ url: 'http://example.com' })
+  })
+
+  it('still rejects text that is not a web address, even though bare domains are now accepted', () => {
+    for (const url of ['not a url', 'hello', 'javascript:alert(1)', 'data:text/html,hi', 'mailto:a@example.com', 'localhost:3000']) {
+      const { issues } = checkRecipe(recipe({ message: { text: 'Hi', imageUrl: '', links: [{ label: 'Open', url }] } }), 'instagram')
+      expect(issues, url).toContainEqual({ section: 'dm', message: 'Enter a valid link, including https://' })
+    }
+  })
+
   it('reports empty keywords and bad links against their sections', () => {
     const { issues } = checkRecipe(
       recipe({
