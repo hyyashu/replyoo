@@ -71,6 +71,13 @@
       "when": 1791887357805,
       "tag": "0009_link_click_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791892115000,
+      "tag": "0010_rerun_comments",
+      "breakpoints": true
     }
   ]
 }
