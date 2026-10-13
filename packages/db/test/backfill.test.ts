@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Db } from '../src'
 import {
+  answeredCommentIds,
+  automationEntries,
   automations,
   automationVersions,
   backfillRuns,
@@ -181,5 +183,50 @@ describe('handledCommentIds', () => {
   it('returns an empty set for no ids', async () => {
     const s = await seed()
     expect((await handledCommentIds(db, s.account.id, [])).size).toBe(0)
+  })
+})
+
+describe('answeredCommentIds', () => {
+  it('also leaves alone comments by someone this automation already ran for, even if that comment itself was never answered', async () => {
+    const s = await seed()
+    const other = await seed()
+    await db.insert(automationEntries).values({
+      automationId: s.automation.id,
+      contactId: s.contact.id,
+      lastEnteredAt: new Date(Date.now() - 50 * 3_600_000),
+    })
+    const comments = [
+      { id: `c_repeat_${randomUUID()}`, authorId: s.contact.platformUserId },
+      { id: `c_new_${randomUUID()}`, authorId: `psid_new_${randomUUID()}` },
+    ]
+    const answered = await answeredCommentIds(db, { accountId: s.account.id, automationId: s.automation.id, comments })
+    expect([...answered]).toEqual([comments[0]!.id])
+
+    // An entry for a different automation, or on another account, does not count.
+    const elsewhere = await answeredCommentIds(db, { accountId: other.account.id, automationId: other.automation.id, comments })
+    expect(elsewhere.size).toBe(0)
+  })
+
+  it('keeps counting comments with a run or an outbound reply', async () => {
+    const s = await seed()
+    const id = `c_run_${randomUUID()}`
+    await db.insert(flowRuns).values({
+      automationId: s.automation.id,
+      automationVersionId: s.version.id,
+      contactId: s.contact.id,
+      connectedAccountId: s.account.id,
+      commentId: id,
+    })
+    const answered = await answeredCommentIds(db, {
+      accountId: s.account.id,
+      automationId: s.automation.id,
+      comments: [{ id, authorId: 'someone_else' }],
+    })
+    expect(answered.has(id)).toBe(true)
+  })
+
+  it('returns an empty set for no comments', async () => {
+    const s = await seed()
+    expect((await answeredCommentIds(db, { accountId: s.account.id, automationId: s.automation.id, comments: [] })).size).toBe(0)
   })
 })

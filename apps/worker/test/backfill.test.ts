@@ -1,4 +1,4 @@
-import { automations, backfillRuns, connectedAccounts, createBackfillRun, flowRuns, messages, webhookEvents } from '@replyooo/db'
+import { automationEntries, automations, backfillRuns, connectedAccounts, createBackfillRun, flowRuns, messages, webhookEvents } from '@replyooo/db'
 import { MetaError, type NormalizedEvent } from '@replyooo/meta'
 import type { FlowDefinition } from '@replyooo/shared'
 import { eq, like } from 'drizzle-orm'
@@ -117,6 +117,29 @@ describe('handleBackfill', () => {
     adapters.instagram.comments.media1 = [listedComment('c_seen', 'u1', 'guide', hoursAgo(2))]
     await handleBackfill(deps, run.id)
     expect((await events()).map((e) => e.commentId)).toEqual(['c_seen'])
+  })
+
+  it('does not DM someone this automation already ran for, even when this later comment was never answered', async () => {
+    const { deps, adapters, db, account, automation, run, events, reload } = await setup()
+    const returning = await seedContact(db, account, { platformUserId: 'u_returning' })
+    // The live path ran the automation for this person 50 hours ago and dropped their next comment on cooldown.
+    await db.insert(automationEntries).values({ automationId: automation.id, contactId: returning.id, lastEnteredAt: hoursAgo(50) })
+    await db.insert(messages).values({
+      contactId: returning.id,
+      connectedAccountId: account.id,
+      direction: 'in',
+      kind: 'comment',
+      body: { text: 'guide??', mediaId: 'media1' },
+      status: 'received',
+      commentId: 'c_second',
+    })
+    adapters.instagram.comments.media1 = [
+      listedComment('c_second', 'u_returning', 'guide??', hoursAgo(45)),
+      listedComment('c_fresh', 'u_fresh', 'guide', hoursAgo(10)),
+    ]
+    await handleBackfill(deps, run.id)
+    expect((await events()).map((e) => e.commentId)).toEqual(['c_fresh'])
+    expect(await reload()).toMatchObject({ found: 2, skippedHandled: 1, enqueued: 1 })
   })
 
   it('stops at the comment cap and records it', async () => {

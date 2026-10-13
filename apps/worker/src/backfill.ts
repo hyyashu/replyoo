@@ -1,11 +1,11 @@
 import {
+  answeredCommentIds,
   automations,
   automationVersions,
   BACKFILL_MAX_COMMENTS,
   claimBackfillRun,
   connectedAccounts,
   finishBackfillRun,
-  handledCommentIds,
   webhookEvents,
 } from '@replyooo/db'
 import type { TriggerCandidate } from '@replyooo/engine'
@@ -75,7 +75,7 @@ async function execute(deps: Deps, run: { id: string; automationId: string; wind
     max,
   })
   const others = gathered.comments.filter((comment) => comment.authorId !== account.externalId)
-  const handled = await handledCommentIds(db, account.id, others.map((c) => c.id))
+  const handled = await answeredCommentIds(db, { accountId: account.id, automationId: row.automation.id, comments: others })
   const candidate: TriggerCandidate = {
     automationId: row.automation.id,
     publishedAt: row.publishedAt,

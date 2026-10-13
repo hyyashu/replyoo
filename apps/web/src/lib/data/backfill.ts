@@ -1,5 +1,6 @@
 import 'server-only'
 import {
+  answeredCommentIds,
   automations,
   automationVersions,
   BACKFILL_MAX_COMMENTS,
@@ -7,7 +8,6 @@ import {
   type BackfillRun,
   connectedAccounts,
   createBackfillRun,
-  handledCommentIds,
   latestBackfillRun,
 } from '@replyooo/db'
 import { classifyComments, type TriggerCandidate } from '@replyooo/engine'
@@ -111,7 +111,7 @@ export async function previewRerun(workspaceId: string, automationId: string, wi
       max: BACKFILL_MAX_COMMENTS,
     })
     const others = gathered.comments.filter((c) => c.authorId !== target.account.externalId)
-    const handled = await handledCommentIds(db(), target.account.id, others.map((c) => c.id))
+    const handled = await answeredCommentIds(db(), { accountId: target.account.id, automationId: target.automation.id, comments: others })
     const candidate: TriggerCandidate = {
       automationId: target.automation.id,
       publishedAt: target.publishedAt,

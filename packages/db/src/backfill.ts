@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, lt } from 'drizzle-orm'
 import type { Db } from './client'
-import { backfillRuns, flowRuns, messages } from './schema'
+import { automationEntries, backfillRuns, contacts, flowRuns, messages } from './schema'
 
 /** Meta only allows a private reply within 7 days of the comment. */
 export const BACKFILL_WINDOWS_HOURS = [24, 72, 168] as const
@@ -111,4 +111,31 @@ export async function handledCommentIds(db: Db, accountId: string, commentIds: r
   const handled = new Set<string>()
   for (const row of [...runs, ...sent]) if (row.commentId) handled.add(row.commentId)
   return handled
+}
+
+/**
+ * Comment ids a re-run must leave alone: ones that were answered (see `handledCommentIds`), and any comment by a
+ * person this automation has already run for. The live path drops a repeat commenter on the 24-hour cooldown, but
+ * that cooldown is measured from now, so a re-run days later would otherwise DM them a second time.
+ */
+export async function answeredCommentIds(
+  db: Db,
+  input: { accountId: string; automationId: string; comments: readonly { id: string; authorId: string }[] },
+): Promise<Set<string>> {
+  const answered = await handledCommentIds(db, input.accountId, input.comments.map((c) => c.id))
+  if (input.comments.length === 0) return answered
+  const entered = await db
+    .select({ platformUserId: contacts.platformUserId })
+    .from(automationEntries)
+    .innerJoin(contacts, eq(contacts.id, automationEntries.contactId))
+    .where(
+      and(
+        eq(automationEntries.automationId, input.automationId),
+        eq(contacts.connectedAccountId, input.accountId),
+        inArray(contacts.platformUserId, [...new Set(input.comments.map((c) => c.authorId))]),
+      ),
+    )
+  const enteredIds = new Set(entered.map((row) => row.platformUserId))
+  for (const comment of input.comments) if (enteredIds.has(comment.authorId)) answered.add(comment.id)
+  return answered
 }
