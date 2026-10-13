@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lt, or } from 'drizzle-orm'
 import type { Db } from './client'
 import { automationEntries, backfillRuns, contacts, flowRuns, messages } from './schema'
 
@@ -83,12 +83,21 @@ export async function finishBackfillRun(db: Db, id: string, result: BackfillResu
     .where(eq(backfillRuns.id, id))
 }
 
-/** A worker that died mid-run would otherwise block the automation's next run forever. */
+/**
+ * A run that is stuck would block the automation's next run forever: one whose worker died mid-run, or one the
+ * queue never delivered (a failed job keeps its id for days, so the sweep's re-queue is ignored).
+ */
 export async function failStuckBackfillRuns(db: Db, now: Date): Promise<number> {
+  const cutoff = new Date(now.getTime() - STUCK_AFTER_MS)
   const rows = await db
     .update(backfillRuns)
     .set({ status: 'failed', error: 'timed_out', finishedAt: now })
-    .where(and(eq(backfillRuns.status, 'running'), lt(backfillRuns.startedAt, new Date(now.getTime() - STUCK_AFTER_MS))))
+    .where(
+      or(
+        and(eq(backfillRuns.status, 'running'), lt(backfillRuns.startedAt, cutoff)),
+        and(eq(backfillRuns.status, 'queued'), lt(backfillRuns.createdAt, cutoff)),
+      ),
+    )
     .returning({ id: backfillRuns.id })
   return rows.length
 }

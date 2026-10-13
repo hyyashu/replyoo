@@ -151,6 +151,23 @@ describe('backfill runs', () => {
   })
 })
 
+describe('queued runs nobody picked up', () => {
+  it('fails a run that has been queued for over 30 minutes, so it cannot block the automation', async () => {
+    const stale = await seed()
+    const fresh = await seed()
+    const now = new Date()
+    const staleRun = (await createBackfillRun(db, { automationId: stale.automation.id, connectedAccountId: stale.account.id, windowHours: 24 })).run
+    const freshRun = (await createBackfillRun(db, { automationId: fresh.automation.id, connectedAccountId: fresh.account.id, windowHours: 24 })).run
+    await db.update(backfillRuns).set({ createdAt: new Date(now.getTime() - 31 * 60_000) }).where(eq(backfillRuns.id, staleRun.id))
+    await failStuckBackfillRuns(db, now)
+    const [s] = await db.select().from(backfillRuns).where(eq(backfillRuns.id, staleRun.id))
+    const [f] = await db.select().from(backfillRuns).where(eq(backfillRuns.id, freshRun.id))
+    expect(s).toMatchObject({ status: 'failed', error: 'timed_out' })
+    expect(f?.status).toBe('queued')
+    expect((await createBackfillRun(db, { automationId: stale.automation.id, connectedAccountId: stale.account.id, windowHours: 24 })).created).toBe(true)
+  })
+})
+
 describe('handledCommentIds', () => {
   it('counts comments with a flow run or an outbound message, but not an inbound-only comment', async () => {
     const s = await seed()
