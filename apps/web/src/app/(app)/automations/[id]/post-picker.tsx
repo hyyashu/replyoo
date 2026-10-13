@@ -1,5 +1,8 @@
 'use client'
 
+import { useDashboardError } from '@/i18n/use-errors'
+import { useTranslations } from 'next-intl'
+
 import { Check, CircleAlert, ImageOff, Loader2, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button, cx } from '@/components/ui'
@@ -24,7 +27,9 @@ export function PostPicker({
   onLoaded?: (posts: RecentPost[]) => void
   source?: 'posts' | 'stories'
 }) {
-  const noun = source === 'stories' ? 'stories' : 'posts'
+  const tr = useTranslations('automations')
+  const translateError = useDashboardError()
+
   const [loaded, setLoaded] = useState<Loaded>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -46,22 +51,21 @@ export function PostPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onLoaded is a fresh closure each render; refetching on it would loop
   }, [accountId, attempt, source])
 
-  const toggle = (id: string) =>
-    onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id].slice(0, MAX_POSTS))
+  const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id].slice(0, MAX_POSTS))
 
   if (loaded.kind === 'loading') {
     return (
       <p className="mt-2 flex items-center gap-2 text-[12.5px] text-subtle">
-        <Loader2 className="size-3.5 animate-spin" aria-hidden /> Loading your {noun}…
+        <Loader2 className="size-3.5 animate-spin" aria-hidden /> {tr(`loading_${source}`)}
       </p>
     )
   }
   if (loaded.kind === 'error') {
     return (
       <p role="alert" className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
-        <CircleAlert className="size-3.5" aria-hidden /> {loaded.message}
+        <CircleAlert className="size-3.5" aria-hidden /> {translateError(loaded.message)}
         <button type="button" className="font-medium text-ink underline" onClick={() => setAttempt((n) => n + 1)}>
-          Try again
+          {tr('try_again')}
         </button>
       </p>
     )
@@ -70,8 +74,8 @@ export function PostPicker({
     return (
       <p className="mt-2 text-[12.5px] text-subtle">
         {source === 'stories'
-          ? 'No live stories right now. Post a story first — stories disappear after 24 hours.'
-          : 'No published posts found on this account yet.'}
+          ? tr('no_live_stories_right_now_post_a_story_first_stories_disappear')
+          : tr('no_published_posts_found_on_this_account_yet')}
       </p>
     )
   }
@@ -98,7 +102,11 @@ export function PostPicker({
               >
                 {post.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- Meta CDN URLs, short-lived and not worth proxying
-                  <img src={post.thumbnailUrl} alt={post.caption?.slice(0, 80) ?? (source === 'stories' ? 'Story' : 'Post')} className="size-full object-cover" />
+                  <img
+                    src={post.thumbnailUrl}
+                    alt={post.caption?.slice(0, 80) ?? (source === 'stories' ? tr('story') : tr('post'))}
+                    className="size-full object-cover"
+                  />
                 ) : (
                   <ImageOff className="m-auto size-5 text-faint" aria-hidden />
                 )}
@@ -113,8 +121,9 @@ export function PostPicker({
         })}
       </ul>
       <p className="mt-2 text-[12.5px] text-subtle">
-        {selected.length} selected{hidden > 0 && ` (${hidden} not shown here)`}
-        {selected.length >= MAX_POSTS && ` — the limit is ${MAX_POSTS}`}
+        {tr('selectionCount', { count: selected.length })}
+        {hidden > 0 && tr('hiddenSelection', { count: hidden })}
+        {selected.length >= MAX_POSTS && tr('selectionLimit', { count: MAX_POSTS })}
       </p>
     </div>
   )
@@ -136,6 +145,8 @@ export function PostPickerDialog({
   onClose: () => void
   source?: 'posts' | 'stories'
 }) {
+  const tr = useTranslations('automations')
+  
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
@@ -143,14 +154,19 @@ export function PostPickerDialog({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4" role="dialog" aria-modal="true" aria-label={source === 'stories' ? 'Choose stories' : 'Choose posts'}>
+    <div
+      className="fixed inset-0 z-50 grid place-items-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={source === 'stories' ? tr('choose_stories') : tr('choose_posts')}
+    >
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
       <div className="relative flex max-h-[85vh] w-full max-w-[560px] flex-col rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
-          <h2 className="text-[15px] font-semibold">{source === 'stories' ? 'Choose stories' : 'Choose posts'}</h2>
+          <h2 className="text-[15px] font-semibold">{source === 'stories' ? tr('choose_stories') : tr('choose_posts')}</h2>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={tr('close')}
             onClick={onClose}
             className="grid size-8 place-items-center rounded-lg text-muted hover:bg-sand"
           >
@@ -161,7 +177,7 @@ export function PostPickerDialog({
           <PostPicker accountId={accountId} selected={selected} onChange={onChange} onLoaded={onLoaded} source={source} />
         </div>
         <div className="flex justify-end border-t border-line px-5 py-3">
-          <Button onClick={onClose}>Done</Button>
+          <Button onClick={onClose}>{tr('done')}</Button>
         </div>
       </div>
     </div>

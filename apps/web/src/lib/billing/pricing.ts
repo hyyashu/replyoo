@@ -31,10 +31,10 @@ function fractionDigits(currency: string): number {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2
 }
 
-export function formatMoney(money: Money): string {
+export function formatMoney(money: Money, locale = 'en-US'): string {
   const digits = fractionDigits(money.currency)
   const value = money.amount / 10 ** digits
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: money.currency,
     minimumFractionDigits: Number.isInteger(value) ? 0 : digits,
@@ -98,7 +98,11 @@ async function loadCatalog(config: DodoConfig, now: number): Promise<Catalog | n
 }
 
 function fallbackPrices(): DisplayPrices {
-  const plan = (key: PaidPlan): PaidPlanPrices => ({ month: { amount: FALLBACK_MONTHLY_USD_CENTS[key], currency: 'USD' }, year: null, savePercent: null })
+  const plan = (key: PaidPlan): PaidPlanPrices => ({
+    month: { amount: FALLBACK_MONTHLY_USD_CENTS[key], currency: 'USD' },
+    year: null,
+    savePercent: null,
+  })
   return { source: 'fallback', yearly: false, plans: { pro: plan('pro'), business: plan('business') } }
 }
 
@@ -123,12 +127,21 @@ export async function displayPrices(country: string | null, config: DodoConfig |
 }
 
 /** Plan copy from PLAN_CATALOG with prices from `prices`. Free shows zero in the Pro monthly currency. */
-export function planCards(prices: DisplayPrices): PlanCard[] {
-  const zero = formatMoney({ amount: 0, currency: prices.plans.pro.month.currency })
+export function planCards(prices: DisplayPrices, locale = 'en-US'): PlanCard[] {
+  const zero = formatMoney({ amount: 0, currency: prices.plans.pro.month.currency }, locale)
   return PLAN_CATALOG.map(({ key, name, blurb, perks, featured }) => {
     if (key === 'free') return { key, name, blurb, perks, featured, month: zero, year: prices.yearly ? zero : null, savePercent: null }
     const p = prices.plans[key]
-    return { key, name, blurb, perks, featured, month: formatMoney(p.month), year: p.year ? formatMoney(p.year) : null, savePercent: p.savePercent }
+    return {
+      key,
+      name,
+      blurb,
+      perks,
+      featured,
+      month: formatMoney(p.month, locale),
+      year: p.year ? formatMoney(p.year, locale) : null,
+      savePercent: p.savePercent,
+    }
   })
 }
 

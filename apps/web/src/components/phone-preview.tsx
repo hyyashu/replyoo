@@ -1,5 +1,8 @@
 'use client'
 
+import { createTranslator } from 'next-intl'
+import englishMessages from '../../messages/preview-en.json'
+
 import { renderText, type ContactState } from '@replyooo/engine'
 import { useState } from 'react'
 import { Camera, ChevronLeft, CornerDownRight, ExternalLink, Heart, MessageCircle, Send, Signal, Wifi, X } from 'lucide-react'
@@ -8,6 +11,9 @@ import type { RecentPost } from '@/lib/data'
 import type { Recipe, RecipeTrigger } from '@/lib/recipe'
 import { openerRequired } from '@/lib/recipe'
 
+const englishTranslator = createTranslator({ locale: 'en', messages: englishMessages })
+const defaultTranslate: PreviewTranslate = (key, values) => englishTranslator(key as keyof typeof englishMessages, values)
+
 const SAMPLE: ContactState = { username: 'sam.eats', name: 'Sam Rivera', email: null, phone: null, tags: [], fields: {} }
 
 type Bubble =
@@ -15,8 +21,12 @@ type Bubble =
   | { kind: 'them'; text: string }
   | { kind: 'us'; text: string; replyButton?: string; links?: { label: string; url: string }[] }
 
-function previewLinks(links: { label: string; url: string }[]) {
-  return links.length > 0 ? { links: links.map((link) => ({ label: link.label || 'Open', url: link.url })) } : {}
+type PreviewTranslate = (key: string, values?: Record<string, string | number>) => string
+
+function previewLinks(links: { label: string; url: string }[], translate?: PreviewTranslate) {
+  return links.length > 0
+    ? { links: links.map((link) => ({ label: link.label || (translate ? translate('previewOpen') : 'Open'), url: link.url })) }
+    : {}
 }
 
 export type PreviewMode = 'post' | 'comment' | 'story' | 'dm'
@@ -40,7 +50,7 @@ export function previewModes(trigger: RecipeTrigger): { value: PreviewMode; labe
 }
 
 /** `starter` picks which conversation starter was tapped; null shows the empty chat. */
-export function conversation(recipe: Recipe, starter: number | null = 0): Bubble[] {
+export function conversation(recipe: Recipe, starter: number | null = 0, translate?: PreviewTranslate): Bubble[] {
   const { trigger } = recipe
   const render = (text: string, contact: ContactState = SAMPLE) => renderText(text, contact, {}) || '…'
   const bubbles: Bubble[] = []
@@ -48,9 +58,9 @@ export function conversation(recipe: Recipe, starter: number | null = 0): Bubble
   if (trigger.type === 'ice_breaker') {
     const item = starter === null ? undefined : trigger.items[starter]
     if (item) {
-      bubbles.push({ kind: 'context', text: 'sam.eats tapped a conversation starter' })
+      bubbles.push({ kind: 'context', text: translate ? translate('starterTapped') : 'sam.eats tapped a conversation starter' })
       bubbles.push({ kind: 'them', text: item.question || '…' })
-      bubbles.push({ kind: 'us', text: render(item.answer), ...previewLinks(item.links) })
+      bubbles.push({ kind: 'us', text: render(item.answer), ...previewLinks(item.links, translate) })
     }
     return bubbles
   }
@@ -58,24 +68,37 @@ export function conversation(recipe: Recipe, starter: number | null = 0): Bubble
   const keyword = 'keywords' in trigger ? (trigger.keywords[0] ?? 'Hi') : 'Hi'
   switch (trigger.type) {
     case 'comment_keyword':
-      bubbles.push({ kind: 'context', text: `sam.eats commented “${trigger.keywords[0] ?? 'Love this!'}” on your post` })
+      bubbles.push({
+        kind: 'context',
+        text: translate
+          ? translate('commentContext', { comment: trigger.keywords[0] ?? 'Love this!' })
+          : `sam.eats commented “${trigger.keywords[0] ?? 'Love this!'}” on your post`,
+      })
       break
     case 'story_reply':
-      bubbles.push({ kind: 'context', text: 'sam.eats replied to your story' })
+      bubbles.push({ kind: 'context', text: translate ? translate('storyContext') : 'sam.eats replied to your story' })
       bubbles.push({ kind: 'them', text: trigger.keywords[0] ?? '🔥🔥' })
-      if (trigger.reactWithHeart) bubbles.push({ kind: 'context', text: 'You reacted ❤️ to their reply' })
+      if (trigger.reactWithHeart) bubbles.push({ kind: 'context', text: translate ? translate('reactedContext') : 'You reacted ❤️ to their reply' })
       break
     default:
       bubbles.push({ kind: 'them', text: trigger.type === 'any_dm' ? 'Hey! Quick question 👋' : keyword })
   }
 
   if (recipe.opener.enabled || openerRequired(trigger)) {
-    bubbles.push({ kind: 'us', text: render(recipe.opener.text), replyButton: recipe.opener.buttonLabel || 'Button' })
-    bubbles.push({ kind: 'them', text: recipe.opener.buttonLabel || 'Button' })
+    bubbles.push({
+      kind: 'us',
+      text: render(recipe.opener.text),
+      replyButton: recipe.opener.buttonLabel || (translate ? translate('previewButton') : 'Button'),
+    })
+    bubbles.push({ kind: 'them', text: recipe.opener.buttonLabel || (translate ? translate('previewButton') : 'Button') })
   }
   if (recipe.followGate.enabled) {
-    bubbles.push({ kind: 'us', text: render(recipe.followGate.text), replyButton: recipe.followGate.buttonLabel || 'Button' })
-    bubbles.push({ kind: 'them', text: recipe.followGate.buttonLabel || 'Button' })
+    bubbles.push({
+      kind: 'us',
+      text: render(recipe.followGate.text),
+      replyButton: recipe.followGate.buttonLabel || (translate ? translate('previewButton') : 'Button'),
+    })
+    bubbles.push({ kind: 'them', text: recipe.followGate.buttonLabel || (translate ? translate('previewButton') : 'Button') })
   }
   let contact = SAMPLE
   if (recipe.collect.kind !== 'none') {
@@ -84,11 +107,11 @@ export function conversation(recipe: Recipe, starter: number | null = 0): Bubble
     bubbles.push({ kind: 'them', text: answer })
     contact = { ...SAMPLE, [recipe.collect.kind]: answer }
   }
-  if (recipe.message.imageUrl) bubbles.push({ kind: 'us', text: '🖼 Image' })
+  if (recipe.message.imageUrl) bubbles.push({ kind: 'us', text: translate ? translate('previewImage') : '🖼 Image' })
   bubbles.push({
     kind: 'us',
     text: render(recipe.message.text, contact),
-    ...previewLinks(recipe.message.links),
+    ...previewLinks(recipe.message.links, translate),
   })
   return bubbles
 }
@@ -98,7 +121,9 @@ export function PhonePreview({
   mode,
   username,
   media,
+  translate = defaultTranslate,
 }: {
+  translate?: PreviewTranslate
   recipe: Recipe
   mode: PreviewMode
   username: string
@@ -117,21 +142,32 @@ export function PhonePreview({
           </span>
         </div>
         {mode === 'dm' ? (
-          <DmView recipe={recipe} starter={starter} onStarter={setStarter} />
+          <DmView translate={translate} recipe={recipe} starter={starter} onStarter={setStarter} />
         ) : mode === 'story' ? (
-          <StoryView recipe={recipe} username={username} media={media} />
+          <StoryView translate={translate} recipe={recipe} username={username} media={media} />
         ) : (
-          <CommentView recipe={recipe} username={username} media={media} view={mode === 'post' ? 'post' : 'comments'} />
+          <CommentView translate={translate} recipe={recipe} username={username} media={media} view={mode === 'post' ? 'post' : 'comments'} />
         )}
       </div>
     </div>
   )
 }
 
-function DmView({ recipe, starter, onStarter }: { recipe: Recipe; starter: number | null; onStarter: (index: number | null) => void }) {
+function DmView({
+  recipe,
+  starter,
+  onStarter,
+  translate,
+}: {
+  translate: PreviewTranslate
+  recipe: Recipe
+  starter: number | null
+  onStarter: (index: number | null) => void
+}) {
+  const tr = translate
   const starters = recipe.trigger.type === 'ice_breaker' ? recipe.trigger.items : []
   const selected = starter !== null && starter < starters.length ? starter : null
-  const bubbles = conversation(recipe, selected)
+  const bubbles = conversation(recipe, selected, tr)
   return (
     <>
       <div className="flex items-center gap-2.5 border-b border-line/60 px-4 pb-3">
@@ -139,12 +175,12 @@ function DmView({ recipe, starter, onStarter }: { recipe: Recipe; starter: numbe
         <Avatar name="sam.eats" size={30} />
         <div>
           <div className="text-[13px] leading-tight font-semibold">sam.eats</div>
-          <div className="text-[11px] text-subtle">Active now</div>
+          <div className="text-[11px] text-subtle">{tr('active_now')}</div>
         </div>
       </div>
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3.5 py-3 [scrollbar-width:none]">
         {starters.length > 0 && selected === null && (
-          <p className="py-6 text-center text-[11px] text-subtle">Tap a question below to see what they’d get</p>
+          <p className="py-6 text-center text-[11px] text-subtle">{tr('tap_a_question_below_to_see_what_they_d_get')}</p>
         )}
         {bubbles.map((bubble, index) => {
           if (bubble.kind === 'context') {
@@ -211,13 +247,14 @@ function DmView({ recipe, starter, onStarter }: { recipe: Recipe; starter: numbe
         </div>
       )}
       <div className="m-3 mt-1 flex items-center gap-2 rounded-full border border-line px-3 py-2 text-[12px] text-faint">
-        <Camera className="size-4 text-[#3b5bdb]" /> Message…
+        <Camera className="size-4 text-[#3b5bdb]" /> {tr('message')}{' '}
       </div>
     </>
   )
 }
 
-function StoryView({ recipe, username, media }: { recipe: Recipe; username: string; media?: RecentPost }) {
+function StoryView({ recipe, username, media, translate }: { translate: PreviewTranslate; recipe: Recipe; username: string; media?: RecentPost }) {
+  const tr = translate
   const trigger = recipe.trigger
   if (trigger.type !== 'story_reply') return null
   const reply = trigger.keywords[0] ?? '🔥🔥'
@@ -230,18 +267,18 @@ function StoryView({ recipe, username, media }: { recipe: Recipe; username: stri
       <div className="relative flex items-center gap-2 px-3 pt-2.5">
         <Avatar name={username} size={26} />
         <span className="text-[12.5px] font-semibold">{username}</span>
-        <span className="text-[11px] text-white/80">2h</span>
+        <span className="text-[11px] text-white/80">{tr('2h')}</span>
         <X className="ml-auto size-4" />
       </div>
       <div className="flex-1" />
       <div className="relative mx-3 mb-3 flex flex-col gap-2">
         <div className="self-start rounded-[16px] bg-black/35 px-3 py-1.5 text-[11.5px]">
-          <span className="font-semibold">sam.eats</span> replied: {reply}
-          {trigger.includeReactions && <span className="ml-1 text-white/80">· or reacts with an emoji</span>}
+          <span className="font-semibold">sam.eats</span> {tr('replied')} {reply}
+          {trigger.includeReactions && <span className="ml-1 text-white/80">{tr('or_reacts_with_an_emoji')}</span>}
         </div>
-        {trigger.reactWithHeart && <p className="self-start text-[10.5px] text-white/85">You react ❤️ to their reply</p>}
+        {trigger.reactWithHeart && <p className="self-start text-[10.5px] text-white/85">{tr('you_react_to_their_reply')}</p>}
         <div className="flex items-center gap-2.5">
-          <div className="flex-1 rounded-full border border-white/70 px-3.5 py-2 text-[12px] text-white/90">Send message</div>
+          <div className="flex-1 rounded-full border border-white/70 px-3.5 py-2 text-[12px] text-white/90">{tr('send_message')}</div>
           <Heart className="size-5" />
           <Send className="size-5" />
         </div>
@@ -250,12 +287,25 @@ function StoryView({ recipe, username, media }: { recipe: Recipe; username: stri
   )
 }
 
-function CommentView({ recipe, username, media, view }: { recipe: Recipe; username: string; media?: RecentPost; view: 'post' | 'comments' }) {
+function CommentView({
+  recipe,
+  username,
+  media,
+  view,
+  translate,
+}: {
+  translate: PreviewTranslate
+  recipe: Recipe
+  username: string
+  media?: RecentPost
+  view: 'post' | 'comments'
+}) {
+  const tr = translate
   const trigger = recipe.trigger
   if (trigger.type !== 'comment_keyword') {
     return (
       <div className="grid flex-1 place-items-center px-8 text-center text-[13px] text-subtle">
-        This automation starts in DMs — there’s no public comment.
+        {tr('this_automation_starts_in_dms_there_s_no_public_comment')}
       </div>
     )
   }
@@ -279,18 +329,22 @@ function CommentView({ recipe, username, media, view }: { recipe: Recipe; userna
           <MessageCircle className="size-4.5" />
           <Send className="size-4.5" />
         </div>
-        <div className="px-4 text-[11.5px] font-semibold">1,284 likes</div>
+        <div className="px-4 text-[11.5px] font-semibold">{tr('1_284_likes')}</div>
         <p className="px-4 pt-1 text-[12.5px] leading-snug">
           <span className="font-semibold">{username}</span>{' '}
-          {media?.caption ? media.caption.slice(0, 90) : keyword ? `Comment “${keyword}” and I’ll send it to your DMs ✨` : 'New post — leave a comment!'}
+          {media?.caption
+            ? media.caption.slice(0, 90)
+            : keyword
+              ? tr('comment_and_i_ll_send_it_to_your_dms', { v0: keyword })
+              : tr('new_post_leave_a_comment')}
         </p>
-        <p className="px-4 pt-1.5 text-[11.5px] text-subtle">View all 23 comments</p>
+        <p className="px-4 pt-1.5 text-[11.5px] text-subtle">{tr('view_all_23_comments')}</p>
       </div>
     )
   }
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="border-b border-line/60 py-2 text-center text-[12.5px] font-semibold">Comments</div>
+      <div className="border-b border-line/60 py-2 text-center text-[12.5px] font-semibold">{tr('comments')}</div>
       <div className="flex flex-col gap-3 overflow-y-auto px-4 py-3">
         <div className="flex gap-2">
           <Avatar name="sam.eats" size={24} />
@@ -306,13 +360,11 @@ function CommentView({ recipe, username, media, view }: { recipe: Recipe; userna
               <p className="text-[12.5px] leading-snug">
                 <span className="font-semibold">{username}</span> @sam.eats {renderText(replies[0] ?? '', SAMPLE, {})}
               </p>
-              {replies.length > 1 && (
-                <p className="mt-1 text-[10.5px] text-subtle">Rotates between {replies.length} replies</p>
-              )}
+              {replies.length > 1 && <p className="mt-1 text-[10.5px] text-subtle">{tr('rotates_between_replies', { v0: replies.length })}</p>}
             </div>
           </div>
         ) : (
-          <p className="ml-7 text-[11px] text-subtle">No public reply — they only get the DM.</p>
+          <p className="ml-7 text-[11px] text-subtle">{tr('no_public_reply_they_only_get_the_dm')}</p>
         )}
       </div>
     </div>

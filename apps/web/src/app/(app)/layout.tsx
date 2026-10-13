@@ -1,3 +1,7 @@
+import { getDashboardFormatters } from '@/i18n/server-format'
+
+import { useTranslations } from 'next-intl'
+import { getTranslations } from 'next-intl/server'
 import { TriangleAlert } from 'lucide-react'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
@@ -7,19 +11,34 @@ import { Logo } from '@/components/ui'
 import { VerifyEmailBanner } from '@/components/verify-banner'
 import { getSubscription } from '@/lib/data'
 import { getAccountContext, VERIFY_COOLDOWN_COOKIE } from '@/lib/session'
+import { DashboardProvider } from '@/i18n/provider'
+import { DocumentLanguage } from '@/i18n/document-language'
+import { LanguageSelector } from '@/components/language-selector'
 
 function SkipLink() {
+  const tr = useTranslations('navigation')
   return (
     <a
       href="#main"
       className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-ink focus:px-3 focus:py-2 focus:text-[13px] focus:text-white"
     >
-      Skip to content
+      {tr('skip_to_content')}
     </a>
   )
 }
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <DashboardProvider namespaces={[]}>
+      <DocumentLanguage />
+      <AppShell>{children}</AppShell>
+    </DashboardProvider>
+  )
+}
+
+async function AppShell({ children }: { children: React.ReactNode }) {
+  const { formatNumber, formatDate } = await getDashboardFormatters()
+  const tr = await getTranslations('navigation')
   const { workspace, account, accounts } = await getAccountContext()
   const subscription = await getSubscription(workspace.workspaceId)
   const verifyBanner = workspace.user.emailVerified ? null : (
@@ -36,12 +55,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Logo />
           </Link>
           <div className="flex items-center gap-5 text-[13.5px] font-medium text-muted">
+            <LanguageSelector compact />
             <Link href="/connect" className="hover:text-ink">
-              Connect an account
+              {tr('connect_an_account')}
             </Link>
             <form action={signOut}>
               <button type="submit" className="font-medium hover:text-ink">
-                Log out
+                {tr('log_out')}
               </button>
             </form>
           </div>
@@ -62,19 +82,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {account.status === 'reauth_required' && (
           <div className="flex flex-wrap items-center gap-2 border-b border-[#ffd7c4] bg-brand-tint px-4 py-2.5 sm:px-10 text-[13.5px] text-ink">
             <TriangleAlert className="size-4 text-brand" />
-            Meta revoked access to @{account.username}. Automations on this account are paused until you reconnect.
+            {tr('reauthNotice', { username: account.username })}{' '}
             <Link href={`/connect?platform=${account.platform}`} className="ml-auto font-semibold text-brand hover:underline">
-              Reconnect
+              {tr('reconnect')}
             </Link>
           </div>
         )}
         {subscription.contactsReached >= subscription.contactsLimit && (
           <div className="flex flex-wrap items-center gap-2 border-b border-[#ffd7c4] bg-brand-tint px-4 py-2.5 sm:px-10 text-[13.5px] text-ink">
             <TriangleAlert className="size-4 text-brand" />
-            You’ve reached {subscription.contactsLimit.toLocaleString('en-US')} contacts this month. New conversations are paused until{' '}
-            {new Date(subscription.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
+            {tr('contactLimitNotice', {
+              count: formatNumber(subscription.contactsLimit),
+              date: formatDate(subscription.periodEnd, { month: 'short', day: 'numeric' }),
+            })}
             <Link href="/settings#billing" className="ml-auto font-semibold text-brand hover:underline">
-              Upgrade
+              {tr('upgrade')}
             </Link>
           </div>
         )}

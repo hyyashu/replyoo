@@ -1,15 +1,17 @@
 'use client'
 
 import type { LinkInsight } from '@replyooo/db'
+import { useTranslations } from 'next-intl'
 import { useEffect, useState } from 'react'
 import { getLinkDaily, getLinkInsights } from '@/app/actions'
-import { formatNumber } from '@/components/ui'
 import { clickRate } from '@/lib/bio'
+import { useDashboardFormatters } from '@/i18n/use-format'
 
 type Day = { day: string; clicks: number }
 
 /** The last 14 days of clicks on one destination, loaded when its row is opened. */
 function Trend({ automationId, url }: { automationId: string; url: string }) {
+  const tr = useTranslations('automations')
   const [days, setDays] = useState<Day[] | null>(null)
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -25,9 +27,9 @@ function Trend({ automationId, url }: { automationId: string; url: string }) {
   }, [automationId, url])
 
   const max = Math.max(1, ...(days ?? []).map((d) => d.clicks))
-  if (failed) return <p className="mt-2 text-[12.5px] text-brand">Couldn’t load the chart.</p>
+  if (failed) return <p className="mt-2 text-[12.5px] text-brand">{tr('link_chart_failed')}</p>
   return (
-    <div className="mt-2 flex h-16 items-end gap-1" role="img" aria-label="Clicks per day, last 14 days">
+    <div className="mt-2 flex h-16 items-end gap-1" role="img" aria-label={tr('link_chart_label')}>
       {(days ?? Array.from({ length: 14 }, () => ({ day: '', clicks: 0 }))).map((d, i) => (
         <div key={d.day || i} title={d.day ? `${d.day}: ${d.clicks}` : undefined} className="flex h-full flex-1 items-end">
           <div className="w-full rounded-sm bg-ink" style={{ height: d.clicks ? `${Math.max(8, (d.clicks / max) * 100)}%` : '3px', opacity: d.clicks ? 1 : 0.15 }} />
@@ -39,6 +41,8 @@ function Trend({ automationId, url }: { automationId: string; url: string }) {
 
 /** Clicks on the links this automation sent, per destination, for the last 30 days. Renders nothing until a link has been sent. */
 export function LinkInsights({ automationId }: { automationId: string }) {
+  const tr = useTranslations('automations')
+  const { formatNumber } = useDashboardFormatters()
   const [links, setLinks] = useState<LinkInsight[] | null>(null)
   const [open, setOpen] = useState<string | null>(null)
   useEffect(() => {
@@ -55,10 +59,10 @@ export function LinkInsights({ automationId }: { automationId: string }) {
   return (
     <section className="mt-6 rounded-[18px] border border-line bg-white p-5" aria-labelledby="link-clicks-title">
       <h2 id="link-clicks-title" className="text-[15px] font-semibold">
-        Link clicks <span className="font-normal text-subtle">· last 30 days</span>
+        {tr('link_clicks')} <span className="font-normal text-subtle">· {tr('last_30_days_lower')}</span>
       </h2>
       <p className="mt-1 text-[12.5px] text-subtle">
-        People see a short replyooo link that opens your page. Only DMs sent since link tracking began are counted.
+        {tr('link_clicks_note')}
       </p>
       <ul className="mt-3 divide-y divide-line">
         {links.map((link) => (
@@ -73,17 +77,17 @@ export function LinkInsights({ automationId }: { automationId: string }) {
                 {link.url}
               </span>
               <span className="shrink-0 text-[13px] tabular-nums text-subtle">
-                {formatNumber(link.clickers)} of {formatNumber(link.recipients)} · {link.recipients > 0 ? `${clickRate(link.clickers, link.recipients)}%` : '—'}
+                {tr('clickers_of', { v0: formatNumber(link.clickers), v1: formatNumber(link.recipients) })} · {link.recipients > 0 ? `${clickRate(link.clickers, link.recipients)}%` : '—'}
               </span>
             </button>
             {open === link.url && (
               <div className="mt-2 rounded-xl bg-sand/70 p-3.5">
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <Tile value={formatNumber(link.recipients)} label="People sent" />
-                  <Tile value={formatNumber(link.clickers)} label="People clicked" />
-                  <Tile value={formatNumber(link.clicks)} label="Total clicks" />
+                  <Tile value={formatNumber(link.recipients)} label={tr('people_sent')} />
+                  <Tile value={formatNumber(link.clickers)} label={tr('people_clicked')} />
+                  <Tile value={formatNumber(link.clicks)} label={tr('total_clicks')} />
                 </div>
-                <p className="mt-3 text-[12.5px] font-medium text-muted">Last 14 days</p>
+                <p className="mt-3 text-[12.5px] font-medium text-muted">{tr('last_14_days')}</p>
                 <Trend automationId={automationId} url={link.url} />
               </div>
             )}

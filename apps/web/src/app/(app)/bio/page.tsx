@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
 import { appUrl } from '@/lib/env'
 import { bioOverview } from '@replyooo/db'
@@ -6,7 +7,9 @@ import { getAccountContext } from '@/lib/session'
 import { getBioEditorData, toBioView } from '@/lib/data'
 import { BioEditor } from './editor'
 
-export const metadata: Metadata = { title: 'Bio page' }
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations('bio'))('pageTitle') }
+}
 
 export default async function BioPage() {
   const { workspace, account } = await getAccountContext()

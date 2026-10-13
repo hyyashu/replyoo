@@ -1,9 +1,13 @@
 'use client'
 
+import { useDashboardFormatters } from '@/i18n/use-format'
+
+import { useTranslations } from 'next-intl'
+
 import { AtSign, Phone, X } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect } from 'react'
-import { Avatar, Keyword, cx, timeAgo } from '@/components/ui'
+import { Avatar, Keyword, cx } from '@/components/ui'
 import type { ContactDetail, ContactRun } from '@/lib/data/types'
 import { RelationshipBadges } from './relationship'
 
@@ -17,6 +21,8 @@ const RUN_STATUS: Record<ContactRun['status'], string> = {
 }
 
 export function ContactDrawer({ contact }: { contact: ContactDetail }) {
+  const { formatDate, timeAgo } = useDashboardFormatters()
+  const tr = useTranslations('contacts')
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -35,8 +41,8 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <button type="button" aria-label="Close" onClick={close} className="absolute inset-0 bg-ink/20" />
-      <aside className="relative flex h-full w-[440px] flex-col overflow-y-auto bg-white shadow-[-12px_0_40px_rgba(21,19,16,0.12)]">
+      <button type="button" aria-label={tr('close')} onClick={close} className="absolute inset-0 bg-ink/20" />
+      <aside className="relative flex h-full w-[440px] max-w-full flex-col overflow-y-auto bg-white shadow-[-12px_0_40px_rgba(21,19,16,0.12)]">
         <div className="flex items-start gap-3 border-b border-line p-6">
           <Avatar name={contact.username} size={48} src={contact.avatarUrl} />
           <div className="min-w-0 flex-1">
@@ -44,16 +50,16 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
             <p className="text-[13.5px] text-subtle">@{contact.username}</p>
             <RelationshipBadges followsYou={contact.followsYou} youFollow={contact.youFollow} className="mt-2" />
           </div>
-          <button type="button" onClick={close} aria-label="Close" className="grid size-8 place-items-center rounded-lg hover:bg-sand">
+          <button type="button" onClick={close} aria-label={tr('close')} className="grid size-8 place-items-center rounded-lg hover:bg-sand">
             <X className="size-4" />
           </button>
         </div>
 
         <div className="grid grid-cols-3 gap-2 border-b border-line p-6">
           {[
-            ['Messages', String(contact.messageCount)],
-            ['First interaction', new Date(contact.firstSeenAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })],
-            ['Last activity', timeAgo(contact.lastInboundAt)],
+            [tr('messages'), String(contact.messageCount)],
+            [tr('firstInteraction'), formatDate(contact.firstSeenAt, { month: 'short', day: 'numeric', year: 'numeric' })],
+            [tr('lastActivity'), timeAgo(contact.lastInboundAt)],
           ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-line px-3 py-2.5">
               <div className="eyebrow text-[10.5px]">{label}</div>
@@ -63,7 +69,7 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
         </div>
 
         <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-3 border-b border-line p-6 text-[13.5px]">
-          <dt className="text-subtle">Email</dt>
+          <dt className="text-subtle">{tr('email')}</dt>
           <dd className="flex items-center gap-1.5">
             {contact.email ? (
               <>
@@ -73,7 +79,7 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
               <span className="text-faint">—</span>
             )}
           </dd>
-          <dt className="text-subtle">Phone</dt>
+          <dt className="text-subtle">{tr('phone')}</dt>
           <dd className="flex items-center gap-1.5">
             {contact.phone ? (
               <>
@@ -89,21 +95,21 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
               <dd>{value}</dd>
             </div>
           ))}
-          <dt className="text-subtle">Tags</dt>
+          <dt className="text-subtle">{tr('tags')}</dt>
           <dd className="flex flex-wrap gap-1">
             {contact.tags.length ? contact.tags.map((tag) => <Keyword key={tag}>{tag}</Keyword>) : <span className="text-faint">—</span>}
           </dd>
         </dl>
 
         <section className="border-b border-line p-6">
-          <h3 className="eyebrow">Run history</h3>
+          <h3 className="eyebrow">{tr('run_history')}</h3>
           <ul className="mt-3 flex flex-col gap-2">
             {contact.runs.map((run, index) => (
               <li key={index} className="flex items-center justify-between gap-3 text-[13.5px]">
                 <span className="truncate font-medium">{run.automationName}</span>
                 <span className="flex shrink-0 items-center gap-2">
                   <span className={cx('rounded-full px-2 py-0.5 text-[11.5px] font-semibold capitalize', RUN_STATUS[run.status])}>
-                    {run.status}
+                    {tr(`run_${run.status}`)}
                   </span>
                   <span className="w-16 text-right text-[12px] text-subtle">{timeAgo(run.at)}</span>
                 </span>
@@ -113,7 +119,7 @@ export function ContactDrawer({ contact }: { contact: ContactDetail }) {
         </section>
 
         <section className="p-6">
-          <h3 className="eyebrow">Messages</h3>
+          <h3 className="eyebrow">{tr('messages')}</h3>
           <div className="mt-4 flex flex-col gap-2">
             {[...contact.messages]
               .sort((a, b) => a.at.localeCompare(b.at))

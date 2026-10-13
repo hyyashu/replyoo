@@ -1,5 +1,9 @@
 'use client'
 
+import { useDashboardFormatters } from '@/i18n/use-format'
+
+import { useTranslations } from 'next-intl'
+
 import { Check, ChevronsUpDown, CircleHelp, House, Link2, LogOut, Menu, Plus, Settings, Users, X, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -8,14 +12,8 @@ import { signOut } from '@/app/auth-actions'
 import { switchAccount } from '@/app/actions'
 import type { ConnectedAccount, Subscription } from '@/lib/data/types'
 import { FacebookIcon, InstagramIcon } from './brand-icons'
-import { Avatar, Logo, buttonClass, cx, formatCompact, formatNumber } from './ui'
-
-const NAV = [
-  { href: '/home', label: 'Home', icon: House },
-  { href: '/automations', label: 'Automations', icon: Zap },
-  { href: '/contacts', label: 'Contacts', icon: Users },
-  { href: '/bio', label: 'Bio page', icon: Link2 },
-]
+import { Avatar, Logo, buttonClass, cx } from './ui'
+import { LanguageSelector } from './language-selector'
 
 interface SidebarProps {
   account: ConnectedAccount
@@ -33,6 +31,8 @@ export function Sidebar(props: SidebarProps) {
 
 /** Below md the sidebar is replaced by a slim top bar whose menu button opens the same content as a drawer. */
 export function MobileNav(props: SidebarProps) {
+  const tr = useTranslations('navigation')
+  
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
@@ -52,7 +52,7 @@ export function MobileNav(props: SidebarProps) {
         </Link>
         <button
           type="button"
-          aria-label="Open menu"
+          aria-label={tr('open_menu')}
           aria-expanded={open}
           aria-controls="mobile-nav"
           onClick={() => setOpen(true)}
@@ -64,13 +64,10 @@ export function MobileNav(props: SidebarProps) {
       {open && (
         <div className="fixed inset-0 z-40 flex">
           <div className="absolute inset-0 bg-ink/40" onClick={() => setOpen(false)} />
-          <aside
-            id="mobile-nav"
-            className="relative flex h-full w-[280px] max-w-[85vw] flex-col gap-5 overflow-y-auto bg-sand px-4 py-5"
-          >
+          <aside id="mobile-nav" className="relative flex h-full w-[280px] max-w-[85vw] flex-col gap-5 overflow-y-auto bg-sand px-4 py-5">
             <button
               type="button"
-              aria-label="Close menu"
+              aria-label={tr('close_menu')}
               onClick={() => setOpen(false)}
               className="absolute top-4 right-3 grid size-8 place-items-center rounded-lg text-muted hover:bg-white"
             >
@@ -85,6 +82,15 @@ export function MobileNav(props: SidebarProps) {
 }
 
 function SidebarBody({ account, accounts, subscription }: SidebarProps) {
+  const { formatCompact, formatNumber } = useDashboardFormatters()
+  const tr = useTranslations('navigation')
+  const common = useTranslations('common')
+  const NAV = [
+    { href: '/home', label: tr('home'), icon: House },
+    { href: '/automations', label: tr('automations'), icon: Zap },
+    { href: '/contacts', label: tr('contacts'), icon: Users },
+    { href: '/bio', label: tr('bio_page'), icon: Link2 },
+  ]
   const pathname = usePathname()
   const usage = subscription.contactsReached / subscription.contactsLimit
   const daysLeft = Math.max(0, Math.ceil((new Date(subscription.periodEnd).getTime() - Date.now()) / 86_400_000))
@@ -108,7 +114,7 @@ function SidebarBody({ account, accounts, subscription }: SidebarProps) {
 
       <div className="mt-auto rounded-[18px] bg-ink p-4 text-white">
         <div className="flex items-center justify-between text-[13px]">
-          <span className="font-semibold">Contacts reached</span>
+          <span className="font-semibold">{tr('contacts_reached')}</span>
           <span className="text-white/60">
             {formatCompact(subscription.contactsReached)} / {formatCompact(subscription.contactsLimit)}
           </span>
@@ -117,27 +123,31 @@ function SidebarBody({ account, accounts, subscription }: SidebarProps) {
           <div className="h-full rounded-full bg-lime" style={{ width: `${Math.min(100, usage * 100)}%` }} />
         </div>
         <p className="mt-3 text-[12.5px] leading-snug text-white/60">
-          <span className="capitalize">{subscription.plan}</span> plan · resets in {daysLeft} days.{' '}
-          {formatNumber(subscription.contactsLimit - subscription.contactsReached)} left.
+          {tr('usageSummary', {
+            plan: common(`plan_${subscription.plan}`),
+            days: daysLeft,
+            remaining: formatNumber(subscription.contactsLimit - subscription.contactsReached),
+          })}
         </p>
         <Link href="/settings#billing" className={cx(buttonClass('lime', 'sm'), 'mt-3 w-full')}>
-          Upgrade plan
+          {tr('upgrade_plan')}
         </Link>
       </div>
 
       <div className="flex flex-col gap-1">
+        <LanguageSelector compact />
         <NavLink href="/settings" active={pathname.startsWith('/settings')}>
           <Settings className="size-[18px]" strokeWidth={1.75} />
-          Settings
+          {tr('settings')}{' '}
         </NavLink>
         <NavLink href="mailto:help@replyooo.com" active={false}>
           <CircleHelp className="size-[18px]" strokeWidth={1.75} />
-          Help
+          {tr('help')}{' '}
         </NavLink>
         <form action={signOut}>
           <button type="submit" className={navItemClass(false)}>
             <LogOut className="size-[18px]" strokeWidth={1.75} />
-            Log out
+            {tr('log_out')}{' '}
           </button>
         </form>
       </div>
@@ -148,7 +158,9 @@ function SidebarBody({ account, accounts, subscription }: SidebarProps) {
 const navItemClass = (active: boolean) =>
   cx(
     'flex h-[38px] w-full items-center gap-3 rounded-[10px] px-3 text-[14.5px] transition-colors',
-    active ? 'border border-line bg-white font-semibold text-ink shadow-[0_1px_2px_rgba(21,19,16,0.04)]' : 'text-muted hover:bg-white/60 hover:text-ink',
+    active
+      ? 'border border-line bg-white font-semibold text-ink shadow-[0_1px_2px_rgba(21,19,16,0.04)]'
+      : 'text-muted hover:bg-white/60 hover:text-ink',
   )
 
 function NavLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
@@ -165,6 +177,9 @@ export function PlatformIcon({ platform, className }: { platform: ConnectedAccou
 }
 
 function AccountSwitcher({ account, accounts }: { account: ConnectedAccount; accounts: ConnectedAccount[] }) {
+  const { formatCompact } = useDashboardFormatters()
+  const tr = useTranslations('navigation')
+  
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const ref = useRef<HTMLDivElement>(null)
@@ -194,10 +209,10 @@ function AccountSwitcher({ account, accounts }: { account: ConnectedAccount; acc
           <span className="flex items-center gap-1 text-[11.5px] text-subtle">
             <PlatformIcon platform={account.platform} className="size-3" />
             {account.followers !== null
-              ? `${formatCompact(account.followers)} followers`
+              ? tr('followers', { v0: formatCompact(account.followers) })
               : account.platform === 'instagram'
-                ? 'Instagram'
-                : 'Facebook Page'}
+                ? tr('instagram')
+                : tr('facebook_page')}
           </span>
         </span>
         <ChevronsUpDown className="size-4 text-subtle" />
@@ -220,8 +235,8 @@ function AccountSwitcher({ account, accounts }: { account: ConnectedAccount; acc
                 <span className="block truncate text-[13px] font-semibold">@{a.username}</span>
                 <span className="flex items-center gap-1 text-[11px] text-subtle">
                   <PlatformIcon platform={a.platform} className="size-3" />
-                  {a.platform === 'instagram' ? 'Instagram' : 'Facebook Page'}
-                  {a.status === 'reauth_required' && <span className="text-brand">· reconnect</span>}
+                  {a.platform === 'instagram' ? tr('instagram') : tr('facebook_page')}
+                  {a.status === 'reauth_required' && <span className="text-brand">{tr('reconnect_2')}</span>}
                 </span>
               </span>
               {a.id === account.id && <Check className="size-4 text-ink" />}
@@ -232,7 +247,7 @@ function AccountSwitcher({ account, accounts }: { account: ConnectedAccount; acc
             onClick={() => setOpen(false)}
             className="mt-1 flex items-center gap-2 rounded-[10px] border-t border-line p-2 pt-2.5 text-[13px] font-medium text-muted hover:bg-sand hover:text-ink"
           >
-            <Plus className="size-4" /> Connect another account
+            <Plus className="size-4" /> {tr('connect_another_account')}{' '}
           </Link>
         </div>
       )}

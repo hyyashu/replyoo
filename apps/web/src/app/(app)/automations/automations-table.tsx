@@ -1,5 +1,10 @@
 'use client'
 
+import { useDashboardFormatters } from '@/i18n/use-format'
+
+import { useDashboardError } from '@/i18n/use-errors'
+import { useTranslations } from 'next-intl'
+
 import { Clapperboard, Ellipsis, MessageCircleQuestion, MessageSquare, MessagesSquare, Search, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,17 +12,10 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { deleteAutomation, setAutomationStatus } from '@/app/actions'
 import { ConfirmDialog } from '@/components/confirm-action'
-import { ButtonLink, Card, EmptyState, Keyword, StatusPill, cx, formatDate, formatNumber, formatPercent } from '@/components/ui'
+import { ButtonLink, Card, EmptyState, Keyword, StatusPill, cx } from '@/components/ui'
 import { clickRate } from '@/lib/bio'
 import type { Automation, AutomationStatus, StatusResult } from '@/lib/data/types'
 import { flowSearchText, triggerChips, triggerLabel } from '@/lib/describe'
-
-const TABS: { key: 'all' | AutomationStatus; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Live' },
-  { key: 'paused', label: 'Paused' },
-  { key: 'draft', label: 'Drafts' },
-]
 
 export function TriggerIcon({ type }: { type: Automation['flow']['trigger']['type'] }) {
   const config = {
@@ -36,6 +34,14 @@ export function TriggerIcon({ type }: { type: Automation['flow']['trigger']['typ
 }
 
 export function AutomationsTable({ automations }: { automations: Automation[] }) {
+  const tr = useTranslations('automations')
+
+  const TABS: { key: 'all' | AutomationStatus; label: string }[] = [
+    { key: 'all', label: tr('all') },
+    { key: 'active', label: tr('live') },
+    { key: 'paused', label: tr('paused') },
+    { key: 'draft', label: tr('drafts') },
+  ]
   const [tab, setTab] = useState<(typeof TABS)[number]['key']>('all')
   const [query, setQuery] = useState('')
 
@@ -47,8 +53,7 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [automations, tab, query])
 
-  const count = (key: (typeof TABS)[number]['key']) =>
-    key === 'all' ? automations.length : automations.filter((a) => a.status === key).length
+  const count = (key: (typeof TABS)[number]['key']) => (key === 'all' ? automations.length : automations.filter((a) => a.status === key).length)
 
   return (
     <Card className="mt-6 overflow-hidden">
@@ -73,7 +78,7 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search automations or keywords"
+            placeholder={tr('search_automations_or_keywords')}
             className="w-full bg-transparent text-[13.5px] text-ink outline-none placeholder:text-subtle"
           />
         </label>
@@ -82,27 +87,25 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
       {visible.length === 0 ? (
         <EmptyState
           icon={<Zap className="size-5" />}
-          title={automations.length === 0 ? 'No automations yet' : 'Nothing matches'}
+          title={automations.length === 0 ? tr('no_automations_yet') : tr('nothing_matches')}
           body={
-            automations.length === 0
-              ? 'Start from a template — most people are live in under 3 minutes.'
-              : 'Try a different keyword or status filter.'
+            automations.length === 0 ? tr('start_from_a_template_most_people_are_live_in_under_3') : tr('try_a_different_keyword_or_status_filter')
           }
-          action={automations.length === 0 && <ButtonLink href="/automations/new">Browse templates</ButtonLink>}
+          action={automations.length === 0 && <ButtonLink href="/automations/new">{tr('browse_templates')}</ButtonLink>}
         />
       ) : (
         <table className="w-full text-left">
           <thead>
             <tr className="eyebrow border-y border-line bg-sand/70 [&>th]:h-10 [&>th]:font-medium">
-              <th className="pl-4 md:pl-5">Automation</th>
-              <th className="hidden md:table-cell">Trigger</th>
-              <th className="hidden text-right md:table-cell">Runs</th>
-              <th className="hidden text-right md:table-cell">DMs sent</th>
-              <th className="hidden text-right md:table-cell">Click rate</th>
-              <th className="hidden pr-2 text-right md:table-cell">Completion</th>
-              <th className="hidden lg:table-cell">Created</th>
-              <th className="hidden lg:table-cell">Updated</th>
-              <th className="pl-3 md:pl-6">Status</th>
+              <th className="pl-4 md:pl-5">{tr('automation')}</th>
+              <th className="hidden md:table-cell">{tr('trigger')}</th>
+              <th className="hidden text-right md:table-cell">{tr('runs_2')}</th>
+              <th className="hidden text-right md:table-cell">{tr('dms_sent')}</th>
+              <th className="hidden text-right md:table-cell">{tr('click_rate')}</th>
+              <th className="hidden pr-2 text-right md:table-cell">{tr('completion')}</th>
+              <th className="hidden lg:table-cell">{tr('created')}</th>
+              <th className="hidden lg:table-cell">{tr('updated')}</th>
+              <th className="pl-3 md:pl-6">{tr('status')}</th>
               <th className="w-12 md:w-14" />
             </tr>
           </thead>
@@ -118,10 +121,16 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
 }
 
 function Row({ automation }: { automation: Automation }) {
+  const { formatNumber, formatPercent, formatDate } = useDashboardFormatters()
+  const tr = useTranslations('automations')
+
+  const common = useTranslations('common')
+
   const router = useRouter()
   const { stats, flow } = automation
   const live = automation.version > 0
-  const chips = triggerChips(flow.trigger)
+  const describe = useTranslations('shared')
+  const chips = triggerChips(flow.trigger, describe)
   const href = `/automations/${automation.id}`
 
   return (
@@ -134,11 +143,11 @@ function Row({ automation }: { automation: Automation }) {
           <TriggerIcon type={flow.trigger.type} />
           <span className="min-w-0">
             <span className="block text-[14.5px] font-semibold">{automation.name}</span>
-            <span className="block text-[12.5px] text-subtle">{triggerLabel(flow.trigger)}</span>
+            <span className="block text-[12.5px] text-subtle">{triggerLabel(flow.trigger, describe)}</span>
             {live && (
               <span className="block text-[12px] text-subtle tabular-nums md:hidden">
-                {formatNumber(stats.runs)} runs · {formatNumber(stats.dmsSent)} DMs
-                {stats.recipients > 0 && ` · ${clickRate(stats.clickers, stats.recipients)}% clicked`}
+                {tr('runs_dms', { v0: formatNumber(stats.runs), v1: formatNumber(stats.dmsSent) })}
+                {stats.recipients > 0 && ` · ${tr('percent_clicked', { v0: clickRate(stats.clickers, stats.recipients) })}`}
               </span>
             )}
           </span>
@@ -156,7 +165,7 @@ function Row({ automation }: { automation: Automation }) {
       <td className="hidden text-right text-[14.5px] tabular-nums md:table-cell">{live ? formatNumber(stats.dmsSent) : '—'}</td>
       <td
         className="hidden text-right text-[14.5px] tabular-nums md:table-cell"
-        title={live && stats.recipients > 0 ? `${stats.clickers} of ${stats.recipients} people opened a link` : undefined}
+        title={live && stats.recipients > 0 ? tr('people_opened_link', { v0: stats.clickers, v1: stats.recipients }) : undefined}
       >
         {live && stats.recipients > 0 ? `${clickRate(stats.clickers, stats.recipients)}%` : '—'}
       </td>
@@ -171,10 +180,8 @@ function Row({ automation }: { automation: Automation }) {
       </td>
       <td className="pl-3 md:pl-6">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <StatusPill status={automation.status} />
-          {live && automation.hasUnpublishedChanges && (
-            <span className="text-[12px] font-medium text-[#8a4b0f]">Unpublished edits</span>
-          )}
+          <StatusPill label={common(`status_${automation.status}`)} status={automation.status} />
+          {live && automation.hasUnpublishedChanges && <span className="text-[12px] font-medium text-[#8a4b0f]">{tr('unpublished_edits')}</span>}
         </div>
       </td>
       <td className="pr-2 md:pr-4" onClick={(e) => e.stopPropagation()}>
@@ -185,6 +192,9 @@ function Row({ automation }: { automation: Automation }) {
 }
 
 function RowMenu({ automation }: { automation: Automation }) {
+  const translateError = useDashboardError()
+  const tr = useTranslations('automations')
+
   const [open, setOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -220,7 +230,7 @@ function RowMenu({ automation }: { automation: Automation }) {
     setOpen(false)
     startTransition(async () => {
       const result = await action()
-      if (result && !result.ok) alert(result.error)
+      if (result && !result.ok) alert(translateError(result.error))
     })
   }
 
@@ -229,7 +239,7 @@ function RowMenu({ automation }: { automation: Automation }) {
       <button
         ref={buttonRef}
         type="button"
-        aria-label="Automation actions"
+        aria-label={tr('automation_actions')}
         onClick={toggle}
         className={cx('grid size-8 place-items-center rounded-lg text-subtle hover:bg-cream hover:text-ink', pending && 'opacity-50')}
       >
@@ -243,13 +253,13 @@ function RowMenu({ automation }: { automation: Automation }) {
             className="fixed z-50 w-44 rounded-xl border border-line bg-white p-1 text-[13.5px] shadow-[0_12px_32px_rgba(21,19,16,0.12)]"
           >
             <Link href={`/automations/${automation.id}`} className="block rounded-lg px-3 py-2 hover:bg-sand">
-              Edit
+              {tr('edit')}
             </Link>
             {automation.status === 'active' && (
-              <MenuButton onClick={() => run(() => setAutomationStatus(automation.id, 'paused'))}>Pause</MenuButton>
+              <MenuButton onClick={() => run(() => setAutomationStatus(automation.id, 'paused'))}>{tr('pause')}</MenuButton>
             )}
             {automation.status === 'paused' && (
-              <MenuButton onClick={() => run(() => setAutomationStatus(automation.id, 'active'))}>Resume</MenuButton>
+              <MenuButton onClick={() => run(() => setAutomationStatus(automation.id, 'active'))}>{tr('resume')}</MenuButton>
             )}
             <MenuButton
               danger
@@ -258,7 +268,7 @@ function RowMenu({ automation }: { automation: Automation }) {
                 setConfirmingDelete(true)
               }}
             >
-              Delete
+              {tr('delete')}
             </MenuButton>
           </div>,
           document.body,
@@ -270,20 +280,14 @@ function RowMenu({ automation }: { automation: Automation }) {
           await deleteAutomation(automation.id)
           setConfirmingDelete(false)
         }}
-        title={`Delete “${automation.name}”?`}
-        description="In-flight conversations will stop. This can’t be undone."
-        confirmLabel="Delete"
+        title={tr('delete_2', { v0: automation.name })}
+        description={tr('in_flight_conversations_will_stop_this_can_t_be_undone')}
+        confirmLabel={tr('delete')}
       />
     </>
   )
 }
 
 function MenuButton({ danger, ...props }: React.ComponentProps<'button'> & { danger?: boolean }) {
-  return (
-    <button
-      type="button"
-      className={cx('block w-full rounded-lg px-3 py-2 text-left hover:bg-sand', danger && 'text-[#c2330e]')}
-      {...props}
-    />
-  )
+  return <button type="button" className={cx('block w-full rounded-lg px-3 py-2 text-left hover:bg-sand', danger && 'text-[#c2330e]')} {...props} />
 }

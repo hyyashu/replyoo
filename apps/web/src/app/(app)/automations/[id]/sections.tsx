@@ -1,5 +1,8 @@
 'use client'
 
+import { useDashboardError } from '@/i18n/use-errors'
+import { useTranslations } from 'next-intl'
+
 import type { Platform } from '@replyooo/shared'
 import { AtSign, BellRing, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
@@ -33,25 +36,25 @@ export function Accordion({ children }: { children: ReactNode }) {
 
 /** Segmented "n of m ready" bar; each segment opens its section. */
 export function ProgressCue({ steps }: { steps: { id: RecipeSection; label: string; ready: boolean }[] }) {
+  const tr = useTranslations('automations')
+  
   const { setOpen } = useContext(AccordionContext)
   const done = steps.filter((step) => step.ready).length
   return (
     <div className="flex items-center gap-3">
-      <div className="flex gap-1" role="group" aria-label="Setup progress">
+      <div className="flex gap-1" role="group" aria-label={tr('setup_progress')}>
         {steps.map((step) => (
           <button
             key={step.id}
             type="button"
-            title={`${step.label}${step.ready ? ' — ready' : ' — needs attention'}`}
-            aria-label={`${step.label}: ${step.ready ? 'ready' : 'needs attention'}`}
+            title={tr('setupStep', { label: step.label, ready: step.ready ? 'yes' : 'no' })}
+            aria-label={tr('setupStep', { label: step.label, ready: step.ready ? 'yes' : 'no' })}
             onClick={() => setOpen(step.id)}
             className={cx('h-1.5 w-8 rounded-full transition-colors', step.ready ? 'bg-lime' : 'bg-white/25 hover:bg-white/40')}
           />
         ))}
       </div>
-      <span className="text-[13px] font-semibold">
-        {done} of {steps.length} ready
-      </span>
+      <span className="text-[13px] font-semibold">{tr('setupReady', { done, total: steps.length })}</span>
     </div>
   )
 }
@@ -76,27 +79,22 @@ function Section({
   action?: ReactNode
   children?: ReactNode
 }) {
+  const tr = useTranslations('automations')
+  const translateError = useDashboardError()
   const accordion = useContext(AccordionContext)
   const open = accordion.open === id
   const setOpen = (next: boolean) => accordion.setOpen(next ? id : '')
   return (
-    <section
-      className={cx(
-        'rounded-[20px] border bg-white transition-colors',
-        issues.length > 0 ? 'border-[#ffb59a]' : 'border-line',
-      )}
-    >
+    <section className={cx('rounded-[20px] border bg-white transition-colors', issues.length > 0 ? 'border-[#ffb59a]' : 'border-line')}>
       <header className="flex items-center gap-3.5 px-5 py-4">
-        <span className="grid size-[26px] shrink-0 place-items-center rounded-lg bg-ink font-mono text-[12px] font-semibold text-white">
-          {index}
-        </span>
+        <span className="grid size-[26px] shrink-0 place-items-center rounded-lg bg-ink font-mono text-[12px] font-semibold text-white">{index}</span>
         <button type="button" onClick={() => children && setOpen(!open)} className="min-w-0 flex-1 text-left">
           <h2 className="text-[15.5px] font-semibold">{title}</h2>
           <p className="truncate text-[12.5px] text-subtle">{!open && summary ? summary : subtitle}</p>
         </button>
         {action}
         {children && (
-          <button type="button" onClick={() => setOpen(!open)} aria-label={open ? 'Collapse' : 'Expand'}>
+          <button type="button" onClick={() => setOpen(!open)} aria-label={open ? tr('collapse') : tr('expand')}>
             <ChevronDown className={cx('size-4 text-subtle transition-transform', open && 'rotate-180')} />
           </button>
         )}
@@ -105,9 +103,9 @@ function Section({
       {issues.length > 0 && (
         <ul className="flex flex-col gap-1 border-t border-[#ffd7c4] bg-brand-tint px-5 py-3 sm:pl-[62px]">
           {issues.map((issue) => (
-            <li key={issue.message} className="flex items-start gap-2 text-[13px] text-[#a12b0b]">
+            <li key={translateError(issue.message)} className="flex items-start gap-2 text-[13px] text-[#a12b0b]">
               <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
-              {issue.message}
+              {translateError(issue.message)}
             </li>
           ))}
         </ul>
@@ -115,14 +113,6 @@ function Section({
     </section>
   )
 }
-
-const TRIGGER_OPTIONS: { value: RecipeTrigger['type']; label: string; instagramOnly?: boolean }[] = [
-  { value: 'comment_keyword', label: 'Comment' },
-  { value: 'dm_keyword', label: 'DM keyword' },
-  { value: 'story_reply', label: 'Story reply', instagramOnly: true },
-  { value: 'any_dm', label: 'Any DM' },
-  { value: 'ice_breaker', label: 'Starters' },
-]
 
 export function TriggerSection({
   recipe,
@@ -139,6 +129,15 @@ export function TriggerSection({
   onMedia?: (posts: RecentPost[]) => void
   issues: (section: RecipeSection) => RecipeIssue[]
 }) {
+  const tr = useTranslations('automations')
+  
+  const TRIGGER_OPTIONS: { value: RecipeTrigger['type']; label: string; instagramOnly?: boolean }[] = [
+    { value: 'comment_keyword', label: tr('comment') },
+    { value: 'dm_keyword', label: tr('dm_keyword') },
+    { value: 'story_reply', label: tr('story_reply'), instagramOnly: true },
+    { value: 'any_dm', label: tr('any_dm') },
+    { value: 'ice_breaker', label: tr('starters') },
+  ]
   const { trigger } = recipe
   // Switching trigger type keeps what was entered, so switching back restores it.
   const previous = useRef<Partial<Record<RecipeTrigger['type'], RecipeTrigger>>>({})
@@ -150,46 +149,44 @@ export function TriggerSection({
   const [anyComment, setAnyComment] = useState(() => trigger.type === 'comment_keyword' && trigger.keywords.length === 0)
   const commentsAny = trigger.type === 'comment_keyword' && trigger.keywords.length === 0 && anyComment
   const subtitle = {
-    comment_keyword: 'Someone comments on your post — with a keyword, or any comment',
-    dm_keyword: 'Someone sends you a DM with a keyword',
-    story_reply: 'Someone replies to or reacts to your story',
-    any_dm: 'Any DM that no other automation answers',
-    ice_breaker: 'Tappable questions shown when someone opens a new chat',
+    comment_keyword: tr('someone_comments_on_your_post_with_a_keyword_or_any_comment'),
+    dm_keyword: tr('someone_sends_you_a_dm_with_a_keyword'),
+    story_reply: tr('someone_replies_to_or_reacts_to_your_story'),
+    any_dm: tr('any_dm_that_no_other_automation_answers'),
+    ice_breaker: tr('tappable_questions_shown_when_someone_opens_a_new_chat'),
   }[trigger.type]
 
   const title = {
-    comment_keyword: 'When someone comments',
-    dm_keyword: 'When someone DMs you a keyword',
-    story_reply: 'When someone replies to your story',
-    any_dm: 'When someone DMs you',
-    ice_breaker: 'When someone opens a new chat',
+    comment_keyword: tr('when_someone_comments'),
+    dm_keyword: tr('when_someone_dms_you_a_keyword'),
+    story_reply: tr('when_someone_replies_to_your_story'),
+    any_dm: tr('when_someone_dms_you'),
+    ice_breaker: tr('when_someone_opens_a_new_chat'),
   }[trigger.type]
-  const keywordSummary = (keywords: string[], none: string) => (keywords.length ? `Keyword: ${keywords.join(', ')}` : none)
+  const keywordSummary = (keywords: string[], none: string) => (keywords.length ? tr('keywordsSummary', { keywords: keywords.join(', ') }) : none)
   const summary = {
     comment_keyword:
       trigger.type === 'comment_keyword'
         ? [
             trigger.posts.mode === 'any'
-              ? 'Any post or reel'
+              ? tr('any_post_or_reel')
               : trigger.posts.mode === 'next'
-                ? 'Your next post'
-                : `${trigger.posts.mediaIds.length} chosen post${trigger.posts.mediaIds.length === 1 ? '' : 's'}`,
-            keywordSummary(trigger.keywords, 'Any comment'),
+                ? tr('your_next_post')
+                : tr('postsChosen', { count: trigger.posts.mediaIds.length }),
+            keywordSummary(trigger.keywords, tr('any_comment')),
           ].join(' · ')
         : '',
-    dm_keyword: trigger.type === 'dm_keyword' ? keywordSummary(trigger.keywords, 'Any DM') : '',
+    dm_keyword: trigger.type === 'dm_keyword' ? keywordSummary(trigger.keywords, tr('any_dm')) : '',
     story_reply:
       trigger.type === 'story_reply'
         ? [
-            trigger.stories.mode === 'any'
-              ? 'Any story'
-              : `${trigger.stories.mediaIds.length} chosen ${trigger.stories.mediaIds.length === 1 ? 'story' : 'stories'}`,
-            trigger.includeReactions ? 'Replies and reactions' : 'Replies only',
-            keywordSummary(trigger.keywords, 'Any word'),
+            trigger.stories.mode === 'any' ? tr('any_story') : tr('storiesChosen', { count: trigger.stories.mediaIds.length }),
+            trigger.includeReactions ? tr('replies_and_reactions') : tr('replies_only'),
+            keywordSummary(trigger.keywords, tr('any_word')),
           ].join(' · ')
         : '',
-    any_dm: 'Any DM that no other automation answers',
-    ice_breaker: trigger.type === 'ice_breaker' ? `${trigger.items.length} question${trigger.items.length === 1 ? '' : 's'}` : '',
+    any_dm: tr('any_dm_that_no_other_automation_answers'),
+    ice_breaker: trigger.type === 'ice_breaker' ? tr('questionsCount', { count: trigger.items.length }) : '',
   }[trigger.type]
 
   return (
@@ -210,7 +207,7 @@ export function TriggerSection({
 
       {trigger.type === 'comment_keyword' && (
         <div>
-          <Label>Which posts</Label>
+          <Label>{tr('which_posts')}</Label>
           <Segmented
             value={trigger.posts.mode}
             onChange={(mode) => {
@@ -222,19 +219,17 @@ export function TriggerSection({
               if (mode === 'specific') setPickingPosts(true)
             }}
             options={[
-              { value: 'any', label: 'Any post or reel' },
-              { value: 'next', label: 'My next post' },
-              { value: 'specific', label: 'Specific posts' },
+              { value: 'any', label: tr('any_post_or_reel') },
+              { value: 'next', label: tr('my_next_post') },
+              { value: 'specific', label: tr('specific_posts') },
             ]}
           />
           {trigger.posts.mode === 'specific' && (
             <>
               <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
-                {trigger.posts.mediaIds.length === 0
-                  ? 'No posts chosen yet.'
-                  : `${trigger.posts.mediaIds.length} ${trigger.posts.mediaIds.length === 1 ? 'post' : 'posts'} chosen.`}
+                {trigger.posts.mediaIds.length === 0 ? tr('no_posts_chosen_yet') : tr('chosenPostsDetails', { count: trigger.posts.mediaIds.length })}
                 <button type="button" className="font-medium text-ink underline" onClick={() => setPickingPosts(true)}>
-                  {trigger.posts.mediaIds.length === 0 ? 'Choose posts' : 'Change'}
+                  {trigger.posts.mediaIds.length === 0 ? tr('choose_posts') : tr('change')}
                 </button>
               </p>
               {pickingPosts && (
@@ -269,40 +264,38 @@ export function TriggerSection({
                     })
                   }
                 >
-                  {trigger.match === 'contains' ? 'Message contains a keyword' : 'Message is exactly a keyword'} ·{' '}
-                  <span className="underline">change</span>
+                  {trigger.match === 'contains' ? tr('message_contains_a_keyword') : tr('message_is_exactly_a_keyword')} ·{' '}
+                  <span className="underline">{tr('change_2')}</span>
                 </button>
               )
             }
           >
-            {trigger.type === 'comment_keyword' ? 'And this comment has' : 'Keywords'}
+            {trigger.type === 'comment_keyword' ? tr('and_this_comment_has') : tr('keywords')}
           </Label>
           {trigger.type === 'comment_keyword' && (
             <div className="mb-2.5">
               <Segmented
-                value={commentsAny ? 'any' : 'specific'}
+                value={commentsAny ? tr('any') : tr('specific')}
                 onChange={(mode) => {
                   setAnyComment(mode === 'any')
                   if (mode === 'any') update((d) => d.trigger.type === 'comment_keyword' && void (d.trigger.keywords = []))
                 }}
                 options={[
-                  { value: 'specific', label: 'Specific keywords' },
-                  { value: 'any', label: 'Any comment' },
+                  { value: 'specific', label: tr('specific_keywords') },
+                  { value: 'any', label: tr('any_comment') },
                 ]}
               />
             </div>
           )}
           {commentsAny ? (
-            <p className="text-[12.5px] text-subtle">
-              Replies to every comment on these posts, unless another automation matches its keyword first.
-            </p>
+            <p className="text-[12.5px] text-subtle">{tr('replies_to_every_comment_on_these_posts_unless_another_automation_matches')}</p>
           ) : (
             <>
               <KeywordInput
-                label="Keywords"
+                label={tr('keywords')}
                 ignoresCase
                 value={trigger.keywords}
-                placeholder={trigger.type === 'comment_keyword' ? 'Type a keyword and press Enter, e.g. link, price' : undefined}
+                placeholder={trigger.type === 'comment_keyword' ? tr('type_a_keyword_and_press_enter_e_g_link_price') : undefined}
                 onChange={(keywords) =>
                   update((d) => {
                     if (d.trigger.type === 'comment_keyword' || d.trigger.type === 'dm_keyword') d.trigger.keywords = keywords
@@ -310,7 +303,7 @@ export function TriggerSection({
                 }
               />
               {trigger.type === 'comment_keyword' && trigger.keywords.length === 0 && (
-                <p className="mt-1.5 text-[12.5px] text-subtle">Add a keyword, or choose “Any comment”.</p>
+                <p className="mt-1.5 text-[12.5px] text-subtle">{tr('add_a_keyword_or_choose_any_comment')}</p>
               )}
             </>
           )}
@@ -320,7 +313,7 @@ export function TriggerSection({
       {trigger.type === 'story_reply' && (
         <>
           <div>
-            <Label>Which stories</Label>
+            <Label>{tr('which_stories')}</Label>
             <Segmented
               value={trigger.stories.mode}
               onChange={(mode) => {
@@ -332,21 +325,21 @@ export function TriggerSection({
                 if (mode === 'specific') setPickingStories(true)
               }}
               options={[
-                { value: 'any', label: 'Any story' },
-                { value: 'specific', label: 'A specific story' },
+                { value: 'any', label: tr('any_story') },
+                { value: 'specific', label: tr('a_specific_story') },
               ]}
             />
             {trigger.stories.mode === 'specific' && (
               <>
                 <p className="mt-2 flex flex-wrap items-center gap-x-3 text-[12.5px] text-subtle">
                   {trigger.stories.mediaIds.length === 0
-                    ? 'No story chosen yet.'
-                    : `${trigger.stories.mediaIds.length} ${trigger.stories.mediaIds.length === 1 ? 'story' : 'stories'} chosen.`}
+                    ? tr('no_story_chosen_yet')
+                    : tr('chosen', { v0: trigger.stories.mediaIds.length, v1: trigger.stories.mediaIds.length === 1 ? 'story' : 'stories' })}
                   <button type="button" className="font-medium text-ink underline" onClick={() => setPickingStories(true)}>
-                    {trigger.stories.mediaIds.length === 0 ? 'Choose a story' : 'Change'}
+                    {trigger.stories.mediaIds.length === 0 ? tr('choose_a_story') : tr('change')}
                   </button>
                 </p>
-                <p className="mt-1 text-[12.5px] text-subtle">Only your live stories can be picked, and this stops matching once the story expires after 24 hours.</p>
+                <p className="mt-1 text-[12.5px] text-subtle">{tr('only_your_live_stories_can_be_picked_and_this_stops_matching')}</p>
                 {pickingStories && (
                   <PostPickerDialog
                     source="stories"
@@ -362,52 +355,54 @@ export function TriggerSection({
               </>
             )}
             {trigger.stories.mode === 'any' && (
-              <p className="mt-2 text-[12.5px] text-subtle">A story you pick specifically wins over this one when both match.</p>
+              <p className="mt-2 text-[12.5px] text-subtle">{tr('a_story_you_pick_specifically_wins_over_this_one_when_both')}</p>
             )}
           </div>
 
           <div>
-            <Label>And this reply has</Label>
+            <Label>{tr('and_this_reply_has')}</Label>
             <Segmented
-              value={storyAnyWord ? 'any' : 'keywords'}
+              value={storyAnyWord ? tr('any') : tr('keywords_2')}
               onChange={(mode) => {
                 setStoryAnyWord(mode === 'any')
                 if (mode === 'any') update((d) => d.trigger.type === 'story_reply' && void (d.trigger.keywords = []))
               }}
               options={[
-                { value: 'any', label: 'Any word or reaction' },
-                { value: 'keywords', label: 'Specific keywords' },
+                { value: 'any', label: tr('any_word_or_reaction') },
+                { value: 'keywords', label: tr('specific_keywords') },
               ]}
             />
             {!storyAnyWord && (
               <div className="mt-2.5">
                 <KeywordInput
-                  label="Only when the reply contains"
+                  label={tr('only_when_the_reply_contains')}
                   ignoresCase
                   value={trigger.keywords}
-                  placeholder="Add a keyword"
+                  placeholder={tr('add_a_keyword')}
                   onChange={(keywords) => update((d) => d.trigger.type === 'story_reply' && void (d.trigger.keywords = keywords))}
                 />
-                {trigger.keywords.length === 0 && <p className="mt-1.5 text-[12.5px] text-subtle">Add a keyword, or choose “Any word or reaction”.</p>}
+                {trigger.keywords.length === 0 && (
+                  <p className="mt-1.5 text-[12.5px] text-subtle">{tr('add_a_keyword_or_choose_any_word_or_reaction')}</p>
+                )}
               </div>
             )}
           </div>
 
           <label className="flex items-center gap-3 text-[14px]">
             <Toggle
-              label="Include reactions"
+              label={tr('include_reactions')}
               checked={trigger.includeReactions}
               onChange={(value) => update((d) => d.trigger.type === 'story_reply' && void (d.trigger.includeReactions = value))}
             />
-            Also trigger on emoji reactions
+            {tr('also_trigger_on_emoji_reactions')}{' '}
           </label>
           <label className="flex items-center gap-3 text-[14px]">
             <Toggle
-              label="React with a heart"
+              label={tr('react_with_a_heart')}
               checked={trigger.reactWithHeart}
               onChange={(value) => update((d) => d.trigger.type === 'story_reply' && void (d.trigger.reactWithHeart = value))}
             />
-            React to their reply with ❤️
+            {tr('react_to_their_reply_with')}{' '}
           </label>
         </>
       )}
@@ -419,10 +414,10 @@ export function TriggerSection({
               <div className="mb-2 flex items-center gap-2">
                 <div className="flex-1">
                   <TextInput
-                    label="Question people can tap"
+                    label={tr('question_people_can_tap')}
                     value={item.question}
                     maxLength={80}
-                    placeholder="Question people can tap"
+                    placeholder={tr('question_people_can_tap')}
                     onChange={(question) =>
                       update((d) => {
                         if (d.trigger.type === 'ice_breaker' && d.trigger.items[index]) d.trigger.items[index].question = question
@@ -433,7 +428,7 @@ export function TriggerSection({
                 {trigger.items.length > 1 && (
                   <button
                     type="button"
-                    aria-label="Remove question"
+                    aria-label={tr('remove_question')}
                     className="grid size-10 place-items-center rounded-xl text-subtle hover:bg-white hover:text-ink"
                     onClick={() => update((d) => d.trigger.type === 'ice_breaker' && void d.trigger.items.splice(index, 1))}
                   >
@@ -442,11 +437,11 @@ export function TriggerSection({
                 )}
               </div>
               <MessageInput
-                label="Instant answer"
+                label={tr('instant_answer')}
                 value={item.answer}
                 rows={2}
                 maxLength={1000}
-                placeholder="Instant answer"
+                placeholder={tr('instant_answer')}
                 onChange={(answer) =>
                   update((d) => {
                     if (d.trigger.type === 'ice_breaker' && d.trigger.items[index]) d.trigger.items[index].answer = answer
@@ -479,7 +474,7 @@ export function TriggerSection({
                 )
               }
             >
-              Add question ({trigger.items.length}/4)
+              {tr('add_question_4', { v0: trigger.items.length })}
             </AddButton>
           )}
         </div>
@@ -497,6 +492,8 @@ export function PublicReplySection({
   update: Update
   issues: (section: RecipeSection) => RecipeIssue[]
 }) {
+  const tr = useTranslations('automations')
+  
   const { trigger } = recipe
   if (trigger.type !== 'comment_keyword') return null
   const { enabled, replies } = trigger.publicReplies
@@ -508,16 +505,16 @@ export function PublicReplySection({
     <Section
       id="publicReply"
       index={2}
-      title="Reply under their comment"
+      title={tr('reply_under_their_comment')}
       subtitle={
         enabled
           ? filled === 0
-            ? 'Add at least one reply, or turn this off'
-            : `Rotates ${filled} ${filled === 1 ? 'reply' : 'replies'} so it looks human`
-          : 'Off — they only get the DM'
+            ? tr('add_at_least_one_reply_or_turn_this_off')
+            : tr('repliesRotation', { count: filled })
+          : tr('off_they_only_get_the_dm')
       }
       issues={issues('publicReply')}
-      action={<Toggle label="Reply publicly" checked={enabled} onChange={(value) => set((p) => void (p.enabled = value))} />}
+      action={<Toggle label={tr('reply_publicly')} checked={enabled} onChange={(value) => set((p) => void (p.enabled = value))} />}
     >
       {enabled && (
         <div className="grid gap-2">
@@ -525,7 +522,7 @@ export function PublicReplySection({
             <div key={index} className="flex items-start gap-1">
               <div className="flex-1">
                 <MessageInput
-                  label={`Public reply ${index + 1}`}
+                  label={tr('public_reply', { v0: index + 1 })}
                   value={reply}
                   rows={2}
                   maxLength={500}
@@ -536,7 +533,7 @@ export function PublicReplySection({
               {replies.length > 1 && (
                 <button
                   type="button"
-                  aria-label="Remove reply"
+                  aria-label={tr('remove_reply')}
                   className="mt-1 grid size-9 place-items-center rounded-lg text-faint hover:text-ink"
                   onClick={() => set((p) => void p.replies.splice(index, 1))}
                 >
@@ -545,7 +542,7 @@ export function PublicReplySection({
               )}
             </div>
           ))}
-          {replies.length < 10 && <AddButton onClick={() => set((p) => void p.replies.push(''))}>Add variation</AddButton>}
+          {replies.length < 10 && <AddButton onClick={() => set((p) => void p.replies.push(''))}>{tr('add_variation')}</AddButton>}
         </div>
       )}
     </Section>
@@ -563,6 +560,8 @@ export function DmSection({
   update: Update
   issues: (section: RecipeSection) => RecipeIssue[]
 }) {
+  const tr = useTranslations('automations')
+  
   if (recipe.trigger.type === 'ice_breaker') return null
   const required = openerRequired(recipe.trigger)
   const opener = recipe.opener.enabled || required
@@ -572,12 +571,8 @@ export function DmSection({
     <Section
       id="dm"
       index={index}
-      title={recipe.trigger.type === 'comment_keyword' ? 'Send them a DM' : 'Send them a reply'}
-      subtitle={[
-        opener && 'Opener + tap to continue',
-        'Message',
-        links.length > 0 && `${links.length} link button${links.length > 1 ? 's' : ''}`,
-      ]
+      title={recipe.trigger.type === 'comment_keyword' ? tr('send_them_a_dm') : tr('send_them_a_reply')}
+      subtitle={[opener && tr('opener_tap_to_continue'), tr('message_4'), links.length > 0 && tr('linksCount', { count: links.length })]
         .filter(Boolean)
         .join(' · ')}
       issues={issues('dm')}
@@ -586,30 +581,30 @@ export function DmSection({
         <Label
           hint={
             required ? (
-              'Required for comments — Meta allows one DM until they reply'
+              tr('required_for_comments_meta_allows_one_dm_until_they_reply')
             ) : (
               <span className="flex items-center gap-2">
-                Ask them to tap first
-                <Toggle label="Opener" checked={recipe.opener.enabled} onChange={(v) => update((d) => void (d.opener.enabled = v))} />
+                {tr('ask_them_to_tap_first')}{' '}
+                <Toggle label={tr('opener')} checked={recipe.opener.enabled} onChange={(v) => update((d) => void (d.opener.enabled = v))} />
               </span>
             )
           }
         >
-          Opening message
+          {tr('opening_message')}
         </Label>
         {opener && (
           <MessageInput
-            label="Opening message"
+            label={tr('opening_message')}
             value={recipe.opener.text}
             maxLength={640}
             rows={2}
             onChange={(text) => update((d) => void (d.opener.text = text))}
             footer={
               <ButtonField
-                label="Opener button label"
+                label={tr('opener_button_label')}
                 icon={<span className="text-[13px]">↳</span>}
                 value={recipe.opener.buttonLabel}
-                placeholder="Button label"
+                placeholder={tr('button_label')}
                 onChange={(label) => update((d) => void (d.opener.buttonLabel = label))}
               />
             }
@@ -618,20 +613,20 @@ export function DmSection({
       </div>
 
       <div>
-        <Label hint={opener ? 'Sent after they tap' : undefined}>{opener ? 'Then send' : 'Message'}</Label>
+        <Label hint={opener ? tr('sent_after_they_tap') : undefined}>{opener ? tr('then_send') : tr('message_4')}</Label>
         <MessageInput
-          label={opener ? 'Then send' : 'Message'}
+          label={opener ? tr('then_send') : tr('message_4')}
           value={recipe.message.text}
           maxLength={links.length > 0 ? 640 : 1000}
           onChange={(text) => update((d) => void (d.message.text = text))}
           footer={<LinkButtons links={links} onChange={(next) => update((d) => void (d.message.links = next))} />}
         />
         <div className="mt-3">
-          <Label hint="Sent as a picture just before the message">Image (optional)</Label>
+          <Label hint={tr('sent_as_a_picture_just_before_the_message')}>{tr('image_optional')}</Label>
           <TextInput
-            label="Image (optional)"
+            label={tr('image_optional')}
             value={recipe.message.imageUrl}
-            placeholder="https://… link to a .jpg or .png"
+            placeholder={tr('https_link_to_a_jpg_or_png')}
             onChange={(imageUrl) => update((d) => void (d.message.imageUrl = imageUrl.trim()))}
           />
         </div>
@@ -653,45 +648,47 @@ export function BoostersSection({
   platform: Platform
   issues: (section: RecipeSection) => RecipeIssue[]
 }) {
+  const tr = useTranslations('automations')
+  
   if (recipe.trigger.type === 'ice_breaker') return null
   const collect = recipe.collect.kind
   const setCollect = (kind: 'email' | 'phone') => update((d) => setCollectKind(d, kind))
 
   const canNudge = nudgeApplies(recipe)
   const active = [
-    recipe.followGate.enabled && 'Follow gate',
-    collect !== 'none' && `Ask for ${collect}`,
-    canNudge && recipe.nudge.enabled && 'Reminder',
-    recipe.tags.length > 0 && 'Tags',
+    recipe.followGate.enabled && tr('follow_gate'),
+    collect !== 'none' && tr(collect === 'email' ? 'ask_for_email' : 'ask_for_phone'),
+    canNudge && recipe.nudge.enabled && tr('reminder'),
+    recipe.tags.length > 0 && tr('tags'),
   ]
   return (
     <Section
       id="boosters"
       index={index}
-      title="Extras (optional)"
-      subtitle={active.filter(Boolean).join(' · ') || 'Optional extras that grow your audience'}
+      title={tr('extras_optional')}
+      subtitle={active.filter(Boolean).join(' · ') || tr('optional_extras_that_grow_your_audience')}
       issues={issues('boosters')}
     >
       <div className="grid gap-2.5 sm:grid-cols-3">
         <Booster
           icon={<UserPlus className="size-4" />}
-          title="Follow gate"
-          body={platform === 'instagram' ? 'Ask for a follow first' : 'Instagram only'}
+          title={tr('follow_gate')}
+          body={platform === 'instagram' ? tr('ask_for_a_follow_first') : tr('instagram_only')}
           checked={recipe.followGate.enabled}
           disabled={platform !== 'instagram'}
           onChange={(v) => update((d) => void (d.followGate.enabled = v))}
         />
         <Booster
           icon={<AtSign className="size-4" />}
-          title="Ask for email"
-          body="Saved as a lead"
+          title={tr('ask_for_email')}
+          body={tr('saved_as_a_lead')}
           checked={collect === 'email'}
           onChange={() => setCollect('email')}
         />
         <Booster
           icon={<Phone className="size-4" />}
-          title="Ask for phone"
-          body="Saved as a lead"
+          title={tr('ask_for_phone')}
+          body={tr('saved_as_a_lead')}
           checked={collect === 'phone'}
           onChange={() => setCollect('phone')}
         />
@@ -699,27 +696,27 @@ export function BoostersSection({
 
       {recipe.followGate.enabled && (
         <div>
-          <Label hint="Sent when they aren't following yet">Follow gate message</Label>
+          <Label hint={tr('sent_when_they_aren_t_following_yet')}>{tr('follow_gate_message')}</Label>
           <MessageInput
-            label="Follow gate message"
+            label={tr('follow_gate_message')}
             value={recipe.followGate.text}
             maxLength={640}
             rows={2}
             onChange={(text) => update((d) => void (d.followGate.text = text))}
             footer={
               <ButtonField
-                label="Follow gate button label"
+                label={tr('follow_gate_button_label')}
                 icon={<span className="text-[13px]">↳</span>}
                 value={recipe.followGate.buttonLabel}
-                placeholder="Button label"
+                placeholder={tr('button_label')}
                 onChange={(label) => update((d) => void (d.followGate.buttonLabel = label))}
               />
             }
           />
           <div className="mt-3">
-            <Label hint="Sent if they tap the button but still aren't following">Follow reminder</Label>
+            <Label hint={tr('sent_if_they_tap_the_button_but_still_aren_t_following')}>{tr('follow_reminder')}</Label>
             <MessageInput
-              label="Follow reminder"
+              label={tr('follow_reminder')}
               value={recipe.followGate.reminderText}
               maxLength={640}
               rows={2}
@@ -732,9 +729,9 @@ export function BoostersSection({
       {collect !== 'none' && (
         <div className="grid gap-3">
           <div>
-            <Label hint="Skipped if we already have it">Question</Label>
+            <Label hint={tr('skipped_if_we_already_have_it')}>{tr('question')}</Label>
             <MessageInput
-              label="Question"
+              label={tr('question')}
               value={recipe.collect.question}
               maxLength={1000}
               rows={2}
@@ -742,9 +739,9 @@ export function BoostersSection({
             />
           </div>
           <div>
-            <Label hint="2 tries · waits 24h">If the answer isn't valid</Label>
+            <Label hint={tr('2_tries_waits_24h')}>{tr('if_the_answer_isn_t_valid')}</Label>
             <TextInput
-              label="If the answer isn't valid"
+              label={tr('if_the_answer_isn_t_valid')}
               value={recipe.collect.retryText}
               maxLength={1000}
               onChange={(t) => update((d) => void (d.collect.retryText = t))}
@@ -755,11 +752,11 @@ export function BoostersSection({
 
       <Booster
         icon={<BellRing className="size-4" />}
-        title="Remind them once"
+        title={tr('remind_them_once')}
         body={
           canNudge
-            ? 'Nudge people who stop before tapping or answering'
-            : 'Needs an opener, follow gate or email/phone question (comments allow no reminder on the first message)'
+            ? tr('nudge_people_who_stop_before_tapping_or_answering')
+            : tr('needs_an_opener_follow_gate_or_email_phone_question_comments_allow')
         }
         checked={canNudge && recipe.nudge.enabled}
         disabled={!canNudge}
@@ -768,19 +765,19 @@ export function BoostersSection({
 
       {canNudge && recipe.nudge.enabled && (
         <div>
-          <Label hint={`Sent once · max ${MAX_NUDGE_HOURS}h, inside Meta's 24h messaging window`}>Reminder message</Label>
+          <Label hint={tr('sent_once_max_h_inside_meta_s_24h_messaging_window', { v0: MAX_NUDGE_HOURS })}>{tr('reminder_message')}</Label>
           <MessageInput
-            label="Reminder message"
+            label={tr('reminder_message')}
             value={recipe.nudge.text}
             maxLength={1000}
             rows={2}
             onChange={(text) => update((d) => void (d.nudge.text = text))}
             footer={
               <span className="flex items-center gap-2 text-[13px] text-muted">
-                Send after
+                {tr('send_after')}{' '}
                 <input
                   type="number"
-                  aria-label="Hours without a reply before the reminder"
+                  aria-label={tr('hours_without_a_reply_before_the_reminder')}
                   min={1}
                   max={MAX_NUDGE_HOURS}
                   value={recipe.nudge.afterHours}
@@ -792,7 +789,7 @@ export function BoostersSection({
                   }
                   className="h-7 w-14 rounded-lg border border-line bg-white px-2 text-center text-[13px] text-ink outline-none focus:border-ink"
                 />
-                hours without a reply
+                {tr('hours_without_a_reply')}{' '}
               </span>
             }
           />
@@ -800,15 +797,15 @@ export function BoostersSection({
       )}
 
       <div>
-        <Label hint="Added when the flow finishes">
+        <Label hint={tr('added_when_the_flow_finishes')}>
           <span className="inline-flex items-center gap-1.5">
-            <Tag className="size-3.5" /> Tag contacts
+            <Tag className="size-3.5" /> {tr('tag_contacts')}{' '}
           </span>
         </Label>
         <KeywordInput
-          label="Tag contacts"
+          label={tr('tag_contacts')}
           value={recipe.tags}
-          placeholder="e.g. vip, email-lead"
+          placeholder={tr('e_g_vip_email_lead')}
           {...TAG_LIMITS}
           onChange={(tags) => update((d) => void (d.tags = tags))}
         />
@@ -832,13 +829,11 @@ function Booster({
   disabled?: boolean
   onChange: (value: boolean) => void
 }) {
+  
+  
   return (
     <div
-      className={cx(
-        'flex items-center gap-3 rounded-2xl p-3.5 transition-colors',
-        checked ? 'bg-brand-soft' : 'bg-sand',
-        disabled && 'opacity-60',
-      )}
+      className={cx('flex items-center gap-3 rounded-2xl p-3.5 transition-colors', checked ? 'bg-brand-soft' : 'bg-sand', disabled && 'opacity-60')}
     >
       <span className={checked ? 'text-brand' : 'text-muted'}>{icon}</span>
       <span className="min-w-0 flex-1">
@@ -851,30 +846,31 @@ function Booster({
 }
 
 function LinkButtons({ links, onChange }: { links: LinkButton[]; onChange: (links: LinkButton[]) => void }) {
-  const change = (index: number, patch: Partial<LinkButton>) =>
-    onChange(links.map((link, i) => (i === index ? { ...link, ...patch } : link)))
+  const tr = useTranslations('automations')
+  
+  const change = (index: number, patch: Partial<LinkButton>) => onChange(links.map((link, i) => (i === index ? { ...link, ...patch } : link)))
   return (
     <div className="flex flex-col gap-2">
       {links.map((link, index) => (
         <div key={index} className="flex items-center gap-2">
           <ButtonField
-            label={`Link ${index + 1} button label`}
+            label={tr('link_button_label', { v0: index + 1 })}
             icon={<Link2 className="size-3.5 text-brand" />}
             value={link.label}
-            placeholder="Button label"
+            placeholder={tr('button_label')}
             onChange={(label) => change(index, { label })}
           />
           <span className="text-faint">→</span>
           <input
             value={link.url}
-            aria-label={`Link ${index + 1} address`}
-            placeholder="https://"
+            aria-label={tr('link_address', { v0: index + 1 })}
+            placeholder={tr('https')}
             onChange={(e) => change(index, { url: e.target.value })}
             className="min-w-0 flex-1 bg-transparent text-[13px] text-muted outline-none placeholder:text-faint"
           />
           <button
             type="button"
-            aria-label="Remove link"
+            aria-label={tr('remove_link')}
             className="text-faint hover:text-ink"
             onClick={() => onChange(links.filter((_, i) => i !== index))}
           >
@@ -888,8 +884,7 @@ function LinkButtons({ links, onChange }: { links: LinkButton[]; onChange: (link
           className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium text-muted hover:text-ink"
           onClick={() => onChange([...links, { label: '', url: '' }])}
         >
-          <Plus className="size-3.5" /> Add link button
-          {links.length > 0 ? ` (${links.length}/${MAX_LINKS})` : ''}
+          <Plus className="size-3.5" /> {tr('add_link_button')} {links.length > 0 ? tr('message_5', { v0: links.length, v1: MAX_LINKS }) : ''}
         </button>
       )}
     </div>

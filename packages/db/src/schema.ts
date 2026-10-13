@@ -58,6 +58,7 @@ export const authUsers = pgTable('user', {
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
   image: text('image'),
+  locale: text('locale'),
   ...timestamps,
 })
 
