@@ -1,4 +1,4 @@
-import { PLAN_LIMITS, PLAN_NAMES, type PlanKey } from '@replyooo/shared'
+import { MAX_TEAM_SEATS, PLAN_LIMITS, PLAN_NAMES, type PlanKey } from '@replyooo/shared'
 
 export interface PlanDisplay {
   key: PlanKey
@@ -14,7 +14,7 @@ const count = new Intl.NumberFormat('en-US')
 const COPY: Record<PlanKey, { price: string; blurb: string; extras: string[]; featured: boolean }> = {
   free: { price: '$0', blurb: 'For trying it on your next reel.', extras: ['Comment & story automations', 'Replyooo branding'], featured: false },
   pro: { price: '$12', blurb: 'For creators who post every week and want the funnel.', extras: ['Follow gate & lead capture', 'No branding'], featured: true },
-  business: { price: '$29', blurb: 'For full-time creators, teams and brands.', extras: ['Team members', 'Priority support'], featured: false },
+  business: { price: '$29', blurb: 'For full-time creators, teams and brands.', extras: ['Priority support'], featured: false },
 }
 
 /** USD monthly prices in cents, shown only when Dodo's prices are unavailable. Keep equal to the Dodo base prices and to COPY. */
@@ -26,6 +26,7 @@ function limitPerks(key: PlanKey): string[] {
     `${count.format(limits.contactsPerMonth)} contacts / month`,
     limits.connectedAccounts === 1 ? '1 connected account' : `${limits.connectedAccounts} connected accounts`,
     limits.liveAutomations === null ? 'Unlimited live automations' : `${limits.liveAutomations} live automations`,
+    `Up to ${MAX_TEAM_SEATS} team seats, free`,
   ]
 }
 

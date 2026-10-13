@@ -27,7 +27,7 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 | **Scheduled DMs** | Yes (Pro) | **No** |
 | Re-run on old posts | Yes (Pro) | Yes, "Run on existing comments", last 7 days (built 2026-10-13, not yet deployed) |
 | **Carousel / multi-link DMs** | Yes (Pro) | **No** |
-| **Team seats** | Up to 5 | **No** (only a `workspace_invitations` table in the schema) |
+| Team seats | Up to 5 (Business only) | Yes, up to 10 on every plan, free; owner can invite as admin and change roles (built 2026-10-13, not yet deployed) |
 | **Google Sheets, Meta Ads export** | Yes (Business) | **No** |
 | **AI replies, goals, MCP connector** | Yes | **No** (none in v1 by design) |
 | **Per-automation analytics** | Click trends, lifetime | Basic counts |
@@ -43,7 +43,7 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 3. **Inbox**, then scheduled DMs. The inbox design is already written.
 4. **Meta App Review and Business Verification**, which also earns the "Meta-verified" trust badge.
 
-AI features and team seats can wait. Nothing here blocks launch except Meta approval.
+AI features can wait. Nothing here blocks launch except Meta approval.
 
 ## See also
 

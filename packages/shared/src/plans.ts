@@ -14,6 +14,9 @@ export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
   business: { contactsPerMonth: 25_000, connectedAccounts: 10, liveAutomations: null },
 }
 
+/** Team seats are free on every plan; this only stops runaway invites. A seat is a member or a pending invite. */
+export const MAX_TEAM_SEATS = 10
+
 /** `YYYY-MM` in UTC, the key of `usage_counters.period`. */
 export function usagePeriod(date: Date): string {
   return date.toISOString().slice(0, 7)
