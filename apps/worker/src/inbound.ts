@@ -61,7 +61,12 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
     .from(contacts)
     .where(and(eq(contacts.connectedAccountId, account.id), eq(contacts.platformUserId, event.senderId)))
   const profile = existing ? null : await fetchProfile(deps, adapter, creds, event.senderId)
-  const candidates = await loadCandidates(db, account.id)
+  const allCandidates = await loadCandidates(db, account.id)
+  // A re-run comment may only be answered by the automation that asked for it.
+  const candidates =
+    event.type === 'comment_created' && event.restrictToAutomationId
+      ? allCandidates.filter((c) => c.automationId === event.restrictToAutomationId)
+      : allCandidates
   const waitingRun = existing ? await loadWaitingRun(db, existing.id) : null
   const mediaPublishedAt =
     event.type === 'comment_created' && needsMediaTime(candidates)
