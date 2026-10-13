@@ -46,6 +46,13 @@ Link in bio shipped, but these extras are deferred until after launch:
   1. Core: conversation list, chat view, manual DM replies within the 24-hour window, unread, archive, search. Design: [2026-10-08-inbox-core-design.md](2026-10-08-inbox-core-design.md).
   2. Workflow tools: labels, private notes, contact details panel, saved replies (`/`).
   3. Advanced: scheduled sends, image attachments, the Outreach tab (DMs sent by hand in the Instagram app), sound alert.
+- **Competitor gaps** (click tracking in automation DMs, Kit/Google Sheets sync, scheduled DMs, re-run on old posts, team seats, AI): see [../../competitors/reachlee.md](../../competitors/reachlee.md) for the comparison and suggested order.
+- **Production hardening** (the current `Dockerfile` + `docker-compose.prod.yml` stack is enough to launch). The full write-up is Plan 5, kept on the `plan-5-deployment` branch (`docs/superpowers/plans/2026-10-07-plan-5-deployment.md`):
+  - Advisory-locked migration runner, so two concurrent migrate runs can't race (matters for multiple replicas or an automated deploy pipeline).
+  - Readiness probes: `/health/ready` on the worker (Postgres + Redis) and `/api/health/ready` on web (Postgres).
+  - Opt-in Sentry for web and worker (the only one that surfaces production errors you didn't see yourself).
+  - bull-board at `/admin/queues` on the worker, behind Basic auth.
+  - Slimmer per-app images (Next standalone output, pruned installs). Not needed unless image size or build time becomes a problem.
 
 ---
 
