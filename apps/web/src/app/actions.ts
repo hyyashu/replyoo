@@ -126,7 +126,9 @@ export async function disconnectAccount(id: string) {
 
 export async function inviteMember(formData: FormData) {
   const workspace = await requireManager()
-  const result = await data.inviteMember(workspace.workspaceId, workspace.user, String(formData.get('email') ?? ''))
+  // Only the owner can hand out admin; an admin's invites are always plain members.
+  const role = formData.get('role') === 'admin' && workspace.role === 'owner' ? 'admin' : 'member'
+  const result = await data.inviteMember(workspace.workspaceId, workspace.user, String(formData.get('email') ?? ''), role)
   revalidatePath('/settings')
   redirect(`/settings?invite=${result}#members`)
 }
@@ -134,6 +136,14 @@ export async function inviteMember(formData: FormData) {
 export async function revokeInvitation(id: string) {
   const { workspaceId } = await requireManager()
   await data.revokeInvitation(workspaceId, id)
+  revalidatePath('/settings')
+}
+
+export async function changeMemberRole(id: string, role: string) {
+  const workspace = await requireWorkspace()
+  if (workspace.role !== 'owner') throw new Error('Only the owner can change roles')
+  if (role !== 'admin' && role !== 'member') return
+  await data.changeMemberRole(workspace.workspaceId, id, role)
   revalidatePath('/settings')
 }
 

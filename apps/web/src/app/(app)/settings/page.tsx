@@ -1,11 +1,12 @@
 import { getDashboardFormatters } from '@/i18n/server-format'
 
-import { PLAN_LIMITS } from '@replyooo/shared'
+import { MAX_TEAM_SEATS, PLAN_LIMITS } from '@replyooo/shared'
 import { Check, Plus, TriangleAlert } from 'lucide-react'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { deleteWorkspace, disconnectAccount, inviteMember, openBillingPortal, removeMember, revokeInvitation, switchPlan } from '@/app/actions'
 import { ConfirmAction } from '@/components/confirm-action'
+import { MemberRoleSelect } from '@/components/member-role-select'
 import { WorkspaceList } from '@/components/workspace-list'
 import { PlatformIcon } from '@/components/sidebar'
 import { Avatar, ButtonLink, Card, PageHeader, buttonClass } from '@/components/ui'
@@ -39,6 +40,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     invited: tr('invite_sent_they_join_as_soon_as_they_sign_in_with'),
     member: tr('that_person_is_already_in_this_workspace'),
     invalid: tr('that_doesn_t_look_like_an_email_address'),
+    full: tr('seat_limit_reached', { v0: MAX_TEAM_SEATS }),
   }
   const common = await getTranslations('common')
   const locale = await getLocale()
@@ -51,6 +53,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     listWorkspaces(db(), workspace.user.id),
   ])
   const manager = canManage(workspace.role)
+  const owner = workspace.role === 'owner'
   const usage = subscription.contactsReached / subscription.contactsLimit
   const notice = invite ? INVITE_NOTICES[invite] : undefined
   const billingEnabled = dodoConfig() !== null
@@ -141,7 +144,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 </div>
                 <div className="text-[12.5px] break-all text-subtle">{member.email}</div>
               </div>
-              <span className="rounded-full bg-sand px-2.5 py-0.5 text-[12px] font-medium capitalize">{common(`role_${member.role}`)}</span>
+              {owner && member.role !== 'owner' ? (
+                <MemberRoleSelect memberId={member.id} name={member.name} role={member.role} />
+              ) : (
+                <span className="rounded-full bg-sand px-2.5 py-0.5 text-[12px] font-medium capitalize">{common(`role_${member.role}`)}</span>
+              )}
               {manager && member.role !== 'owner' && member.userId !== workspace.user.id && (
                 <ConfirmAction
                   action={removeMember.bind(null, member.id)}
@@ -159,7 +166,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                 <div className="text-[14px] font-semibold break-all">{invitation.email}</div>
                 <div className="text-[12.5px] text-subtle">{tr('invited_joins_when_they_sign_up_or_log_in_with_this')}</div>
               </div>
-              <span className="rounded-full bg-cream px-2.5 py-0.5 text-[12px] font-medium">{tr('pending')}</span>
+              <span className="rounded-full bg-cream px-2.5 py-0.5 text-[12px] font-medium">
+                {tr('pending')} · {common(`role_${invitation.role}`)}
+              </span>
               {manager && (
                 <ConfirmAction
                   action={revokeInvitation.bind(null, invitation.id)}
@@ -180,10 +189,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
                   placeholder={tr('teammate_example_com')}
                   className="h-9 flex-1 rounded-full border border-line px-4 text-[13.5px] outline-none focus:border-ink"
                 />
+                {owner && (
+                  <select
+                    name="role"
+                    defaultValue="member"
+                    aria-label={tr('invite_as')}
+                    className="h-9 rounded-full border border-line bg-white px-3 text-[13px] outline-none focus:border-ink"
+                  >
+                    <option value="member">{common('role_member')}</option>
+                    <option value="admin">{common('role_admin')}</option>
+                  </select>
+                )}
                 <button type="submit" className={buttonClass('dark', 'sm')}>
                   {tr('send_invite')}
                 </button>
               </div>
+              <p className="text-[12px] text-subtle">{tr('seats_used', { v0: members.length + invitations.length, v1: MAX_TEAM_SEATS })}</p>
               {notice && <p className="text-[12.5px] text-muted">{notice}</p>}
             </form>
           )}

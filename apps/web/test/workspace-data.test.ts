@@ -11,11 +11,13 @@ import {
 } from '@replyooo/db'
 import { eq } from 'drizzle-orm'
 import { RecordingMailer } from '@replyooo/email/testing'
+import { MAX_TEAM_SEATS } from '@replyooo/shared'
 import { http, HttpResponse } from 'msw'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { disconnectAccount } from '@/lib/data/accounts'
 import { createAutomation, publishAutomation } from '@/lib/data/automations'
 import {
+  changeMemberRole,
   deleteWorkspace,
   getSubscription,
   inviteMember,
@@ -26,6 +28,7 @@ import {
 } from '@/lib/data/workspace'
 import { db } from '@/lib/db'
 import { setMailer } from '@/lib/email'
+import { resolveWorkspace } from '@/lib/workspaces'
 import { createAccount, createContact, createMessage, createRun, createUser, createWorkspace, mockFetch } from './support'
 
 const server = mockFetch()
@@ -64,6 +67,57 @@ describe('members and invitations', () => {
     expect(mailer.sent).toHaveLength(1)
     expect(mailer.sent[0]).toMatchObject({ to: 'sam@example.com', subject: `${user.name} invited you to Mailroom on Replyooo` })
     expect(mailer.sent[0]?.text).toContain('http://localhost:3000/signup?email=sam%40example.com')
+  })
+
+  it('invites with a role, defaults to member, and a re-invite updates the role', async () => {
+    const { workspaceId, user } = await createWorkspace('Crew')
+    await inviteMember(workspaceId, user, 'a@example.com')
+    await inviteMember(workspaceId, user, 'b@example.com', 'admin')
+    await inviteMember(workspaceId, user, 'a@example.com', 'admin')
+    const roles = Object.fromEntries((await listInvitations(workspaceId)).map((i) => [i.email, i.role]))
+    expect(roles).toEqual({ 'a@example.com': 'admin', 'b@example.com': 'admin' })
+  })
+
+  it('gives the invitee the invited role when they join', async () => {
+    const { workspaceId, user } = await createWorkspace('Crew')
+    const email = `ada-${Date.now()}@example.com`
+    await inviteMember(workspaceId, user, email, 'admin')
+    const invitee = await createUser({ email, emailVerified: true })
+    await resolveWorkspace(db(), { ...invitee, emailVerified: true }, workspaceId)
+    expect((await listMembers(workspaceId)).find((m) => m.userId === invitee.id)?.role).toBe('admin')
+  })
+
+  it(`stops at ${MAX_TEAM_SEATS} seats counting members and pending invites, and frees a seat on revoke`, async () => {
+    const { workspaceId, user } = await createWorkspace('Crowd')
+    for (let i = 1; i < MAX_TEAM_SEATS; i++) {
+      expect(await inviteMember(workspaceId, user, `p${i}@example.com`)).toBe('invited')
+    }
+    expect(await inviteMember(workspaceId, user, 'late@example.com')).toBe('full')
+    expect(await inviteMember(workspaceId, user, 'p1@example.com', 'admin')).toBe('invited') // existing invite, no new seat
+    expect(await listInvitations(workspaceId)).toHaveLength(MAX_TEAM_SEATS - 1)
+    const [first] = await listInvitations(workspaceId)
+    if (!first) throw new Error('no invite')
+    await revokeInvitation(workspaceId, first.id)
+    expect(await inviteMember(workspaceId, user, 'late@example.com')).toBe('invited')
+  })
+
+  it('changes a member between admin and member, never the owner, and only within the workspace', async () => {
+    const { workspaceId } = await createWorkspace('Crew')
+    const other = await createWorkspace('Other')
+    const teammate = await createUser({ name: 'Teammate' })
+    await db().insert(workspaceMembers).values({ workspaceId, userId: teammate.id, role: 'member' })
+    const members = await listMembers(workspaceId)
+    const owner = members.find((m) => m.role === 'owner')
+    const member = members.find((m) => m.userId === teammate.id)
+    if (!owner || !member) throw new Error('missing members')
+
+    await changeMemberRole(workspaceId, owner.id, 'member')
+    await changeMemberRole(other.workspaceId, member.id, 'admin')
+    expect((await listMembers(workspaceId)).map((m) => m.role)).toEqual(['owner', 'member'])
+    await changeMemberRole(workspaceId, member.id, 'admin')
+    expect((await listMembers(workspaceId)).map((m) => m.role)).toEqual(['owner', 'admin'])
+    await changeMemberRole(workspaceId, member.id, 'member')
+    expect((await listMembers(workspaceId)).map((m) => m.role)).toEqual(['owner', 'member'])
   })
 
   it('revokes invitations only within the workspace', async () => {

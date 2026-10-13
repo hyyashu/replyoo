@@ -1,8 +1,8 @@
 import 'server-only'
 import { authUsers, subscriptions, usageCounters, workspaceInvitations, workspaceMembers, workspaces } from '@replyooo/db'
 import { invitationEmail } from '@replyooo/email'
-import { effectivePlan, PLAN_LIMITS, periodEnd, usagePeriod } from '@replyooo/shared'
-import { and, asc, eq, ne, sql } from 'drizzle-orm'
+import { effectivePlan, MAX_TEAM_SEATS, PLAN_LIMITS, periodEnd, usagePeriod } from '@replyooo/shared'
+import { and, asc, count, eq, ne, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { deliver } from '../email'
 import { appUrl } from '../env'
@@ -12,7 +12,10 @@ import type { Invitation, Member, Subscription } from './types'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export type InviteResult = 'invited' | 'member' | 'invalid'
+export type InviteResult = 'invited' | 'member' | 'invalid' | 'full'
+
+/** The roles that can be granted: the owner is whoever created the workspace. */
+export type GrantableRole = 'admin' | 'member'
 
 export async function listMembers(workspaceId: string): Promise<Member[]> {
   return db()
@@ -38,11 +41,15 @@ export async function listInvitations(workspaceId: string): Promise<Invitation[]
   return rows.map((row) => ({ id: row.id, email: row.email, role: row.role, createdAt: row.createdAt.toISOString() }))
 }
 
-/** Saves a pending invite and emails it. It's accepted when someone with that verified email signs in (lib/workspaces.ts). */
+/**
+ * Saves a pending invite and emails it. It's accepted when someone with that verified email signs in (lib/workspaces.ts).
+ * Past MAX_TEAM_SEATS (members + pending invites) only an address that's already invited can be re-invited, e.g. to change its role.
+ */
 export async function inviteMember(
   workspaceId: string,
   inviter: { id: string; name: string },
   rawEmail: string,
+  role: GrantableRole = 'member',
 ): Promise<InviteResult> {
   const email = rawEmail.trim().toLowerCase()
   if (!EMAIL.test(email)) return 'invalid'
@@ -52,7 +59,15 @@ export async function inviteMember(
     .innerJoin(authUsers, eq(authUsers.id, workspaceMembers.userId))
     .where(and(eq(workspaceMembers.workspaceId, workspaceId), sql`lower(${authUsers.email}) = ${email}`))
   if (existing) return 'member'
-  await db().insert(workspaceInvitations).values({ workspaceId, email, invitedByUserId: inviter.id }).onConflictDoNothing()
+  const [invited] = await db()
+    .select({ id: workspaceInvitations.id })
+    .from(workspaceInvitations)
+    .where(and(eq(workspaceInvitations.workspaceId, workspaceId), eq(workspaceInvitations.email, email)))
+  if (!invited && (await seatsUsed(workspaceId)) >= MAX_TEAM_SEATS) return 'full'
+  await db()
+    .insert(workspaceInvitations)
+    .values({ workspaceId, email, role, invitedByUserId: inviter.id })
+    .onConflictDoUpdate({ target: [workspaceInvitations.workspaceId, workspaceInvitations.email], set: { role } })
   const [workspace] = await db().select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, workspaceId))
   // Re-inviting an address re-sends the email.
   deliver({
@@ -66,6 +81,14 @@ export async function inviteMember(
   return 'invited'
 }
 
+async function seatsUsed(workspaceId: string): Promise<number> {
+  const [[members], [invitations]] = await Promise.all([
+    db().select({ n: count() }).from(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspaceId)),
+    db().select({ n: count() }).from(workspaceInvitations).where(eq(workspaceInvitations.workspaceId, workspaceId)),
+  ])
+  return (members?.n ?? 0) + (invitations?.n ?? 0)
+}
+
 export async function revokeInvitation(workspaceId: string, id: string): Promise<void> {
   if (!isUuid(id)) return
   await db()
@@ -77,6 +100,17 @@ export async function removeMember(workspaceId: string, memberId: string): Promi
   if (!isUuid(memberId)) return
   await db()
     .delete(workspaceMembers)
+    .where(
+      and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.id, memberId), ne(workspaceMembers.role, 'owner')),
+    )
+}
+
+/** Moves a member between admin and member. The owner's row is never touched. */
+export async function changeMemberRole(workspaceId: string, memberId: string, role: GrantableRole): Promise<void> {
+  if (!isUuid(memberId)) return
+  await db()
+    .update(workspaceMembers)
+    .set({ role })
     .where(
       and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.id, memberId), ne(workspaceMembers.role, 'owner')),
     )
