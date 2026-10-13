@@ -11,6 +11,7 @@ import {
   MAX_LINKS,
   MAX_NUDGE_HOURS,
   changeTriggerType,
+  normalizeUrl,
   nudgeApplies,
   openerRequired,
   setCollectKind,
@@ -628,6 +629,7 @@ export function DmSection({
             value={recipe.message.imageUrl}
             placeholder={tr('https_link_to_a_jpg_or_png')}
             onChange={(imageUrl) => update((d) => void (d.message.imageUrl = imageUrl.trim()))}
+            onBlur={(e) => update((d) => void (d.message.imageUrl = normalizeUrl(e.target.value)))}
           />
         </div>
       </div>
@@ -866,6 +868,7 @@ function LinkButtons({ links, onChange }: { links: LinkButton[]; onChange: (link
             aria-label={tr('link_address', { v0: index + 1 })}
             placeholder={tr('https')}
             onChange={(e) => change(index, { url: e.target.value })}
+            onBlur={(e) => change(index, { url: normalizeUrl(e.target.value) })}
             className="min-w-0 flex-1 bg-transparent text-[13px] text-muted outline-none placeholder:text-faint"
           />
           <button

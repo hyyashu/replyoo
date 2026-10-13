@@ -141,6 +141,19 @@ export function nudgeApplies(recipe: Recipe): boolean {
   return firstDmIsOpener || recipe.followGate.enabled || recipe.collect.kind !== 'none'
 }
 
+/**
+ * Adds https:// to an address typed without a scheme ("example.com/x"). Anything else is returned trimmed
+ * and left for validation to reject: text with spaces, bare words, and other schemes such as javascript: or mailto:.
+ */
+export function normalizeUrl(raw: string): string {
+  const value = raw.trim()
+  if (!value || /\s/.test(value) || value.includes('://')) return value
+  if (value.startsWith('//')) return `https:${value}`
+  if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(value)) return value // javascript:, data:, mailto: (but not host:8080)
+  const host = value.split(/[/?#]/)[0] ?? ''
+  return host.includes('.') && !host.includes('@') ? `https://${value}` : value
+}
+
 export function compileRecipe(recipe: Recipe): FlowDefinition {
   const { trigger } = recipe
 
@@ -174,7 +187,7 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
   steps.deliver = {
     type: 'send_message',
     text: recipe.message.text,
-    ...(recipe.message.imageUrl ? { imageUrl: recipe.message.imageUrl } : {}),
+    ...(recipe.message.imageUrl ? { imageUrl: normalizeUrl(recipe.message.imageUrl) } : {}),
     ...withLinks(recipe.message.links),
     ...(head ? { next: head } : {}),
   }
@@ -233,7 +246,7 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
 }
 
 function withLinks(links: LinkButton[]): { buttons?: Button[] } {
-  return links.length > 0 ? { buttons: links.map((link) => ({ type: 'url', label: link.label, url: link.url })) } : {}
+  return links.length > 0 ? { buttons: links.map((link) => ({ type: 'url', label: link.label, url: normalizeUrl(link.url) })) } : {}
 }
 
 function linksOf(step: StepOf<'send_message'> | undefined): LinkButton[] {
