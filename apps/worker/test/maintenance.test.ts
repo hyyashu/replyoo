@@ -151,8 +151,9 @@ describe('refreshAccountProfiles', () => {
     const ctx = createTestContext()
     const db = ctx.deps.db
     const { account } = await seedAccount(db)
-    // Earlier tests may have left other active accounts; give every lookup a reauth error.
-    for (let i = 0; i < 50; i++) ctx.adapters.instagram.errors.push(new MetaError('reauth', 'revoked'))
+    // Other tests leave active accounts in the shared database; give every lookup a reauth error.
+    const active = await db.select({ id: connectedAccounts.id }).from(connectedAccounts).where(eq(connectedAccounts.status, 'active'))
+    for (let i = 0; i < active.length; i++) ctx.adapters.instagram.errors.push(new MetaError('reauth', 'revoked'))
     await refreshAccountProfiles(ctx.deps)
     const [row] = await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, account.id))
     expect(row?.status).toBe('reauth_required')
