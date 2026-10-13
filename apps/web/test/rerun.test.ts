@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import * as data from '@/lib/data'
 import { db } from '@/lib/db'
-import { RERUN_WINDOWS } from '@/lib/rerun'
+import { RERUN_WINDOWS, rerunFailureKey } from '@/lib/rerun'
 import { createAccount, createContact, createWorkspace, mockFetch, one } from './support'
 
 const server = mockFetch()
@@ -64,6 +64,20 @@ function comments(mediaId: string, items: { id: string; text: string; hoursAgo: 
 describe('rerun windows', () => {
   it('match what the database accepts', () => {
     expect([...RERUN_WINDOWS]).toEqual([...BACKFILL_WINDOWS_HOURS])
+  })
+})
+
+describe('rerunFailureKey', () => {
+  it('maps the reasons a run can fail with to their own messages', () => {
+    for (const reason of ['token_invalid', 'network', 'timed_out', 'account_inactive', 'automation_not_active', 'not_a_comment_automation']) {
+      expect(rerunFailureKey(reason)).toBe(`rerun_failure_${reason}`)
+    }
+  })
+
+  it('falls back to a generic message for anything else, including a missing reason', () => {
+    expect(rerunFailureKey('some_future_reason')).toBe('rerun_failure_unknown')
+    expect(rerunFailureKey('unexpected_error')).toBe('rerun_failure_unknown')
+    expect(rerunFailureKey(null)).toBe('rerun_failure_unknown')
   })
 })
 

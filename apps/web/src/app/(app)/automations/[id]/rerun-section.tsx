@@ -8,7 +8,7 @@ import { getLatestRerun, previewRerun, startRerun } from '@/app/actions'
 import { buttonClass, cx } from '@/components/ui'
 import { useDashboardFormatters } from '@/i18n/use-format'
 import type { RerunErrorCode, RerunPreview, RerunRun } from '@/lib/data'
-import { RERUN_WINDOWS } from '@/lib/rerun'
+import { RERUN_WINDOWS, rerunFailureKey } from '@/lib/rerun'
 
 type Failure = { code: RerunErrorCode | 'network'; message: string }
 type PreviewState = { kind: 'loading' } | { kind: 'error'; failure: Failure } | { kind: 'ready'; preview: RerunPreview }
@@ -18,8 +18,7 @@ const RUN_CAP = 500
 
 function useErrorText() {
   const tr = useTranslations('automations')
-  return (failure: Failure) =>
-    failure.code === 'meta' ? tr('rerun_error_meta', { v0: failure.message }) : tr(`rerun_error_${failure.code}`)
+  return (failure: Failure) => tr(`rerun_error_${failure.code}`)
 }
 
 /** Reply to comments that already exist on this automation's posts. Shown for live comment automations. */
@@ -79,7 +78,7 @@ export function RerunSection({ automationId }: { automationId: string }) {
             </p>
           )}
           {latest.status === 'done' && latest.capped && <p className="mt-1 text-muted">{tr('rerun_capped_note', { v0: formatNumber(RUN_CAP) })}</p>}
-          {latest.status === 'failed' && <p className="mt-1 text-brand">{tr('rerun_failed_reason', { v0: latest.error ?? '' })}</p>}
+          {latest.status === 'failed' && <p className="mt-1 text-brand">{tr(rerunFailureKey(latest.error))}</p>}
         </div>
       )}
 

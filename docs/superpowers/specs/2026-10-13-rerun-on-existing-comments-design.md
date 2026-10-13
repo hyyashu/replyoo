@@ -120,7 +120,7 @@ A pure function `classifyComments(comments, candidate, handledCommentIds, now)` 
 
 ## 8. Limits and safety
 
-- Cap of 500 comments per run, set by a constant. A capped run says so and the user can run again.
+- Cap of 500 comments per run, set by a constant. The cap applies to the newest comments Meta returns, before they are sorted into handled, no match and eligible, so running again re-reads the same newest 500 and does not reach older ones. A capped run says so ("only the newest 500 were checked"); making a re-run continue past the cap is a possible follow-up.
 - One active run per automation (the partial unique index).
 - The preview is live Meta traffic, so it is capped the same way and read-only.
 - Past the monthly contact limit, new runs do not start (existing `mayStartRun`); comments queued for a contact the plan no longer covers are dropped by the normal plan check and are not counted separately.
@@ -138,4 +138,4 @@ A pure function `classifyComments(comments, candidate, handledCommentIds, now)` 
 
 ## 10. Open items
 
-- Whether a capped run should offer a "continue" button instead of "run again".
+- Making a capped run continue past the first 500 comments (count only eligible comments toward the cap).
