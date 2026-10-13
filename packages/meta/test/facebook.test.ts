@@ -95,4 +95,32 @@ describe('createFacebookAdapter', () => {
   it('keeps non-expiring Page tokens', async () => {
     expect(await adapter.refreshToken(account)).toEqual({ accessToken: 'EAAG', expiresAt: null })
   })
+
+  it('lists a post’s comments, newest first, since a time', async () => {
+    const calls = capture('get', `${base}/104_post1/comments`, {
+      data: [
+        { id: '104_c1', message: 'GUIDE', created_time: '2026-10-12T19:16:02+0000', from: { id: 'psid_1', name: 'Priya Sharma' } },
+        { id: '104_c2', message: 'no author', created_time: '2026-10-12T19:10:00+0000' },
+      ],
+      paging: { cursors: { after: 'CUR2' }, next: 'https://graph.facebook.com/next' },
+    })
+    const since = new Date('2026-10-10T00:00:00Z')
+    const page = await adapter.listComments(account, '104_post1', { since })
+    expect(page.items).toEqual([
+      {
+        id: '104_c1',
+        mediaId: '104_post1',
+        text: 'GUIDE',
+        createdAt: new Date('2026-10-12T19:16:02Z'),
+        authorId: 'psid_1',
+        authorUsername: null,
+        authorName: 'Priya Sharma',
+      },
+    ])
+    expect(page.next).toBe('CUR2')
+    expect(calls[0]?.search.get('filter')).toBe('toplevel')
+    expect(calls[0]?.search.get('order')).toBe('reverse_chronological')
+    expect(calls[0]?.search.get('fields')).toBe('id,message,created_time,from{id,name}')
+    expect(calls[0]?.search.get('since')).toBe(String(since.getTime() / 1000))
+  })
 })
