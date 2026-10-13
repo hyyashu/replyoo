@@ -1,11 +1,12 @@
 import { DelayedError, type Job, type JobsOptions, Queue, Worker } from 'bullmq'
 import type { Deps, FlowJobData, FollowCheckJobData, Jobs, OutboundJobData } from './deps'
 import { handleFlowJob, handleFollowCheck } from './flow'
+import { handleBackfill } from './backfill'
 import { handleInbound } from './inbound'
 import { pruneWebhookEvents, refreshAccountProfiles, refreshExpiringTokens, sweep } from './maintenance'
 import { handleOutbound } from './outbound'
 
-export type QueueName = 'inbound' | 'flow' | 'outbound' | 'maintenance'
+export type QueueName = 'inbound' | 'flow' | 'outbound' | 'maintenance' | 'backfill'
 export type Queues = Record<QueueName, Queue>
 
 const defaultJobOptions: JobsOptions = {
@@ -22,6 +23,7 @@ export function createQueues(redisUrl: string, prefix?: string): Queues {
     flow: new Queue('flow', options),
     outbound: new Queue('outbound', options),
     maintenance: new Queue('maintenance', { ...options, defaultJobOptions: { ...defaultJobOptions, attempts: 1 } }),
+    backfill: new Queue('backfill', { ...options, defaultJobOptions: { ...defaultJobOptions, attempts: 1 } }),
   }
 }
 
@@ -45,6 +47,9 @@ export function createBullJobs(queues: Queues): Jobs {
     },
     async outbound(data) {
       await queues.outbound.add('send', data)
+    },
+    async backfill(runId) {
+      await queues.backfill.add('backfill', { runId }, { jobId: `backfill-${runId}` })
     },
   }
 }
@@ -98,6 +103,7 @@ export function startWorkers(
       },
       { ...base, concurrency: 1 },
     ),
+    new Worker('backfill', async (job: Job<{ runId: string }>) => handleBackfill(deps, job.data.runId), { ...base, concurrency: 1 }),
   ]
   for (const worker of workers) {
     worker.on('failed', (job, err) =>

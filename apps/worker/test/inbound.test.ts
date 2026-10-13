@@ -1,3 +1,4 @@
+import type { NormalizedEvent } from '@replyooo/meta'
 import { automationEntries, automations, connectedAccounts, contacts, flowRuns, messages, webhookEvents } from '@replyooo/db'
 import type { FlowDefinition } from '@replyooo/shared'
 import { encodePostback, PLAN_LIMITS, usagePeriod } from '@replyooo/shared'
@@ -68,6 +69,47 @@ describe('handleInbound', () => {
     await handleInbound(deps, id)
     const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
     expect(event?.processedAt).toEqual(NOW)
+    expect(jobs.flows).toEqual([])
+  })
+
+  it('lets only the restricted automation answer a re-run comment', async () => {
+    const { db, deps, jobs, account } = await setup()
+    const older = await publishAutomation(db, account, commentFlow(), { publishedAt: new Date(NOW.getTime() - 2 * 86_400_000) })
+    await publishAutomation(db, account, commentFlow(), { publishedAt: NOW })
+    const event = { ...comment(account, 'u1', 'send the guide'), restrictToAutomationId: older.automation.id } as NormalizedEvent
+    await handleInbound(deps, await insertEvent(db, event))
+    expect(jobs.flows).toHaveLength(1)
+    const runs = await db.select().from(flowRuns)
+    expect(runs.filter((r) => r.automationId === older.automation.id)).toHaveLength(1)
+    expect(runs.filter((r) => r.automationId !== older.automation.id && r.connectedAccountId === account.id)).toHaveLength(0)
+  })
+
+  it('does not let a re-run comment cancel a conversation the person is in the middle of', async () => {
+    const { db, deps, jobs, account } = await setup()
+    const rerun = await publishAutomation(db, account, commentFlow())
+    const other = await publishAutomation(db, account, askFlow)
+    const contact = await seedContact(db, account, { platformUserId: 'u1' })
+    const waiting = await insertRun(
+      db,
+      { account, contact, automation: other.automation, version: other.version },
+      { status: 'waiting', wait: { kind: 'reply', attempts: 0 }, stateVersion: 1 },
+    )
+    const event = { ...comment(account, 'u1', 'send the guide'), restrictToAutomationId: rerun.automation.id } as NormalizedEvent
+    await handleInbound(deps, await insertEvent(db, event))
+    expect(jobs.flows).toEqual([])
+    const [after] = await db.select().from(flowRuns).where(eq(flowRuns.id, waiting.id))
+    expect(after?.status).toBe('waiting')
+    const started = await db.select().from(flowRuns).where(eq(flowRuns.automationId, rerun.automation.id))
+    expect(started).toEqual([])
+  })
+
+  it('ignores a restricted re-run comment when its automation is no longer active', async () => {
+    const { db, deps, jobs, account } = await setup()
+    const only = await publishAutomation(db, account, commentFlow())
+    await publishAutomation(db, account, commentFlow(), { publishedAt: new Date(NOW.getTime() + 1000) })
+    await db.update(automations).set({ status: 'paused' }).where(eq(automations.id, only.automation.id))
+    const event = { ...comment(account, 'u1', 'guide'), restrictToAutomationId: only.automation.id } as NormalizedEvent
+    await handleInbound(deps, await insertEvent(db, event))
     expect(jobs.flows).toEqual([])
   })
 

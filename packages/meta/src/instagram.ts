@@ -92,6 +92,36 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
       }))
     },
 
+    async listComments(account, mediaId, opts = {}) {
+      const res = await call<{
+        data?: { id: string; text?: string; timestamp?: string; username?: string; from?: { id?: string; username?: string } }[]
+        paging?: { cursors?: { after?: string }; next?: string }
+      }>(account, `${mediaId}/comments`, {
+        query: {
+          fields: 'id,text,timestamp,username,from{id,username}',
+          limit: '50',
+          ...(opts.cursor ? { after: opts.cursor } : {}),
+        },
+      })
+      const items = (res.data ?? []).flatMap((c) =>
+        c.from?.id && c.timestamp
+          ? [
+              {
+                id: c.id,
+                mediaId,
+                text: c.text ?? '',
+                createdAt: new Date(c.timestamp),
+                authorId: c.from.id,
+                authorUsername: c.from.username ?? c.username ?? null,
+                authorName: null,
+              },
+            ]
+          : [],
+      )
+      const after = res.paging?.next ? res.paging.cursors?.after : undefined
+      return { items, ...(after ? { next: after } : {}) }
+    },
+
     async listStories(account, limit = 24) {
       const res = await call<{
         data?: { id: string; media_type?: string; media_url?: string; thumbnail_url?: string; permalink?: string; timestamp?: string }[]

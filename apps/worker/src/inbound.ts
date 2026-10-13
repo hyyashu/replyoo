@@ -61,7 +61,12 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
     .from(contacts)
     .where(and(eq(contacts.connectedAccountId, account.id), eq(contacts.platformUserId, event.senderId)))
   const profile = existing ? null : await fetchProfile(deps, adapter, creds, event.senderId)
-  const candidates = await loadCandidates(db, account.id)
+  const allCandidates = await loadCandidates(db, account.id)
+  // A re-run comment may only be answered by the automation that asked for it.
+  const candidates =
+    event.type === 'comment_created' && event.restrictToAutomationId
+      ? allCandidates.filter((c) => c.automationId === event.restrictToAutomationId)
+      : allCandidates
   const waitingRun = existing ? await loadWaitingRun(db, existing.id) : null
   const mediaPublishedAt =
     event.type === 'comment_created' && needsMediaTime(candidates)
@@ -231,6 +236,15 @@ async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<FlowJobData | null
 
   const candidate = ctx.candidates.find((c) => c.automationId === route.automationId)
   if (!candidate) return null
+  if (event.type === 'comment_created' && event.restrictToAutomationId) {
+    // A re-run comment is old news; it must not cancel a conversation the person is in the middle of.
+    const [waiting] = await tx
+      .select({ id: flowRuns.id })
+      .from(flowRuns)
+      .where(and(eq(flowRuns.contactId, contact.id), eq(flowRuns.status, 'waiting')))
+      .limit(1)
+    if (waiting) return null
+  }
   if (!(await mayStartRun(tx, account.workspaceId, contact, now))) {
     ctx.log.info({ workspaceId: account.workspaceId, automationId: candidate.automationId }, 'monthly contact limit reached; run not started')
     return null

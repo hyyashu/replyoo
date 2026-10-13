@@ -517,3 +517,41 @@ export const linkClicks = pgTable(
   },
   (t) => [index('link_clicks_link_idx').on(t.linkId, t.createdAt)],
 )
+
+// ---------- re-run on existing comments ----------
+
+export const backfillStatusEnum = pgEnum('backfill_status', ['queued', 'running', 'done', 'failed'])
+
+/**
+ * One "run on existing comments" request. The web app inserts it as `queued`; the worker claims it, lists the
+ * comments, and hands the eligible ones to the normal inbound job. The counts come from that last step.
+ */
+export const backfillRuns = pgTable(
+  'backfill_runs',
+  {
+    id: id(),
+    automationId: uuid('automation_id')
+      .notNull()
+      .references(() => automations.id, { onDelete: 'cascade' }),
+    connectedAccountId: uuid('connected_account_id')
+      .notNull()
+      .references(() => connectedAccounts.id, { onDelete: 'cascade' }),
+    windowHours: integer('window_hours').notNull(),
+    status: backfillStatusEnum('status').notNull().default('queued'),
+    found: integer('found').notNull().default(0),
+    skippedHandled: integer('skipped_handled').notNull().default(0),
+    skippedNoMatch: integer('skipped_no_match').notNull().default(0),
+    enqueued: integer('enqueued').notNull().default(0),
+    capped: boolean('capped').notNull().default(false),
+    error: text('error'),
+    createdAt: tz('created_at').notNull().defaultNow(),
+    startedAt: tz('started_at'),
+    finishedAt: tz('finished_at'),
+  },
+  (t) => [
+    uniqueIndex('backfill_runs_one_active_per_automation')
+      .on(t.automationId)
+      .where(sql`${t.status} in ('queued', 'running')`),
+    index('backfill_runs_automation_created_idx').on(t.automationId, t.createdAt),
+  ],
+)

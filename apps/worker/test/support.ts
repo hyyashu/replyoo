@@ -19,7 +19,10 @@ import type { FlowRunState } from '@replyooo/engine'
 import { newRunState } from '@replyooo/engine'
 import type {
   AccountCredentials,
+  CommentItem,
+  CommentPage,
   IceBreaker,
+  MediaItem,
   MetaError,
   NormalizedEvent,
   PlatformAdapter,
@@ -63,6 +66,7 @@ export class RecordingJobs implements Jobs {
   flows: { data: FlowJobData; opts?: { at?: Date; jobId?: string } }[] = []
   followChecks: FollowCheckJobData[] = []
   outbounds: OutboundJobData[] = []
+  backfills: string[] = []
 
   async inbound(webhookEventId: string) {
     this.inbounds.push(webhookEventId)
@@ -76,11 +80,15 @@ export class RecordingJobs implements Jobs {
   async outbound(data: OutboundJobData) {
     this.outbounds.push(data)
   }
+  async backfill(runId: string) {
+    this.backfills.push(runId)
+  }
   clear() {
     this.inbounds = []
     this.flows = []
     this.followChecks = []
     this.outbounds = []
+    this.backfills = []
   }
 }
 
@@ -97,6 +105,9 @@ export class FakeAdapter implements PlatformAdapter {
   profile: Profile = { name: 'Priya Sharma', username: 'priya', avatarUrl: null }
   accountProfile: AccountProfile = { displayName: 'Acme Co', avatarUrl: 'https://cdn.example/new.jpg', followersCount: 321 }
   mediaPublishedAt: Date | null = null
+  /** Comments by post id, served newest first in one page. */
+  comments: Record<string, CommentItem[]> = {}
+  media: MediaItem[] = []
   private counter = 0
 
   constructor(readonly platform: Platform) {}
@@ -136,7 +147,13 @@ export class FakeAdapter implements PlatformAdapter {
     return this.mediaPublishedAt
   }
   async listMedia() {
-    return []
+    return this.media
+  }
+  async listComments(_: AccountCredentials, mediaId: string, opts: { since?: Date } = {}): Promise<CommentPage> {
+    this.calls.push({ method: 'listComments', args: [mediaId, opts.since] })
+    const error = this.errors.shift()
+    if (error) throw error
+    return { items: [...(this.comments[mediaId] ?? [])].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()) }
   }
   async reactToMessage(_: AccountCredentials, recipientId: string, messageId: string) {
     this.act('reactToMessage', [recipientId, messageId])
@@ -306,6 +323,14 @@ export const comment = (
     senderName: null,
   }
 }
+
+export const listedComment = (
+  id: string,
+  authorId: string,
+  text: string,
+  createdAt: Date,
+  mediaId = 'media1',
+): CommentItem => ({ id, mediaId, text, createdAt, authorId, authorUsername: 'priya', authorName: null })
 
 export async function insertRun(
   db: Db,

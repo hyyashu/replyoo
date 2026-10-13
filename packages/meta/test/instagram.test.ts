@@ -151,4 +151,36 @@ describe('createInstagramAdapter', () => {
     expect(error).toBeInstanceOf(MetaError)
     expect((error as MetaError).details.reason).toBe('window_closed')
   })
+
+  it('lists a post’s comments with their authors and pages with a cursor', async () => {
+    const calls = capture('get', `${base}/media_1/comments`, {
+      data: [
+        { id: 'c1', text: 'GUIDE please', timestamp: '2026-10-12T19:16:02+0000', from: { id: 'igsid_1', username: 'priya' } },
+        { id: 'c2', text: 'hidden author', timestamp: '2026-10-12T19:10:00+0000' },
+        { id: 'c3', text: 'username only', timestamp: '2026-10-12T19:05:00+0000', username: 'sam' },
+      ],
+      paging: { cursors: { after: 'CUR2' }, next: 'https://graph.instagram.com/next' },
+    })
+    const page = await adapter.listComments(account, 'media_1', { cursor: 'CUR1' })
+    expect(page.items).toEqual([
+      {
+        id: 'c1',
+        mediaId: 'media_1',
+        text: 'GUIDE please',
+        createdAt: new Date('2026-10-12T19:16:02Z'),
+        authorId: 'igsid_1',
+        authorUsername: 'priya',
+        authorName: null,
+      },
+    ])
+    expect(page.next).toBe('CUR2')
+    expect(calls[0]?.search.get('fields')).toBe('id,text,timestamp,username,from{id,username}')
+    expect(calls[0]?.search.get('limit')).toBe('50')
+    expect(calls[0]?.search.get('after')).toBe('CUR1')
+  })
+
+  it('has no next cursor on the last page', async () => {
+    capture('get', `${base}/media_1/comments`, { data: [] })
+    expect(await adapter.listComments(account, 'media_1')).toEqual({ items: [] })
+  })
 })

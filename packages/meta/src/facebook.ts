@@ -79,6 +79,39 @@ export function createFacebookAdapter(options: { graphVersion?: string } = {}): 
       }))
     },
 
+    async listComments(account, mediaId, opts = {}) {
+      const res = await call<{
+        data?: { id: string; message?: string; created_time?: string; from?: { id?: string; name?: string } }[]
+        paging?: { cursors?: { after?: string }; next?: string }
+      }>(account, `${mediaId}/comments`, {
+        query: {
+          fields: 'id,message,created_time,from{id,name}',
+          filter: 'toplevel',
+          order: 'reverse_chronological',
+          limit: '50',
+          ...(opts.since ? { since: String(Math.floor(opts.since.getTime() / 1000)) } : {}),
+          ...(opts.cursor ? { after: opts.cursor } : {}),
+        },
+      })
+      const items = (res.data ?? []).flatMap((c) =>
+        c.from?.id && c.created_time
+          ? [
+              {
+                id: c.id,
+                mediaId,
+                text: c.message ?? '',
+                createdAt: new Date(c.created_time),
+                authorId: c.from.id,
+                authorUsername: null,
+                authorName: c.from.name ?? null,
+              },
+            ]
+          : [],
+      )
+      const after = res.paging?.next ? res.paging.cursors?.after : undefined
+      return { items, ...(after ? { next: after } : {}) }
+    },
+
     async setIceBreakers(account, items) {
       if (items.length === 0) {
         await call(account, 'me/messenger_profile', { method: 'DELETE', body: { fields: ['ice_breakers'] } })

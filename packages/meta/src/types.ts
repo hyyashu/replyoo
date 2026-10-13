@@ -44,6 +44,24 @@ export interface MediaItem {
   publishedAt: Date | null
 }
 
+/** A top-level comment on a post, as listed by the Graph API (the shape the webhook gives, plus the time). */
+export interface CommentItem {
+  id: string
+  mediaId: string
+  text: string
+  createdAt: Date
+  /** IGSID / PSID of the commenter. */
+  authorId: string
+  authorUsername: string | null
+  authorName: string | null
+}
+
+export interface CommentPage {
+  items: CommentItem[]
+  /** Pass back as `cursor` to get the next page; absent on the last one. */
+  next?: string
+}
+
 export interface TokenResult {
   accessToken: string
   expiresAt: Date | null
@@ -77,6 +95,8 @@ export type NormalizedEvent =
       text: string
       senderUsername: string | null
       senderName: string | null
+      /** Set on events a "run on existing comments" request creates: only this automation may answer them. */
+      restrictToAutomationId?: string
     })
 
 export type NormalizedEventType = NormalizedEvent['type']
@@ -93,6 +113,8 @@ export interface PlatformAdapter {
   getMediaPublishedAt(account: AccountCredentials, mediaId: string): Promise<Date | null>
   /** The account's most recent posts, newest first. */
   listMedia(account: AccountCredentials, limit?: number): Promise<MediaItem[]>
+  /** One page of a post's top-level comments. Authors we cannot identify are left out. */
+  listComments(account: AccountCredentials, mediaId: string, opts?: { cursor?: string; since?: Date }): Promise<CommentPage>
   /** The account's live stories (they expire after 24h), newest first. Instagram only. */
   listStories?(account: AccountCredentials, limit?: number): Promise<MediaItem[]>
   /** React to a message the person sent us with a ❤️. Instagram only. */

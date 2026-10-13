@@ -1,4 +1,12 @@
-import { connectedAccounts, encryptToken, flowRuns, messages, webhookEvents } from '@replyooo/db'
+import {
+  connectedAccounts,
+  encryptToken,
+  failStuckBackfillRuns,
+  flowRuns,
+  messages,
+  queuedBackfillRunIds,
+  webhookEvents,
+} from '@replyooo/db'
 import type { StartTrigger } from '@replyooo/engine'
 import { MetaError } from '@replyooo/meta'
 import { and, asc, eq, gt, isNull, lt } from 'drizzle-orm'
@@ -63,6 +71,9 @@ export async function sweep(deps: Deps) {
     )
     .limit(SWEEP_BATCH)
   for (const event of events) await jobs.inbound(event.id)
+
+  await failStuckBackfillRuns(db, deps.now())
+  for (const runId of await queuedBackfillRunIds(db, SWEEP_BATCH)) await jobs.backfill(runId)
 
   const result = { timeouts: overdue.length, starts, messages: stuck.length, events: events.length }
   if (Object.values(result).some((n) => n > 0)) deps.log.info(result, 'sweeper re-enqueued work')

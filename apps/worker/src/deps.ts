@@ -27,6 +27,7 @@ export interface Jobs {
   flow(data: FlowJobData, opts?: { at?: Date; jobId?: string }): Promise<void>
   followCheck(data: FollowCheckJobData): Promise<void>
   outbound(data: OutboundJobData): Promise<void>
+  backfill(runId: string): Promise<void>
 }
 
 export interface RateLimiter {

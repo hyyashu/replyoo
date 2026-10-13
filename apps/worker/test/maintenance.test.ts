@@ -1,4 +1,4 @@
-import { connectedAccounts, decryptToken, flowRuns, messages, webhookEvents } from '@replyooo/db'
+import { backfillRuns, claimBackfillRun, connectedAccounts, createBackfillRun, decryptToken, flowRuns, messages, webhookEvents } from '@replyooo/db'
 import { MetaError } from '@replyooo/meta'
 import type { FlowDefinition } from '@replyooo/shared'
 import { eq } from 'drizzle-orm'
@@ -151,8 +151,9 @@ describe('refreshAccountProfiles', () => {
     const ctx = createTestContext()
     const db = ctx.deps.db
     const { account } = await seedAccount(db)
-    // Earlier tests may have left other active accounts; give every lookup a reauth error.
-    for (let i = 0; i < 50; i++) ctx.adapters.instagram.errors.push(new MetaError('reauth', 'revoked'))
+    // Other tests leave active accounts in the shared database; give every lookup a reauth error.
+    const active = await db.select({ id: connectedAccounts.id }).from(connectedAccounts).where(eq(connectedAccounts.status, 'active'))
+    for (let i = 0; i < active.length; i++) ctx.adapters.instagram.errors.push(new MetaError('reauth', 'revoked'))
     await refreshAccountProfiles(ctx.deps)
     const [row] = await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, account.id))
     expect(row?.status).toBe('reauth_required')
@@ -176,5 +177,32 @@ describe('pruneWebhookEvents', () => {
     const ids = (await db.select({ id: webhookEvents.id }).from(webhookEvents)).map((r) => r.id)
     expect(ids).not.toContain(old)
     expect(ids).toContain(kept)
+  })
+})
+
+describe('sweep: re-run on existing comments', () => {
+  const commentFlow: FlowDefinition = {
+    trigger: { type: 'comment_keyword', posts: { mode: 'any' }, keywords: [], match: 'contains' },
+    start: 's1',
+    steps: { s1: { type: 'send_message', text: 'hi' } },
+  }
+
+  it('queues waiting runs and fails runs stuck running', async () => {
+    const { deps, jobs } = createTestContext()
+    const { account } = await seedAccount(deps.db)
+    const queued = await publishAutomation(deps.db, account, commentFlow)
+    const { run: waiting } = await createBackfillRun(deps.db, { automationId: queued.automation.id, connectedAccountId: account.id, windowHours: 24 })
+
+    const { account: other } = await seedAccount(deps.db)
+    const stuckAutomation = await publishAutomation(deps.db, other, commentFlow)
+    const { run: stuck } = await createBackfillRun(deps.db, { automationId: stuckAutomation.automation.id, connectedAccountId: other.id, windowHours: 24 })
+    await claimBackfillRun(deps.db, stuck.id, new Date(NOW.getTime() - 40 * 60_000))
+
+    await sweep(deps)
+
+    expect(jobs.backfills).toContain(waiting.id)
+    expect(jobs.backfills).not.toContain(stuck.id)
+    const [row] = await deps.db.select().from(backfillRuns).where(eq(backfillRuns.id, stuck.id))
+    expect(row).toMatchObject({ status: 'failed', error: 'timed_out' })
   })
 })
