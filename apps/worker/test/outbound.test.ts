@@ -43,8 +43,13 @@ async function setup(contactValues: Parameters<typeof seedContact>[2] = {}) {
     }
     return ids
   }
-  const statuses = async (ids: string[]) =>
-    (await db.select().from(messages).where(inArray(messages.id, ids))).map((m) => [m.id, m.status, m.error])
+  const statuses = async (ids: string[]) => {
+    const rows = await db.select().from(messages).where(inArray(messages.id, ids))
+    return ids.map((id) => {
+      const m = rows.find((row) => row.id === id)
+      return [id, m?.status, m?.error]
+    })
+  }
   return { ...ctx, db, account, contact, run, queue, statuses }
 }
 
