@@ -16,6 +16,9 @@ export const NudgeSchema = z.object({
   text: z.string().trim().min(1).max(1000),
 })
 export type Nudge = z.infer<typeof NudgeSchema>
+/** One follow-up, with the same links again, if none of the message's links was opened. Same limits as a nudge. */
+export const ClickFollowUpSchema = NudgeSchema
+export type ClickFollowUp = z.infer<typeof ClickFollowUpSchema>
 
 /** http(s) only: Meta rejects other schemes and a javascript:/data: link must never reach a recipient. */
 const HttpUrl = z.httpUrl()
@@ -102,6 +105,8 @@ export const StepSchema = z.discriminatedUnion('type', [
     buttons: z.array(ButtonSchema).max(3).optional(),
     /** One reminder if they haven't tapped a reply button yet. Only used on steps with reply buttons. */
     nudge: NudgeSchema.optional(),
+    /** Only used on steps with a url button. */
+    clickFollowUp: ClickFollowUpSchema.optional(),
     next: StepIdSchema.optional(),
   }),
   z.object({
@@ -109,6 +114,7 @@ export const StepSchema = z.discriminatedUnion('type', [
     /** Optional text sent as its own message just before the carousel. */
     text: MessageText.optional(),
     cards: z.array(ProductCardSchema).min(1).max(MAX_PRODUCT_CARDS),
+    clickFollowUp: ClickFollowUpSchema.optional(),
     next: StepIdSchema.optional(),
   }),
   z.object({

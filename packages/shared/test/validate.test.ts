@@ -288,3 +288,63 @@ describe('send_products validation', () => {
     expect(codes(flow)).toContain('comment_needs_reply_button')
   })
 })
+
+describe('validateFlow: click follow-ups', () => {
+  const clickFollowUp = { afterMinutes: 60, text: 'Did you get a chance to look?' }
+  const link = { type: 'url' as const, label: 'Open', url: 'https://example.com/guide' }
+
+  it('accepts a follow-up on a link message after the opener', () => {
+    const flow: FlowDefinition = {
+      ...validCommentFlow,
+      steps: { ...validCommentFlow.steps, deliver: { type: 'send_message', text: 'Here', buttons: [link], clickFollowUp } },
+    }
+    expect(validateFlow(flow, 'instagram')).toEqual([])
+  })
+
+  it('accepts a follow-up on a carousel', () => {
+    const flow: FlowDefinition = {
+      ...validCommentFlow,
+      steps: {
+        ...validCommentFlow.steps,
+        deliver: { type: 'send_products', cards: [{ title: 'Guide', button: { label: 'Get it', url: link.url } }], clickFollowUp },
+      },
+    }
+    expect(validateFlow(flow, 'instagram')).toEqual([])
+  })
+
+  it('rejects a follow-up on a message with no link button', () => {
+    const flow: FlowDefinition = {
+      trigger: { type: 'any_dm' },
+      start: 's1',
+      steps: { s1: { type: 'send_message', text: 'Hi', clickFollowUp } },
+    }
+    expect(codes(flow)).toContain('click_follow_up_without_links')
+  })
+
+  it("rejects a follow-up on a comment flow's first message", () => {
+    const flow: FlowDefinition = {
+      trigger: validCommentFlow.trigger,
+      start: 's1',
+      steps: { s1: { type: 'send_message', text: 'Here', buttons: [link], clickFollowUp } },
+    }
+    expect(codes(flow)).toContain('click_follow_up_after_private_reply')
+  })
+
+  it('rejects a follow-up text too long to sit above link buttons', () => {
+    const flow: FlowDefinition = {
+      trigger: { type: 'any_dm' },
+      start: 's1',
+      steps: { s1: { type: 'send_message', text: 'Here', buttons: [link], clickFollowUp: { afterMinutes: 60, text: 'x'.repeat(641) } } },
+    }
+    expect(codes(flow)).toContain('buttons_text_too_long')
+  })
+
+  it('accepts a follow-up on the first message of a DM flow', () => {
+    const flow: FlowDefinition = {
+      trigger: { type: 'any_dm' },
+      start: 's1',
+      steps: { s1: { type: 'send_message', text: 'Here', buttons: [link], clickFollowUp } },
+    }
+    expect(validateFlow(flow, 'instagram')).toEqual([])
+  })
+})
