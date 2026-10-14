@@ -36,7 +36,12 @@ Checked on 2026-10-14 against the [Instagram generic template docs](https://deve
 - `buttons`: up to 3 per element, `web_url` or `postback` only. `default_action`: optional.
 - Not available on desktop Instagram.
 
-**Not confirmed:** whether a generic template may be the first private reply to a comment (the private-replies page was unreachable). The design avoids the question by never sending a carousel as that first message; section 5 enforces it. Whether the 24-hour window rules differ for templates is also not stated, so the carousel is subject to the same rules as any DM.
+**Rechecked 2026-10-14 against the [private replies](https://developers.facebook.com/documentation/instagram-platform/private-replies.md), [messaging API](https://developers.facebook.com/documentation/instagram-platform/instagram-api-with-instagram-login/messaging-api.md) and [Messenger generic template](https://developers.facebook.com/documentation/business-messaging/messenger-platform/send-messages/template/generic) pages:**
+- Private replies document only a text `message`. The docs say one message per commenter within 7 days, and follow-ups only after the person replies (then within 24 hours). They do not say whether templates are allowed (our button-template opener is verified live), so a carousel as the first private reply is unverified.
+- Sending needs `instagram_business_basic` and `instagram_business_manage_messages`, which we already request. A carousel adds no new permission.
+- Instagram's generic template page states no image ratio or format. Messenger's page says photos that are not 1.91:1 are scaled or cropped, and the messaging guide lists image formats png and jpeg (8 MB). We treat 1.91:1 JPG or PNG as the safe choice and do not promise square cards.
+
+**Not confirmed:** whether a generic template may be the first private reply to a comment. The design avoids the question by never sending a carousel as that first message; section 5 enforces it. Whether the 24-hour window rules differ for templates is also not stated, so the carousel is subject to the same rules as any DM.
 
 ## 3. Data model
 
@@ -74,7 +79,7 @@ z.object({
 - Recipe (`apps/web/src/lib/recipe.ts`): `message` gains `format: 'links' | 'products'` and `cards: ProductCardInput[]`. `compileRecipe` emits a `send_products` step when `format` is `products`, and `decompileRecipe` reads one back. Card links and images go through `normalizeUrl`, like the links in the text message do.
 - Section (`sections.tsx`): the final message section has a "Links | Product cards" switch. Product cards shows a list of 1 to 10 cards, each with an image URL, title, subtitle and button label and link, with move up, move down, remove and add. The existing text and image fields stay for the intro text (the image field is hidden in product mode).
 - Preview (`phone-preview.tsx`): a scrollable row of cards in the phone mock.
-- Hints under the section: use square product images; carousels do not show on desktop Instagram.
+- Hint under the section: use JPG or PNG images, ideally wide (1.91:1), since Meta may crop other shapes; carousels do not show on desktop Instagram.
 - Copy: new keys in `messages/en.json` and `messages/es.json`, checked by `translations:check`.
 - The switch is hidden for Facebook accounts, and for ice-breaker triggers (the answers there are text).
 

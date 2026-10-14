@@ -1079,9 +1079,9 @@ In `DmView`'s `bubbles.map`, add a branch right after the `them` branch (before 
                   <div key={cardIndex} className="w-[160px] shrink-0 overflow-hidden rounded-[14px] border border-line bg-white">
                     {card.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={card.imageUrl} alt="" className="aspect-square w-full object-cover" />
+                      <img src={card.imageUrl} alt="" className="aspect-[1.91/1] w-full object-cover" />
                     ) : (
-                      <div className="aspect-square w-full bg-sand" />
+                      <div className="aspect-[1.91/1] w-full bg-sand" />
                     )}
                     <div className="px-2.5 pt-2">
                       <div className="text-[12px] leading-snug font-semibold">{card.title}</div>
@@ -1260,7 +1260,7 @@ function CardsEditor({ cards, onChange }: { cards: CardInput[]; onChange: (cards
     "format_products": "Product cards",
     "intro_optional": "Intro message (optional)",
     "cardsCount": "{count, plural, one {# product card} other {# product cards}}",
-    "cards_hint": "Use square product images. Carousels don’t show on desktop Instagram.",
+    "cards_hint": "Use JPG or PNG images, ideally wide (1.91:1). Meta may crop other shapes. Carousels don’t show on desktop Instagram.",
     "card_n": "Card {v0}",
     "card_title": "Card {v0} title",
     "card_title_placeholder": "Product name",
@@ -1281,7 +1281,7 @@ function CardsEditor({ cards, onChange }: { cards: CardInput[]; onChange: (cards
     "format_products": "Tarjetas de producto",
     "intro_optional": "Mensaje de introducción (opcional)",
     "cardsCount": "{count, plural, one {# tarjeta de producto} other {# tarjetas de producto}}",
-    "cards_hint": "Usa imágenes de producto cuadradas. Los carruseles no se muestran en Instagram para escritorio.",
+    "cards_hint": "Usa imágenes JPG o PNG, idealmente apaisadas (1,91:1). Meta puede recortar otras proporciones. Los carruseles no se muestran en Instagram para escritorio.",
     "card_n": "Tarjeta {v0}",
     "card_title": "Título de la tarjeta {v0}",
     "card_title_placeholder": "Nombre del producto",
