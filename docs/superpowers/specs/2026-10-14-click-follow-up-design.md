@@ -1,6 +1,6 @@
 # Follow up if no click: Design
 
-Date: 2026-10-14. Status: drafted, awaiting review.
+Date: 2026-10-14. Status: approved, implemented on branch feat/click-follow-up.
 
 Why this one: link click tracking (2026-10-13) tells us who opened a link, so we can now remind the people who did not. The 2026-10-05 design listed "follow up if no click" as out of scope until click tracking existed. Reachlee has a follow-up nudge; see [../../competitors/reachlee.md](../../competitors/reachlee.md).
 
@@ -31,9 +31,10 @@ Add a "Follow up if they don't open the link" option to an automation's final me
 
 `send_message` and `send_products` get an optional `clickFollowUp: { afterMinutes, text }`, using the same limits as `NudgeSchema` (afterMinutes 5 to `MAX_NUDGE_MINUTES`, text 1 to 1000 characters).
 
-Validation (`validate.ts`) adds two issues:
+Validation (`validate.ts`) adds two issues and reuses one:
 - `click_follow_up_without_links`: set on a `send_message` with no `url` button.
 - `click_follow_up_after_private_reply`: set on the first step of a comment flow. Meta allows one message after a comment until the person replies, so the follow-up could never be sent. Same rule as `nudge_after_private_reply`.
+- `buttons_text_too_long`: the follow-up text on a `send_message` is over 640 characters. It is sent above the same link buttons, so Meta's button template limit applies.
 
 ### Engine
 
@@ -53,7 +54,7 @@ New table `click_follow_ups` (migration `0011`):
 | `text` | rendered follow-up text |
 | `due_at` | sent-at plus `afterMinutes` |
 | `status` | `pending`, `sent`, `skipped` |
-| `reason` | why skipped: `clicked`, `window_closed`, `account_inactive`, `automation_inactive`, `in_conversation` |
+| `reason` | why skipped: `clicked`, `window_closed`, `account_inactive`, `automation_inactive`, `in_conversation`, `no_links` |
 | `follow_up_message_id` | the new message, once queued |
 
 Index on `(status, due_at)` for the sweep.
@@ -68,8 +69,9 @@ The existing 60-second `sweep()` claims due rows (`status = 'pending' and due_at
 2. **Account active?** Otherwise skip, `account_inactive`.
 3. **Automation still active?** A paused or deleted automation sends nothing: skip, `automation_inactive`.
 4. **Window open?** `contacts.last_inbound_at` within 24 hours: otherwise skip, `window_closed`.
-5. **In another conversation?** If the contact has a `waiting` run of a different automation, skip, `in_conversation`, so a reminder never lands in the middle of another flow.
-6. Otherwise insert the follow-up `messages` row(s) as `dm`, `queued`, with the original's `flow_run_id`, mark the row `sent` with `follow_up_message_id`, and enqueue `outbound` after commit. A lost enqueue is picked up by the existing stuck-message sweep.
+5. **In another conversation?** If the contact has any `waiting` run, skip, `in_conversation`, so a reminder never lands in the middle of a flow. (The original run has already completed, so any waiting run is another conversation.)
+6. **Nothing to repeat?** If the stored message has no link buttons or cards, skip, `no_links` (defensive; validation prevents it).
+7. Otherwise insert the follow-up `messages` row(s) as `dm`, `queued`, with the original's `flow_run_id`, mark the row `sent` with `follow_up_message_id`, and enqueue `outbound` after commit. A lost enqueue is picked up by the existing stuck-message sweep.
 
 The follow-up body copies the original's untracked links from the stored message body:
 - Link message: `{ text, buttons }` with the original `url` buttons (reply buttons dropped; a reply button on the final message would have no step to wait on).
@@ -81,7 +83,7 @@ Contact usage is already counted for the month, so the follow-up does not add to
 
 ### Editor (web)
 
-The recipe gets `clickFollowUp: { enabled, afterHours, text }`, mirroring `nudge`, compiled onto the final message step and read back from it. The final-message section gets a switch "Follow up if they don't open the link" with the text and hours fields, shown for both formats. It is hidden, with a short note, when the final message is the first reply to a comment (validation above). English and Spanish catalog entries, and a line in the timeline text (`describe.ts`).
+The recipe gets an optional `clickFollowUp: { enabled, afterHours, text }` (unset means off, so existing recipes and templates need no change), compiled onto the final message step and read back from it. The Extras section gets a switch "Follow up if they don't open the link" under "Remind them once", with the same text and hours fields; it is disabled, with a short note, when the final message has no link buttons or cards. In the recipe a comment flow always starts with the opener, so the final message is never the one-shot private reply. Follow-up validation issues show under Extras. English and Spanish catalog entries. The phone preview does not show the follow-up, like the reminder.
 
 ## 3. Edge cases
 
@@ -100,6 +102,6 @@ No new dashboard section in this part. Follow-up messages appear in the contact'
 - Shared: schema limits and both validation issues.
 - Engine: `followUp` attached to the right message for both formats, text rendered, absent when unset.
 - Worker (Postgres container, existing harness): scheduled once on send and not on retry; skipped for each reason; sent once when not clicked; two sweeps send once; follow-up links tracked; a failed follow-up leaves the completed run alone.
-- Web: recipe compiles and reads back `clickFollowUp` for both formats; validation message shows in both languages.
-- Browser check on the seeded demo account: the switch, fields, hidden state for a comment's first reply, Spanish.
+- Web: recipe compiles and reads back `clickFollowUp` for both formats; the three validation messages map to translated errors.
+- Browser check on the seeded demo account (done 2026-10-15): switch, text and hours fields, 0 issues on a comment flow, autosave on and off, setting survives a reload, Spanish text.
 - Not testable locally: a real follow-up on a phone. Added to the launch plan's live tests.

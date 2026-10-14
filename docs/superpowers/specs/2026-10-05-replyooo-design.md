@@ -32,7 +32,7 @@ Billing is subscription-based via Dodo Payments, metered on contacts reached per
 
 Live inbox / manual replying, broadcasts, visual flow canvas, step-list editor, link click tracking (Clicks/CTR, "follow up if no click"), "welcome new followers" (no Meta webhook exists), link in bio, AI replies, analytics charts beyond basic counts, WhatsApp/TikTok, public API/Zapier, multi-language UI.
 
-Since built on top of v1 (all merged to `main`, none deployed yet): link in bio, link click tracking in automation DMs (not "follow up if no click"), an English and Spanish dashboard ([../../dashboard-localization.md](../../dashboard-localization.md)), Dodo pricing with yearly plans, team seats, run on existing comments, and product carousels. Each has its own spec in this folder.
+Since built on top of v1 (all merged to `main`, none deployed yet): link in bio, link click tracking in automation DMs, follow up if no click, an English and Spanish dashboard ([../../dashboard-localization.md](../../dashboard-localization.md)), Dodo pricing with yearly plans, team seats, run on existing comments, and product carousels. Each has its own spec in this folder.
 
 ### 1.3 After launch
 

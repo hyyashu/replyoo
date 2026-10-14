@@ -43,7 +43,7 @@ Click tracking, re-run on old posts, product carousels and team seats are built.
 1. **Meta App Review and Business Verification**, which blocks launch and also earns the "Meta-verified" trust badge.
 2. **Google Sheets sync.** Email capture is a core use case. Kit (ConvertKit) sync was dropped from the plan on 2026-10-13.
 3. **Inbox** (after Meta App Review is approved), then scheduled DMs. The inbox design is already written.
-4. **"Follow up if no click"**, now possible on top of click tracking.
+4. ~~"Follow up if no click"~~: built 2026-10-15 for link buttons and product cards, not yet deployed.
 
 AI features can wait. Nothing here blocks launch except Meta approval.
 
