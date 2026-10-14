@@ -362,11 +362,11 @@ export function Editor({ automation, platform, username }: { automation: Automat
         >
           <ArrowLeft className="size-4" />
         </Link>
-        <div className="min-w-0 flex-1 sm:flex-none">
+        <div className="min-w-0 flex-1">
           <div className="hidden text-[12.5px] text-subtle sm:block">{tr('automations')}</div>
           {/* On phones the row is one line tall and clipped: if the name can't get ~9 characters it wraps out of view. */}
           <div className="flex h-7 flex-wrap items-center gap-2.5 overflow-hidden sm:h-auto sm:overflow-visible">
-            <label className="group flex min-w-0 flex-[1_1_9ch] items-center gap-1.5 sm:flex-none">
+            <label className="group flex min-w-0 flex-[1_1_9ch] items-center gap-1.5 sm:flex-[0_1_auto]">
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}

@@ -98,66 +98,68 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
           />
         ) : (
           <>
-            <table className="w-full text-left">
-              <thead>
-                <tr className="eyebrow border-y border-line bg-sand/70 [&>th]:h-10 [&>th]:font-medium">
-                  <th className="pl-5">{tr('contact')}</th>
-                  <th>{tr('email')}</th>
-                  <th>{tr('phone')}</th>
-                  <th>{tr('tags')}</th>
-                  <th>{tr('relationship')}</th>
-                  <th>{tr('joined')}</th>
-                  <th className="pr-5 text-right">{tr('last_active')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {contacts.map((c) => (
-                  <tr key={c.id} className="h-[60px] border-b border-line text-[14px] last:border-b-0 hover:bg-sand/40">
-                    <td className="pl-5">
-                      <Link href={linkFor(c.id)} scroll={false} className="flex items-center gap-3">
-                        <Avatar name={c.username} size={32} src={c.avatarUrl} />
-                        <span>
-                          <span className="block font-semibold">{c.name}</span>
-                          <span className="text-[12.5px] text-subtle">@{c.username}</span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td>
-                      {c.email ? (
-                        <span className="inline-flex items-center gap-1.5">
-                          <AtSign className="size-3.5 text-subtle" />
-                          {c.email}
-                        </span>
-                      ) : (
-                        <span className="text-faint">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {c.phone ? (
-                        <span className="inline-flex items-center gap-1.5 tabular-nums">
-                          <Phone className="size-3.5 text-subtle" />
-                          {c.phone}
-                        </span>
-                      ) : (
-                        <span className="text-faint">—</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap gap-1">
-                        {c.tags.map((tag) => (
-                          <Keyword key={tag}>{tag}</Keyword>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <RelationshipBadges followsYou={c.followsYou} youFollow={c.youFollow} />
-                    </td>
-                    <td className="text-[13px] text-subtle">{timeAgo(c.firstSeenAt)}</td>
-                    <td className="pr-5 text-right text-[13px] text-subtle">{timeAgo(c.lastInboundAt)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="eyebrow border-y border-line bg-sand/70 [&>th]:h-10 [&>th]:font-medium">
+                    <th className="pl-5">{tr('contact')}</th>
+                    <th>{tr('email')}</th>
+                    <th>{tr('phone')}</th>
+                    <th>{tr('tags')}</th>
+                    <th>{tr('relationship')}</th>
+                    <th>{tr('joined')}</th>
+                    <th className="pr-5 text-right">{tr('last_active')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {contacts.map((c) => (
+                    <tr key={c.id} className="h-[60px] border-b border-line text-[14px] last:border-b-0 hover:bg-sand/40">
+                      <td className="pl-5">
+                        <Link href={linkFor(c.id)} scroll={false} className="flex items-center gap-3">
+                          <Avatar name={c.username} size={32} src={c.avatarUrl} />
+                          <span>
+                            <span className="block font-semibold">{c.name}</span>
+                            <span className="text-[12.5px] text-subtle">@{c.username}</span>
+                          </span>
+                        </Link>
+                      </td>
+                      <td>
+                        {c.email ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <AtSign className="size-3.5 text-subtle" />
+                            {c.email}
+                          </span>
+                        ) : (
+                          <span className="text-faint">—</span>
+                        )}
+                      </td>
+                      <td>
+                        {c.phone ? (
+                          <span className="inline-flex items-center gap-1.5 tabular-nums">
+                            <Phone className="size-3.5 text-subtle" />
+                            {c.phone}
+                          </span>
+                        ) : (
+                          <span className="text-faint">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex flex-wrap gap-1">
+                          {c.tags.map((tag) => (
+                            <Keyword key={tag}>{tag}</Keyword>
+                          ))}
+                        </div>
+                      </td>
+                      <td>
+                        <RelationshipBadges followsYou={c.followsYou} youFollow={c.youFollow} />
+                      </td>
+                      <td className="text-[13px] text-subtle">{timeAgo(c.firstSeenAt)}</td>
+                      <td className="pr-5 text-right text-[13px] text-subtle">{timeAgo(c.lastInboundAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <Pager page={page} pages={pages} total={matching} size={size} sizes={CONTACT_PAGE_SIZES} />
           </>
         )}
