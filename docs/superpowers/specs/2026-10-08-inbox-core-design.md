@@ -1,6 +1,6 @@
 # Inbox, part 1: core (read and reply)
 
-Date: 2026-10-08. Status: drafted, build deferred until after launch.
+Date: 2026-10-08. Status: drafted, build deferred until Meta App Review is approved. Before planning, update it for what changed since: migrations are past `0010`, new screens need English and Spanish catalog entries, and team seats mean read/archive state is shared by the workspace.
 
 ## Where this fits
 

@@ -22,7 +22,7 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 | Link in bio with stats | Yes | Yes |
 | CSV contact export | Not mentioned | Yes |
 | Marketing pages (use cases, features, compare, alternatives) | Yes | Yes (no blog or free tools) |
-| **Link click tracking in automation DMs** | Yes, all plans | **No** (bio-page clicks only) |
+| Link click tracking in automation DMs | Yes, all plans | Yes, all plans: clicks, unique clickers and CTR per automation and per link (built 2026-10-13, not yet deployed) |
 | **Live inbox** | Yes | **No** (designed in `2026-10-08-inbox-core-design.md`) |
 | **Scheduled DMs** | Yes (Pro) | **No** |
 | Re-run on old posts | Yes (Pro) | Yes, "Run on existing comments", last 7 days (built 2026-10-13, not yet deployed) |
@@ -30,18 +30,20 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 | Team seats | Up to 5 (Business only) | Yes, up to 10 on every plan, free; owner can invite as admin and change roles (built 2026-10-13, not yet deployed) |
 | **Google Sheets, Meta Ads export** | Yes (Business) | **No** |
 | **AI replies, goals, MCP connector** | Yes | **No** (none in v1 by design) |
-| **Per-automation analytics** | Click trends, lifetime | Basic counts |
-| Facebook comment triggers | Yes | Not checked |
+| **Per-automation analytics** | Click trends, lifetime | Counts plus link clicks; no trend charts |
+| Facebook comment triggers | Yes | Yes (Page `feed` comment webhooks) |
 | "Meta-Verified" badge | Claimed | Needs App Review and Business Verification first |
 
 **Pricing difference:** they charge $9 / $14 / $29 a month with unlimited DMs on paid plans. We meter contacts reached (Free 1K, Pro 5K, Business 25K per month). That is a positioning point rather than a gap.
 
 ## Suggested priority
 
-1. **Click tracking on automation links.** Cheapest gap to close, given to every plan by them, and it enables per-automation analytics and "follow up if no click".
+Click tracking, re-run on old posts, product carousels and team seats are built. What is left:
+
+1. **Meta App Review and Business Verification**, which blocks launch and also earns the "Meta-verified" trust badge.
 2. **Google Sheets sync.** Email capture is a core use case. Kit (ConvertKit) sync was dropped from the plan on 2026-10-13.
-3. **Inbox**, then scheduled DMs. The inbox design is already written.
-4. **Meta App Review and Business Verification**, which also earns the "Meta-verified" trust badge.
+3. **Inbox** (after Meta App Review is approved), then scheduled DMs. The inbox design is already written.
+4. **"Follow up if no click"**, now possible on top of click tracking.
 
 AI features can wait. Nothing here blocks launch except Meta approval.
 

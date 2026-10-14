@@ -1,6 +1,6 @@
 # Link click tracking: Design
 
-Date: 2026-10-13. Status: drafted, awaiting review.
+Date: 2026-10-13. Status: approved, implemented and merged to `main`; not yet deployed.
 
 Why this one: Reachlee gives click tracking to every plan and we have none in automation DMs (only on the bio page). See [../../competitors/reachlee.md](../../competitors/reachlee.md). It also unlocks per-automation analytics and a later "follow up if no click".
 

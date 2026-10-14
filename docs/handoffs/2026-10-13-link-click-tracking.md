@@ -2,6 +2,8 @@
 
 Date: 2026-10-13 (Asia/Kolkata). Prepared by Codex after Claude hit its session limit.
 
+> **Resolved.** `feat/link-click-tracking` is merged to `main` and the marketing inventory test was fixed. The one open item, the real phone test, is now tracked in [../launch-plan.md](../launch-plan.md) under Readiness gates. Kept as the record of the verification run.
+
 ## Current status
 
 Feature implementation and local verification are finished on `feat/link-click-tracking`. The full web suite still has one pre-existing marketing inventory failure. Nothing was merged, pushed, or deployed during this continuation. Do not redo Tasks 1–5.
