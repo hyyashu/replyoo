@@ -20,8 +20,8 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
   )
 }
 
-/** The tool's result with a copy button. Shows `placeholder` until there is something to copy. */
-export function CopyResult({ label, value, placeholder }: { label: string; value: string | null; placeholder: string }) {
+/** The tool's result with a copy button. Shows `placeholder` until there is something to copy. `text` keeps line breaks, for messages rather than links. */
+export function CopyResult({ label, value, placeholder, text = false }: { label: string; value: string | null; placeholder: string; text?: boolean }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     if (!value) return
@@ -32,8 +32,11 @@ export function CopyResult({ label, value, placeholder }: { label: string; value
   return (
     <div className="rounded-2xl bg-sand p-4">
       <div className="eyebrow">{label}</div>
-      <div className="mt-2 flex items-center gap-3">
-        <output className={cx('min-w-0 flex-1 text-[15px] font-medium break-all', !value && 'text-subtle')} aria-live="polite">
+      <div className={cx('mt-2 flex gap-3', text ? 'items-start' : 'items-center')}>
+        <output
+          className={cx('min-w-0 flex-1 text-[15px]', text ? 'leading-relaxed break-words whitespace-pre-line' : 'font-medium break-all', !value && 'text-subtle')}
+          aria-live="polite"
+        >
           {value ?? placeholder}
         </output>
         <Button variant="dark" size="sm" onClick={copy} disabled={!value}>

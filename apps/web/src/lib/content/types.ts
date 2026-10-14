@@ -91,7 +91,7 @@ export interface MarketingPage {
   updated: string
 }
 
-export type ToolKey = 'dm-link' | 'utm' | 'engagement' | 'text-limits'
+export type ToolKey = 'dm-link' | 'dm-replies' | 'utm' | 'engagement' | 'text-limits'
 
 /** A free tool page: /tools/<slug>. The tool itself is a client component picked by `tool`; the rest is the page around it. */
 export interface ToolPage {

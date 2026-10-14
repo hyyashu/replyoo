@@ -39,6 +39,6 @@ export const instagramDmLinkGenerator: ToolPage = {
       answer: 'No. The tool only checks that the username uses allowed characters. Open the link once yourself before you share it.',
     },
   ],
-  related: ['utm-link-builder', 'instagram-character-counter'],
+  related: ['instagram-dm-reply-generator', 'utm-link-builder'],
   updated: '2026-10-15',
 }

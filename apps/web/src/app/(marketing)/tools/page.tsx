@@ -9,7 +9,7 @@ import { breadcrumbLd, graph, organizationLd } from '@/lib/structured-data'
 
 export const metadata: Metadata = {
   title: 'Free Instagram tools',
-  description: 'Free tools for Instagram creators: DM link generator, UTM link builder, engagement rate calculator and character counter. No signup.',
+  description: 'Free tools for Instagram creators: DM reply generator, DM link generator, UTM link builder, engagement rate calculator and character counter. No signup.',
   alternates: { canonical: '/tools' },
 }
 

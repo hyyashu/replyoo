@@ -40,6 +40,6 @@ export const instagramCharacterCounter: ToolPage = {
         'Some counters count the code units behind an emoji, so one emoji can count as 2 or more. This one counts what you see, so a skin-toned or family emoji counts as one.',
     },
   ],
-  related: ['instagram-dm-link-generator', 'instagram-engagement-rate-calculator'],
+  related: ['instagram-dm-reply-generator', 'instagram-dm-link-generator'],
   updated: '2026-10-15',
 }

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { TOOL_PAGES, getToolPage } from '@/lib/content/tools'
 import { cleanHandle, dmLink } from '@/lib/tools/dm-link'
+import { REPLY_SCENARIO_KEYS, REPLY_SCENARIOS, REPLY_TONES, generateReplies, renderReply } from '@/lib/tools/dm-replies'
 import { engagementRate } from '@/lib/tools/engagement'
-import { countCharacters, textStats } from '@/lib/tools/text-limits'
+import { TEXT_LIMITS, countCharacters, textStats } from '@/lib/tools/text-limits'
 import { buildUtmUrl } from '@/lib/tools/utm'
 
 describe('dmLink', () => {
@@ -82,6 +83,44 @@ describe('textStats', () => {
       lines: 3,
     })
     expect(textStats('')).toEqual({ characters: 0, words: 0, hashtags: 0, mentions: 0, lines: 0 })
+  })
+})
+
+describe('DM reply templates', () => {
+  const filled = { name: 'Sam', offer: 'the 5-day meal plan', price: '$29', link: 'https://example.com/plan' }
+
+  it('fill the fields and mark the missing ones', () => {
+    expect(renderReply('Hi {name}! {offer} is {price}: {link}', filled)).toBe('Hi Sam! The 5-day meal plan is $29: https://example.com/plan')
+    expect(renderReply('Hi {name}! {offer} is {price}: {link}', {})).toBe('Hi! [your offer] is [price]: [your link]')
+  })
+
+  it('capitalise a value that opens a sentence, but not links', () => {
+    expect(renderReply('Hey {name}! {offer} is {price} 👉 {link}', { offer: 'the plan', price: '$29', link: 'example.com' })).toBe('Hey! The plan is $29 👉 example.com')
+    expect(renderReply('Thanks 😊 {offer} is ready. {link}', { offer: 'the plan', link: 'example.com' })).toBe('Thanks 😊 The plan is ready. example.com')
+    expect(renderReply('Link to {offer}: {link}', { offer: 'the plan', link: 'x' })).toBe('Link to the plan: x')
+  })
+
+  it('leave out an empty name cleanly', () => {
+    expect(renderReply('Thank you, {name}, I really appreciate it.', { name: ' ' })).toBe('Thank you, I really appreciate it.')
+    expect(renderReply('Here you go {name} 👉 {link}', { link: 'x' })).toBe('Here you go 👉 x')
+    expect(renderReply('So sorry, {name}. What happened?', {})).toBe('So sorry. What happened?')
+  })
+
+  it('only use the fields their scenario asks for, and read well with or without a name', () => {
+    for (const key of REPLY_SCENARIO_KEYS) {
+      const scenario = REPLY_SCENARIOS[key]
+      for (const { value: tone } of REPLY_TONES) {
+        expect(scenario.replies[tone].length, `${key}/${tone}`).toBeGreaterThan(0)
+        for (const template of scenario.replies[tone]) {
+          for (const [, field] of template.matchAll(/\{(\w+)\}/g)) expect(scenario.fields, `${key}/${tone}: ${template}`).toContain(field)
+        }
+        const values = Object.fromEntries(scenario.fields.map((f) => [f, filled[f]]))
+        for (const reply of [...generateReplies(key, tone, values), ...generateReplies(key, tone, { ...values, name: '' })]) {
+          expect(reply, reply).not.toMatch(/[{}]|\[|  |,,|, ,| [!.?,]|^[,!.?]/)
+          expect(countCharacters(reply)).toBeLessThanOrEqual(TEXT_LIMITS.dm.max)
+        }
+      }
+    }
   })
 })
 
