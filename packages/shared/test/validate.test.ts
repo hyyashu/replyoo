@@ -245,3 +245,46 @@ describe('validateFlow: nudges', () => {
     expect(codes(flow)).toContain('nudge_too_late')
   })
 })
+
+describe('send_products validation', () => {
+  const mug = { title: 'Mug', button: { label: 'Buy', url: 'https://shop.example.com/mug' } }
+  const carouselFlow: FlowDefinition = {
+    trigger: { type: 'any_dm' },
+    start: 's1',
+    steps: {
+      s1: { type: 'send_products', cards: [mug], next: 's2' },
+      s2: { type: 'send_message', text: 'Questions? Just reply.' },
+    },
+  }
+
+  it('accepts a carousel on Instagram and follows its next step', () => {
+    expect(validateFlow(carouselFlow, 'instagram')).toEqual([])
+  })
+
+  it('reports a missing next step and an unreachable step like any other step', () => {
+    const missing: FlowDefinition = {
+      ...carouselFlow,
+      steps: { ...carouselFlow.steps, s1: { type: 'send_products', cards: [mug], next: 'ghost' } },
+    }
+    expect(codes(missing)).toContain('missing_target')
+    expect(codes(missing)).toContain('orphan_step')
+  })
+
+  it('flags a carousel on Facebook once', () => {
+    const twice: FlowDefinition = {
+      ...carouselFlow,
+      steps: { ...carouselFlow.steps, s2: { type: 'send_products', cards: [mug] } },
+    }
+    expect(codes(twice, 'facebook').filter((code) => code === 'carousel_unsupported')).toHaveLength(1)
+    expect(codes(carouselFlow, 'instagram')).not.toContain('carousel_unsupported')
+  })
+
+  it('does not accept a carousel as the first message after a comment', () => {
+    const flow: FlowDefinition = {
+      trigger: { type: 'comment_keyword', posts: { mode: 'any' }, keywords: ['SHOP'], match: 'contains' },
+      start: 's1',
+      steps: carouselFlow.steps,
+    }
+    expect(codes(flow)).toContain('comment_needs_reply_button')
+  })
+})
