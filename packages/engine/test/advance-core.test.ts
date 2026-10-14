@@ -211,6 +211,15 @@ describe('advance: send_products', () => {
     ])
   })
 
+  it('skips an intro that renders blank instead of sending an empty message', () => {
+    const driver = new Driver(
+      dmFlow({ s1: { type: 'send_products', text: '{{first_name}}', cards } }),
+      makeContact({ name: null }),
+    )
+    driver.startDm()
+    expect(driver.effects).toEqual([{ type: 'send', message: { text: '', cards } }])
+  })
+
   it('sends card text exactly as typed, without rendering variables', () => {
     const driver = new Driver(dmFlow({ s1: { type: 'send_products', cards } }))
     driver.startDm()

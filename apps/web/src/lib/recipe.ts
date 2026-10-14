@@ -57,7 +57,8 @@ export interface Recipe {
   /**
    * The final message. `format` picks what is sent: text with link buttons (`imageUrl` goes just before it as its own
    * picture, '' means none), or a carousel of product cards where `text` is an optional intro. Both sets of fields are
-   * kept so switching format in the editor loses nothing; only the selected one is compiled.
+   * kept while editing, so switching format back and forth in one session loses nothing. Only the selected one is
+   * compiled, so the saved draft holds just that one and the other is gone after a reload.
    */
   message: { format: 'links' | 'products'; text: string; imageUrl: string; links: LinkButton[]; cards: CardInput[] }
   /** One reminder if they go quiet at a tap/answer step. Needs an open DM window, so never the first message after a comment. */
