@@ -312,6 +312,7 @@ export const flowRuns = pgTable(
       .on(t.contactId)
       .where(sql`${t.status} = 'waiting'`),
     index('flow_runs_status_wait_until_idx').on(t.status, t.waitUntil),
+    index('flow_runs_automation_created_idx').on(t.automationId, t.createdAt),
   ],
 )
 
