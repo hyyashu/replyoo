@@ -38,7 +38,7 @@ export const manychatAlternatives: AlternativesPage = {
     {
       name: creatorflow.name,
       compareSlug: 'replyooo-vs-creatorflow',
-      bestFor: 'People who want link click tracking and DM top-up packs.',
+      bestFor: 'People who want geo analytics on link clicks and DM top-up packs.',
       summary: 'Instagram comment-to-DM with a flat rate and no per-contact fees. Follow gate and email gate are on the paid plans.',
       pricing: creatorflow.paid,
     },
@@ -75,5 +75,5 @@ export const manychatAlternatives: AlternativesPage = {
   ],
   sources: [...manychat.sources, ...creatorflow.sources, ...instantdm.sources, ...replyrush.sources],
   checked: '2026-10-09',
-  updated: '2026-10-09',
+  updated: '2026-10-15',
 }

@@ -26,7 +26,7 @@ export async function compareMetadata(kind: Kind, params: Params): Promise<Metad
 
 const formatDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
 
-function Hero({ eyebrow, title, lead, checked }: { eyebrow: string; title: string; lead: string; checked: string }) {
+export function Hero({ eyebrow, title, lead, checked }: { eyebrow: string; title: string; lead: string; checked: string }) {
   return (
     <section className="mx-auto max-w-[900px] px-6 pt-10 pb-14">
       <span className="eyebrow inline-flex items-center gap-2 text-ink-2">
@@ -41,7 +41,7 @@ function Hero({ eyebrow, title, lead, checked }: { eyebrow: string; title: strin
   )
 }
 
-function Faqs({ faqs }: { faqs: { question: string; answer: string }[] }) {
+export function Faqs({ faqs }: { faqs: { question: string; answer: string }[] }) {
   return (
     <section className="bg-white py-16">
       <div className="mx-auto max-w-[760px] px-6">
@@ -59,7 +59,7 @@ function Faqs({ faqs }: { faqs: { question: string; answer: string }[] }) {
   )
 }
 
-function Cta({ text }: { text: string }) {
+export function Cta({ text }: { text: string }) {
   return (
     <section className="px-6 py-16">
       <div className="mx-auto max-w-[900px] rounded-[28px] bg-brand px-8 py-12 text-center text-white">
@@ -74,7 +74,7 @@ function Cta({ text }: { text: string }) {
   )
 }
 
-function Checks({ title, items }: { title: string; items: string[] }) {
+export function Checks({ title, items }: { title: string; items: string[] }) {
   return (
     <div className="rounded-[24px] bg-white p-6">
       <h3 className="text-[17px] font-semibold">{title}</h3>

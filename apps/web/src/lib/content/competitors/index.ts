@@ -1,4 +1,7 @@
+export { chatfuel } from './chatfuel'
 export { creatorflow } from './creatorflow'
+export { inro } from './inro'
 export { instantdm } from './instantdm'
+export { linkdm } from './linkdm'
 export { manychat } from './manychat'
 export { replyrush } from './replyrush'

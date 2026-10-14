@@ -23,10 +23,10 @@ export const replyoooVsCreatorflow: ComparisonPage = {
     { label: 'Story reply automation', us: 'All plans', them: 'All plans' },
     { label: 'CSV export of contacts', us: 'Yes', them: 'Pro and up' },
     { label: 'When the allowance runs out', us: ours.whenLimit, them: 'Automations pause until the next billing cycle or you upgrade; one-time DM top-up packs are available on paid plans' },
-    { label: 'Link click tracking and geo analytics', us: 'Not on DM links (click stats are on bio page links only)', them: 'Pro and up' },
+    { label: 'Link click tracking and geo analytics', us: 'Clicks on DM link buttons, per automation and per link, on all plans; no geo analytics', them: 'Pro and up' },
   ],
   chooseThem: [
-    'You want link click tracking and geo analytics on your DM links.',
+    'You want geo analytics on the clicks from your DM links.',
     'You like buying one-time DM top-up packs that never expire when you go over.',
     'You want a paid-annual discount, which brings their Pro to $12/month.',
   ],
@@ -49,5 +49,5 @@ export const replyoooVsCreatorflow: ComparisonPage = {
   ],
   sources: them.sources,
   checked: them.checked,
-  updated: '2026-10-09',
+  updated: '2026-10-15',
 }

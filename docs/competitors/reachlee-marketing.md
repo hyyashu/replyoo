@@ -11,12 +11,12 @@ Checked 2026-10-13. Companion to [reachlee.md](reachlee.md) (the product compari
 | Blog | **83 posts** (May 21 to Aug 20, 2026, about 6 a week, bursty: 13 on one day) | none |
 | Guides (`/guides/`) | 54 | none |
 | Alternatives (`/alternatives/<tool>`) | 43 | 1 (`manychat-alternatives`) |
-| `/vs/<tool>` and `/compare/` | 17 + 13 | 4 compare pages (ManyChat, CreatorFlow, InstantDM, ReplyRush) |
+| `/vs/<tool>` and `/compare/` | 17 + 13 | 4 compare pages (ManyChat, CreatorFlow, InstantDM, ReplyRush); competitor facts also on file for LinkDM, Inrō and Chatfuel |
 | Industry pages (`/for/`) | 19 (salons, restaurants, realtors, gyms, clinics, ...) | 4 (coaches, fitness creators, online shops, photographers and freelancers) |
 | Use cases | 24 | 4 |
 | Feature pages | 5 | 5 |
 | Free tools (`/tools/`) | 22 (calculators and generators) | 5 (DM reply generator, DM link generator, UTM link builder, engagement rate calculator, character counter; built 2026-10-15) |
-| Best-of lists (`/best/`) | 8 | none |
+| Best-of lists (`/best/`) | 8 | 1 (`instagram-dm-automation-tools`, 8 tools; built 2026-10-15) |
 | How-to (`/how-to/`) | 7 | none |
 | AI pages (`/ai/`) | 13 | none (no AI product) |
 | Docs (`/docs/`) | 16 | none public (there is a Help link in the app) |

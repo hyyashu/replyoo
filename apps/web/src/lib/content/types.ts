@@ -113,3 +113,37 @@ export interface ToolPage {
   /** Last real content change (YYYY-MM-DD); feeds the sitemap, so bump it by hand. */
   updated: string
 }
+
+/** One tool on a best-of page. Facts come from `competitors/` (or `ours`) so prices change in one place. */
+export interface BestPick {
+  name: string
+  us?: boolean
+  compareSlug?: string
+  bestFor: string
+  summary: string
+  free: string
+  entryPlan: string
+  meter: string
+  strengths: string[]
+  /** Where it falls short. Every pick has at least one, ours included. */
+  watchOut: string[]
+}
+
+/** A "best X" round-up: /best/<slug>. Picks are grouped by who they suit, not ranked. */
+export interface BestPage {
+  slug: string
+  name: string
+  title: string
+  metaTitle: string
+  description: string
+  lead: string
+  /** How the tools were chosen and compared, shown near the top. */
+  method: string[]
+  picks: BestPick[]
+  faqs: FAQ[]
+  /** Where each competitor fact came from. Not shown on the page. */
+  sources: Source[]
+  /** The oldest `checked` date among the competitors on the page. */
+  checked: string
+  updated: string
+}

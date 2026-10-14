@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { PricingCardsView } from '@/components/pricing-cards'
 import { ButtonLink, Logo, cx } from '@/components/ui'
 import { ALTERNATIVES_PAGES } from '@/lib/content/alternatives'
+import { BEST_PAGES } from '@/lib/content/best'
 import { COMPARE_PAGES } from '@/lib/content/compare'
 import { displayPrices, planCards, requestCountry, saveLabel } from '@/lib/billing/pricing'
 import { SECTION_KEYS, SECTIONS, pagePath } from '@/lib/content/sections'
@@ -53,6 +54,9 @@ export function MarketingFooter() {
           ))}
           {ALTERNATIVES_PAGES.map((page) => (
             <Link key={page.slug} href={`/alternatives/${page.slug}`} className="hover:text-ink">{page.name}</Link>
+          ))}
+          {BEST_PAGES.map((page) => (
+            <Link key={page.slug} href={`/best/${page.slug}`} className="hover:text-ink">{page.name}</Link>
           ))}
         </nav>
         <nav aria-label="Free tools" className="flex flex-col gap-2">

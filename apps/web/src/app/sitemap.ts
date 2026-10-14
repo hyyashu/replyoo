@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { ALTERNATIVES_PAGES } from '@/lib/content/alternatives'
+import { BEST_PAGES } from '@/lib/content/best'
 import { COMPARE_PAGES } from '@/lib/content/compare'
 import { SECTION_KEYS, SECTIONS, pagePath } from '@/lib/content/sections'
 import { TOOL_PAGES } from '@/lib/content/tools'
@@ -19,6 +20,7 @@ const pages = [
   ),
   ...COMPARE_PAGES.map((page) => ({ path: `/compare/${page.slug}`, lastModified: page.updated, changeFrequency: 'monthly' as const, priority: 0.7 })),
   ...ALTERNATIVES_PAGES.map((page) => ({ path: `/alternatives/${page.slug}`, lastModified: page.updated, changeFrequency: 'monthly' as const, priority: 0.7 })),
+  ...BEST_PAGES.map((page) => ({ path: `/best/${page.slug}`, lastModified: page.updated, changeFrequency: 'monthly' as const, priority: 0.7 })),
   { path: '/tools', lastModified: '2026-10-15', changeFrequency: 'monthly', priority: 0.6 },
   ...TOOL_PAGES.map((page) => ({ path: `/tools/${page.slug}`, lastModified: page.updated, changeFrequency: 'monthly' as const, priority: 0.6 })),
   { path: '/pricing', lastModified: '2026-10-09', changeFrequency: 'monthly', priority: 0.8 },
