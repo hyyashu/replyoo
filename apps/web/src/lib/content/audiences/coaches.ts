@@ -20,7 +20,7 @@ export const coaches: MarketingPage = {
       retryText: "Hmm, that doesn't look like an email. Mind trying again?",
     },
     tags: ['email-lead'],
-    message: { text: 'Here’s the workbook! 🎉 Ready to talk? You can book a call below.', imageUrl: '', links: [{ label: 'Get the workbook', url: 'https://example.com/workbook' }, { label: 'Book a call', url: 'https://example.com/book' }] },
+    message: { format: 'links', cards: [], text: 'Here’s the workbook! 🎉 Ready to talk? You can book a call below.', imageUrl: '', links: [{ label: 'Get the workbook', url: 'https://example.com/workbook' }, { label: 'Book a call', url: 'https://example.com/book' }] },
   },
   mode: 'dm',
   username: 'maya.coaches',

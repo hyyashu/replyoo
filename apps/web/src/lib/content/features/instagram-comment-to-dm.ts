@@ -21,6 +21,8 @@ export const instagramCommentToDm: MarketingPage = {
     },
     opener: { enabled: true, text: 'Hey {{first_name}}! Want my 7-day meal plan? Tap below 👇', buttonLabel: 'Send it to me' },
     message: {
+      format: 'links',
+      cards: [],
       text: "Here you go! 🎉 Save it so you don't lose it.",
       imageUrl: '',
       links: [{ label: 'Get the guide', url: 'https://example.com/guide' }],

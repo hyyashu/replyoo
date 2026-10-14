@@ -20,7 +20,7 @@ export const photographersAndFreelancers: MarketingPage = {
       retryText: "Hmm, that doesn't look like an email. Mind trying again?",
     },
     tags: ['email-lead'],
-    message: { text: 'Thanks! 📸 Here are my packages and availability.', imageUrl: '', links: [{ label: 'View packages', url: 'https://example.com/packages' }, { label: 'Check dates', url: 'https://example.com/book' }] },
+    message: { format: 'links', cards: [], text: 'Thanks! 📸 Here are my packages and availability.', imageUrl: '', links: [{ label: 'View packages', url: 'https://example.com/packages' }, { label: 'Check dates', url: 'https://example.com/book' }] },
   },
   mode: 'dm',
   username: 'maya.photo',

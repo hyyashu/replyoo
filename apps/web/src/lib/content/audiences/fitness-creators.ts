@@ -15,7 +15,7 @@ export const fitnessCreators: MarketingPage = {
     trigger: commentTrigger('PLAN'),
     opener: { enabled: true, text: 'Hey {{first_name}}! Tap below for your 4-week plan 👇', buttonLabel: 'Send my plan' },
     followGate: { ...DEFAULT_RECIPE.followGate, enabled: true },
-    message: { text: "Let's go! 💪 Here's the plan.", imageUrl: '', links: [{ label: 'Get the plan', url: 'https://example.com/plan' }] },
+    message: { format: 'links', cards: [], text: "Let's go! 💪 Here's the plan.", imageUrl: '', links: [{ label: 'Get the plan', url: 'https://example.com/plan' }] },
   },
   mode: 'dm',
   username: 'maya.fit',

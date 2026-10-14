@@ -1,4 +1,4 @@
-import type { Button, FlowDefinition, Step, StepOf, Trigger } from '@replyooo/shared'
+import { MAX_PRODUCT_CARDS, type Button, type FlowDefinition, type Step, type StepOf, type Trigger } from '@replyooo/shared'
 
 /**
  * The recipe form (spec §1.1): trigger → public reply → DM → toggleable boosters.
@@ -32,6 +32,19 @@ export interface LinkButton {
 /** Meta allows three buttons per message. */
 export const MAX_LINKS = 3
 
+export const MAX_CARDS = MAX_PRODUCT_CARDS
+
+/** One product card as typed in the editor; compiled to a `send_products` card. */
+export interface CardInput {
+  title: string
+  subtitle: string
+  imageUrl: string
+  buttonLabel: string
+  buttonUrl: string
+}
+
+export const EMPTY_CARD: CardInput = { title: '', subtitle: '', imageUrl: '', buttonLabel: 'Shop now', buttonUrl: '' }
+
 type TriggerOfType<T extends Trigger['type']> = Extract<Trigger, { type: T }>
 
 export interface Recipe {
@@ -41,8 +54,12 @@ export interface Recipe {
   /** `reminderText` is sent when they tap the button but still aren't following. */
   followGate: { enabled: boolean; text: string; buttonLabel: string; reminderText: string }
   collect: { kind: 'none' | 'email' | 'phone'; question: string; retryText: string }
-  /** `imageUrl` is sent as its own picture message just before the text; '' means none. */
-  message: { text: string; imageUrl: string; links: LinkButton[] }
+  /**
+   * The final message. `format` picks what is sent: text with link buttons (`imageUrl` goes just before it as its own
+   * picture, '' means none), or a carousel of product cards where `text` is an optional intro. Both sets of fields are
+   * kept so switching format in the editor loses nothing; only the selected one is compiled.
+   */
+  message: { format: 'links' | 'products'; text: string; imageUrl: string; links: LinkButton[]; cards: CardInput[] }
   /** One reminder if they go quiet at a tap/answer step. Needs an open DM window, so never the first message after a comment. */
   nudge: { enabled: boolean; afterHours: number; text: string }
   tags: string[]
@@ -68,7 +85,7 @@ export const DEFAULT_RECIPE: Recipe = {
     question: "What's your email? I'll send a copy there too.",
     retryText: "Hmm, that doesn't look right. Mind trying again?",
   },
-  message: { text: 'Here you go! 🎉', imageUrl: '', links: [{ label: 'Open link', url: 'https://example.com' }] },
+  message: { format: 'links', text: 'Here you go! 🎉', imageUrl: '', links: [{ label: 'Open link', url: 'https://example.com' }], cards: [] },
   nudge: {
     enabled: false,
     afterHours: 4,
@@ -184,13 +201,21 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
   const nudge = recipe.nudge.enabled
     ? { nudge: { afterMinutes: Math.round(recipe.nudge.afterHours * 60), text: recipe.nudge.text } }
     : {}
-  steps.deliver = {
-    type: 'send_message',
-    text: recipe.message.text,
-    ...(recipe.message.imageUrl ? { imageUrl: normalizeUrl(recipe.message.imageUrl) } : {}),
-    ...withLinks(recipe.message.links),
-    ...(head ? { next: head } : {}),
-  }
+  steps.deliver =
+    recipe.message.format === 'products'
+      ? {
+          type: 'send_products',
+          ...(recipe.message.text.trim() ? { text: recipe.message.text } : {}),
+          cards: recipe.message.cards.map(compileCard),
+          ...(head ? { next: head } : {}),
+        }
+      : {
+          type: 'send_message',
+          text: recipe.message.text,
+          ...(recipe.message.imageUrl ? { imageUrl: normalizeUrl(recipe.message.imageUrl) } : {}),
+          ...withLinks(recipe.message.links),
+          ...(head ? { next: head } : {}),
+        }
   head = 'deliver'
 
   if (recipe.collect.kind !== 'none') {
@@ -249,6 +274,15 @@ function withLinks(links: LinkButton[]): { buttons?: Button[] } {
   return links.length > 0 ? { buttons: links.map((link) => ({ type: 'url', label: link.label, url: normalizeUrl(link.url) })) } : {}
 }
 
+function compileCard(card: CardInput): StepOf<'send_products'>['cards'][number] {
+  return {
+    title: card.title,
+    ...(card.subtitle.trim() ? { subtitle: card.subtitle } : {}),
+    ...(card.imageUrl.trim() ? { imageUrl: normalizeUrl(card.imageUrl) } : {}),
+    button: { label: card.buttonLabel, url: normalizeUrl(card.buttonUrl) },
+  }
+}
+
 function linksOf(step: StepOf<'send_message'> | undefined): LinkButton[] {
   return (step?.buttons ?? []).flatMap((button) => (button.type === 'url' ? [{ label: button.label, url: button.url }] : []))
 }
@@ -285,6 +319,7 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
   const recipe: Recipe = structuredClone(DEFAULT_RECIPE)
   recipe.opener.enabled = false
   recipe.message.links = []
+  recipe.message.cards = []
 
   const { trigger } = flow
   if (trigger.type === 'ice_breaker') {
@@ -327,6 +362,19 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
         }
         break
       }
+      case 'send_products':
+        messageFound = true
+        recipe.message.format = 'products'
+        recipe.message.text = step.text ?? ''
+        recipe.message.cards = step.cards.map((card) => ({
+          title: card.title,
+          subtitle: card.subtitle ?? '',
+          imageUrl: card.imageUrl ?? '',
+          buttonLabel: card.button.label,
+          buttonUrl: card.button.url,
+        }))
+        id = step.next
+        break
       case 'check_follow': {
         const gate = step.notFollowing ? flow.steps[step.notFollowing] : undefined
         if (gate?.type === 'send_message') {

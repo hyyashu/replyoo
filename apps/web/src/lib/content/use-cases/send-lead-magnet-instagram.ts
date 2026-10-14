@@ -20,7 +20,7 @@ export const sendLeadMagnetInstagram: MarketingPage = {
       retryText: "Hmm, that doesn't look like an email. Mind trying again?",
     },
     tags: ['email-lead'],
-    message: { text: 'Here you go! 🎉', imageUrl: '', links: [{ label: 'Download the checklist', url: 'https://example.com/checklist' }] },
+    message: { format: 'links', cards: [], text: 'Here you go! 🎉', imageUrl: '', links: [{ label: 'Download the checklist', url: 'https://example.com/checklist' }] },
   },
   mode: 'dm',
   username: 'maya.makes',

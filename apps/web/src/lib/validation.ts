@@ -60,6 +60,8 @@ function describe(path: PropertyKey[], fallback: string): string {
     if (key === 'items') return 'Each question needs text (max 80 characters) and an answer'
     return fallback
   }
+  if (last === 'cards') return 'Add at least one product card (max 10)'
+  if (last === 'title' || last === 'subtitle') return 'Card titles and subtitles must be 1–80 characters'
   if (last === 'label') return 'Button labels must be 1–20 characters'
   if (last === 'url') return 'Enter a valid link, including https://'
   if (last === 'imageUrl') return 'Enter a valid image link, including https://'

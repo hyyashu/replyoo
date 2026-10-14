@@ -14,7 +14,7 @@ export const instagramStoryReplyAutomation: MarketingPage = {
     ...DEFAULT_RECIPE,
     trigger: { type: 'story_reply', includeReactions: true, keywords: [], stories: { mode: 'any' }, reactWithHeart: false },
     opener: { enabled: false, text: DEFAULT_RECIPE.opener.text, buttonLabel: DEFAULT_RECIPE.opener.buttonLabel },
-    message: { text: 'Thanks for the reply! 💛 Here’s the link you wanted.', imageUrl: '', links: [{ label: 'Open the link', url: 'https://example.com/link' }] },
+    message: { format: 'links', cards: [], text: 'Thanks for the reply! 💛 Here’s the link you wanted.', imageUrl: '', links: [{ label: 'Open the link', url: 'https://example.com/link' }] },
   },
   mode: 'story',
   username: 'maya.makes',

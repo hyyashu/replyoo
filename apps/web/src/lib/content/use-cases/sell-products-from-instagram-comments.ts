@@ -20,7 +20,7 @@ export const sellProductsFromInstagramComments: MarketingPage = {
       publicReplies: { enabled: true, replies: ['Sent it to your DMs 📩', 'Check your DMs! ✨'] },
     },
     opener: { enabled: true, text: 'Hey {{first_name}}! Tap below for the link and price 👇', buttonLabel: 'Show me' },
-    message: { text: 'Here it is! 🛍️ Let me know if you have any questions.', imageUrl: '', links: [{ label: 'View the product', url: 'https://example.com/product' }] },
+    message: { format: 'links', cards: [], text: 'Here it is! 🛍️ Let me know if you have any questions.', imageUrl: '', links: [{ label: 'View the product', url: 'https://example.com/product' }] },
   },
   mode: 'comment',
   username: 'maya.makes',
