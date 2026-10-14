@@ -90,3 +90,24 @@ export interface MarketingPage {
   /** Date the content last really changed (YYYY-MM-DD); feeds the sitemap, so bump it by hand when you edit the page. */
   updated: string
 }
+
+export type ToolKey = 'dm-link' | 'utm' | 'engagement' | 'text-limits'
+
+/** A free tool page: /tools/<slug>. The tool itself is a client component picked by `tool`; the rest is the page around it. */
+export interface ToolPage {
+  slug: string
+  /** Short label for links, breadcrumbs and the footer. */
+  name: string
+  tool: ToolKey
+  title: string
+  metaTitle: string
+  description: string
+  lead: string
+  steps: { title: string; body: string }[]
+  /** How the Replyooo product connects to this tool, shown under it. */
+  pitch: { title: string; body: string; href: string; cta: string }
+  faqs: FAQ[]
+  related: string[]
+  /** Last real content change (YYYY-MM-DD); feeds the sitemap, so bump it by hand. */
+  updated: string
+}

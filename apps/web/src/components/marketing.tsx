@@ -7,6 +7,7 @@ import { ALTERNATIVES_PAGES } from '@/lib/content/alternatives'
 import { COMPARE_PAGES } from '@/lib/content/compare'
 import { displayPrices, planCards, requestCountry, saveLabel } from '@/lib/billing/pricing'
 import { SECTION_KEYS, SECTIONS, pagePath } from '@/lib/content/sections'
+import { TOOL_PAGES } from '@/lib/content/tools'
 
 export function MarketingHeader() {
   return (
@@ -18,6 +19,7 @@ export function MarketingHeader() {
         <Link href="/#how" className="hover:text-ink">How it works</Link>
         <Link href="/#features" className="hover:text-ink">Features</Link>
         <Link href="/pricing" className="hover:text-ink">Pricing</Link>
+        <Link href="/tools" className="hover:text-ink">Free tools</Link>
       </nav>
       <div className="flex items-center gap-2">
         <Link href="/login" className="px-3 text-[14px] font-semibold">
@@ -51,6 +53,12 @@ export function MarketingFooter() {
           ))}
           {ALTERNATIVES_PAGES.map((page) => (
             <Link key={page.slug} href={`/alternatives/${page.slug}`} className="hover:text-ink">{page.name}</Link>
+          ))}
+        </nav>
+        <nav aria-label="Free tools" className="flex flex-col gap-2">
+          <span className="eyebrow">Free tools</span>
+          {TOOL_PAGES.map((page) => (
+            <Link key={page.slug} href={`/tools/${page.slug}`} className="hover:text-ink">{page.name}</Link>
           ))}
         </nav>
         <nav aria-label="Company" className="flex flex-col gap-2">

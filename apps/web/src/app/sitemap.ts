@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 import { ALTERNATIVES_PAGES } from '@/lib/content/alternatives'
 import { COMPARE_PAGES } from '@/lib/content/compare'
 import { SECTION_KEYS, SECTIONS, pagePath } from '@/lib/content/sections'
+import { TOOL_PAGES } from '@/lib/content/tools'
 import { getSiteUrl } from '@/lib/site'
 
 // `lastModified` is the date the page's content last really changed. Bump it by hand when you edit a page:
@@ -18,6 +19,8 @@ const pages = [
   ),
   ...COMPARE_PAGES.map((page) => ({ path: `/compare/${page.slug}`, lastModified: page.updated, changeFrequency: 'monthly' as const, priority: 0.7 })),
   ...ALTERNATIVES_PAGES.map((page) => ({ path: `/alternatives/${page.slug}`, lastModified: page.updated, changeFrequency: 'monthly' as const, priority: 0.7 })),
+  { path: '/tools', lastModified: '2026-10-15', changeFrequency: 'monthly', priority: 0.6 },
+  ...TOOL_PAGES.map((page) => ({ path: `/tools/${page.slug}`, lastModified: page.updated, changeFrequency: 'monthly' as const, priority: 0.6 })),
   { path: '/pricing', lastModified: '2026-10-09', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/signup', lastModified: '2026-10-06', changeFrequency: 'yearly', priority: 0.6 },
   { path: '/privacy', lastModified: '2026-10-06', changeFrequency: 'yearly', priority: 0.3 },

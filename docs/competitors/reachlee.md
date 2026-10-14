@@ -21,7 +21,7 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 | Conversation starters (ice breakers) | Yes | Yes |
 | Link in bio with stats | Yes | Yes |
 | CSV contact export | Not mentioned | Yes |
-| Marketing pages (use cases, features, compare, alternatives) | Yes | Yes (no blog or free tools) |
+| Marketing pages (use cases, features, compare, alternatives) | Yes | Yes (no blog yet; 4 free tools) |
 | Link click tracking in automation DMs | Yes, all plans | Yes, all plans: clicks, unique clickers and CTR per automation and per link (built 2026-10-13, not yet deployed) |
 | **Live inbox** | Yes | **No** (designed in `2026-10-08-inbox-core-design.md`) |
 | **Scheduled DMs** | Yes (Pro) | **No** |

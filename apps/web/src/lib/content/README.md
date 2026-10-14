@@ -9,6 +9,7 @@ Every public marketing page except the landing, pricing and legal pages is data 
 | `audiences/` | `/for/<slug>` | `components/section-page.tsx` |
 | `compare/` | `/compare/<slug>` | `components/compare-page.tsx` |
 | `alternatives/` | `/alternatives/<slug>` | `components/compare-page.tsx` |
+| `tools/` | `/tools/<slug>` | `components/tool-page.tsx`; the tool itself is `components/tools/<tool>-tool.tsx`, picked by the page's `tool` key, with its logic in `lib/tools/` |
 | `competitors/` | not a page | facts about one tool, shared by compare and alternatives |
 
 Shared pieces: `types.ts` (page shapes), `shared.ts` (common FAQ answers, `commentTrigger`), `replyooo.ts` (our own numbers, read from the plan catalog), `sections.ts` (registry for the three section folders).
@@ -16,6 +17,13 @@ Shared pieces: `types.ts` (page shapes), `shared.ts` (common FAQ answers, `comme
 ## Add a page
 1. Copy a file in the right folder, change the `slug`, text and `updated` date.
 2. Import it in that folder's `index.ts` and add it to the array. The route, sitemap and footer pick it up.
+
+## Add a free tool
+1. Write the logic in `lib/tools/<tool>.ts` with tests in `test/tools.test.ts`, and the client component in `components/tools/`.
+2. Add its key to `ToolKey` in `types.ts` and to `TOOLS` in `components/tools/index.tsx`.
+3. Add the page file in `tools/` and list it in `tools/index.ts`. The `/tools` list, sitemap and footer pick it up.
+
+Tools run only in the browser: no server calls, no stored input. Only state limits and formulas we can back up (Meta's limits come from `@replyooo/shared`).
 
 ## Update a competitor price
 Edit `competitors/<tool>.ts` (the price lives there once), then bump `checked` and the `updated` date on every `compare/` and `alternatives/` page that mentions it. `sources` lists where the facts came from; it is not shown on the pages.
