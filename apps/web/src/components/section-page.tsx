@@ -7,15 +7,17 @@ import { MarketingFooter, MarketingHeader } from '@/components/marketing'
 import { PhonePreview } from '@/components/phone-preview'
 import { ButtonLink } from '@/components/ui'
 import { SECTIONS, getPage, pagePath, type SectionKey } from '@/lib/content/sections'
+import { getToolPage } from '@/lib/content/tools'
 import { getSiteUrl } from '@/lib/site'
 import { breadcrumbLd, graph, organizationLd } from '@/lib/structured-data'
+import { pageMetadata } from '@/lib/metadata'
 
 export const sectionStaticParams = (section: SectionKey) => SECTIONS[section].pages.map((page) => ({ slug: page.slug }))
 
 export async function sectionMetadata(section: SectionKey, params: Promise<{ slug: string }>): Promise<Metadata> {
   const page = getPage(section, (await params).slug)
   if (!page) return {}
-  return { title: page.metaTitle, description: page.description, alternates: { canonical: pagePath(section, page.slug) } }
+  return pageMetadata({ title: page.metaTitle, description: page.description, path: pagePath(section, page.slug) })
 }
 
 export async function SectionPage({ section, params }: { section: SectionKey; params: Promise<{ slug: string }> }) {
@@ -23,6 +25,7 @@ export async function SectionPage({ section, params }: { section: SectionKey; pa
   if (!page) notFound()
   const siteUrl = await getSiteUrl()
   const related = page.related.flatMap((slug) => getPage(section, slug) ?? [])
+  const tools = (page.tools ?? []).flatMap((slug) => getToolPage(slug) ?? [])
 
   return (
     <div className="bg-sand">
@@ -106,6 +109,23 @@ export async function SectionPage({ section, params }: { section: SectionKey; pa
             </dl>
           </div>
         </section>
+
+        {tools.length > 0 && (
+          <section className="px-6 pt-20">
+            <div className="mx-auto max-w-[1200px]">
+              <h2 className="font-display text-[28px] font-bold tracking-[-0.03em]">Free tools</h2>
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                {tools.map((tool) => (
+                  <Link key={tool.slug} href={`/tools/${tool.slug}`} className="rounded-[20px] border border-line bg-white p-5 hover:border-ink">
+                    <div className="eyebrow">Free tool</div>
+                    <div className="mt-1 text-[15px] font-semibold">{tool.title}</div>
+                    <p className="mt-1 text-[13.5px] text-muted">{tool.lead}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="px-6 py-20">
           <div className="mx-auto max-w-[1200px]">

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import { LegalPage } from '@/components/marketing'
 import { LEGAL } from '@/lib/legal'
+import { pageMetadata } from '@/lib/metadata'
 
-export const metadata: Metadata = { title: 'Delete your data', alternates: { canonical: '/data-deletion' } }
+export const metadata: Metadata = pageMetadata({ title: 'Delete your data', path: '/data-deletion' })
 
 export default function DataDeletionPage() {
   return (

@@ -54,5 +54,6 @@ export const instagramCommentToDm: MarketingPage = {
     FREE_FAQ,
   ],
   related: ['instagram-follow-gate', 'collect-emails-instagram-dm', 'instagram-story-reply-automation'],
-  updated: '2026-10-09',
+  tools: ['instagram-character-counter', 'utm-link-builder'],
+  updated: '2026-10-15',
 }

@@ -49,5 +49,6 @@ export const sendLeadMagnetInstagram: MarketingPage = {
     FREE_FAQ,
   ],
   related: ['sell-products-from-instagram-comments', 'grow-followers-with-giveaways', 'book-calls-from-instagram-dms'],
-  updated: '2026-10-09',
+  tools: ['instagram-dm-reply-generator', 'utm-link-builder'],
+  updated: '2026-10-15',
 }

@@ -87,6 +87,8 @@ export interface MarketingPage {
   points: { title: string; body: string }[]
   faqs: { question: string; answer: string }[]
   related: string[]
+  /** Slugs of free tools (`tools/`) worth linking from this page. */
+  tools?: string[]
   /** Date the content last really changed (YYYY-MM-DD); feeds the sitemap, so bump it by hand when you edit the page. */
   updated: string
 }

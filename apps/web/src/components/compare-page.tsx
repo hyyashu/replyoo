@@ -9,6 +9,7 @@ import { ALTERNATIVES_PAGES, getAlternativesPage } from '@/lib/content/alternati
 import { COMPARE_PAGES, getComparePage } from '@/lib/content/compare'
 import { getSiteUrl } from '@/lib/site'
 import { breadcrumbLd, graph, organizationLd } from '@/lib/structured-data'
+import { pageMetadata } from '@/lib/metadata'
 
 type Params = Promise<{ slug: string }>
 type Kind = 'compare' | 'alternatives'
@@ -20,7 +21,7 @@ export const compareStaticParams = (kind: Kind) => (kind === 'compare' ? COMPARE
 export async function compareMetadata(kind: Kind, params: Params): Promise<Metadata> {
   const page = lookup(kind, (await params).slug)
   if (!page) return {}
-  return { title: page.metaTitle, description: page.description, alternates: { canonical: `/${kind}/${page.slug}` } }
+  return pageMetadata({ title: page.metaTitle, description: page.description, path: `/${kind}/${page.slug}` })
 }
 
 const formatDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })

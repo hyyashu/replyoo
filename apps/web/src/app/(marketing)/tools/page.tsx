@@ -6,12 +6,13 @@ import { toolPath } from '@/components/tool-page'
 import { TOOL_PAGES } from '@/lib/content/tools'
 import { getSiteUrl } from '@/lib/site'
 import { breadcrumbLd, graph, organizationLd } from '@/lib/structured-data'
+import { pageMetadata } from '@/lib/metadata'
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Free Instagram tools',
   description: 'Free tools for Instagram creators: DM reply generator, DM link generator, UTM link builder, engagement rate calculator and character counter. No signup.',
-  alternates: { canonical: '/tools' },
-}
+  path: '/tools',
+})
 
 export default async function ToolsPage() {
   const siteUrl = await getSiteUrl()

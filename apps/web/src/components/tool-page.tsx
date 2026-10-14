@@ -9,6 +9,7 @@ import { ButtonLink } from '@/components/ui'
 import { TOOL_PAGES, getToolPage } from '@/lib/content/tools'
 import { getSiteUrl } from '@/lib/site'
 import { breadcrumbLd, graph, organizationLd } from '@/lib/structured-data'
+import { pageMetadata } from '@/lib/metadata'
 
 export const toolPath = (slug: string) => `/tools/${slug}`
 export const toolStaticParams = () => TOOL_PAGES.map((page) => ({ slug: page.slug }))
@@ -16,7 +17,7 @@ export const toolStaticParams = () => TOOL_PAGES.map((page) => ({ slug: page.slu
 export async function toolMetadata(params: Promise<{ slug: string }>): Promise<Metadata> {
   const page = getToolPage((await params).slug)
   if (!page) return {}
-  return { title: page.metaTitle, description: page.description, alternates: { canonical: toolPath(page.slug) } }
+  return pageMetadata({ title: page.metaTitle, description: page.description, path: toolPath(page.slug) })
 }
 
 export async function ToolPageView({ params }: { params: Promise<{ slug: string }> }) {

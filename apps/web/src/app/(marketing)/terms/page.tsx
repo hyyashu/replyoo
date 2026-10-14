@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { LegalPage } from '@/components/marketing'
 import { LEGAL } from '@/lib/legal'
+import { pageMetadata } from '@/lib/metadata'
 
-export const metadata: Metadata = { title: 'Terms of service', alternates: { canonical: '/terms' } }
+export const metadata: Metadata = pageMetadata({ title: 'Terms of service', path: '/terms' })
 
 export default function TermsPage() {
   return (

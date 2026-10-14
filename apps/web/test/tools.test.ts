@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { SECTION_KEYS, SECTIONS } from '@/lib/content/sections'
 import { TOOL_PAGES, getToolPage } from '@/lib/content/tools'
 import { cleanHandle, dmLink } from '@/lib/tools/dm-link'
 import { REPLY_SCENARIO_KEYS, REPLY_SCENARIOS, REPLY_TONES, generateReplies, renderReply } from '@/lib/tools/dm-replies'
@@ -131,6 +132,14 @@ describe('tool pages', () => {
       for (const slug of page.related) expect(getToolPage(slug), `${page.slug} → ${slug}`).toBeDefined()
       expect(page.related).not.toContain(page.slug)
       expect(page.updated).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    }
+  })
+
+  it('are only linked from feature, use-case and audience pages by real slugs', () => {
+    for (const section of SECTION_KEYS) {
+      for (const page of SECTIONS[section].pages) {
+        for (const slug of page.tools ?? []) expect(getToolPage(slug), `${section}/${page.slug} → ${slug}`).toBeDefined()
+      }
     }
   })
 })

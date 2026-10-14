@@ -18,10 +18,14 @@ Shared pieces: `types.ts` (page shapes), `shared.ts` (common FAQ answers, `comme
 1. Copy a file in the right folder, change the `slug`, text and `updated` date.
 2. Import it in that folder's `index.ts` and add it to the array. The route, sitemap and footer pick it up.
 
+## Page metadata
+Build a page's metadata with `pageMetadata()` from `lib/metadata.ts`. It sets the canonical URL and the matching `og:url`, and keeps the shared Open Graph image: a page that sets `openGraph` replaces the layout's whole object, so don't set it by hand.
+
 ## Add a free tool
 1. Write the logic in `lib/tools/<tool>.ts` with tests in `test/tools.test.ts`, and the client component in `components/tools/`.
 2. Add its key to `ToolKey` in `types.ts` and to `TOOLS` in `components/tools/index.tsx`.
 3. Add the page file in `tools/` and list it in `tools/index.ts`. The `/tools` list, sitemap and footer pick it up.
+4. Link it from relevant feature, use-case or audience pages by adding its slug to their `tools` list; they show it in a "Free tools" section.
 
 Tools run only in the browser: no server calls, no stored input. Only state limits and formulas we can back up (Meta's limits come from `@replyooo/shared`).
 
