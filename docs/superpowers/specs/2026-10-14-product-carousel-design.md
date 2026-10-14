@@ -70,7 +70,7 @@ z.object({
 
 ## 4. Send path
 
-1. **Engine** (`packages/engine`): `OutboundMessage` gains an optional `cards` array (`title`, `subtitle?`, `imageUrl?`, `button: { label, url }`). `advance` handles `send_products` like `send_message`: when `text` is set it emits that text first as its own message (the same two-message pattern as the existing image-then-text message), then the carousel, then follows `next`. Text rendering (`{{first_name}}` and similar) applies to `text`, titles and subtitles.
+1. **Engine** (`packages/engine`): `OutboundMessage` gains an optional `cards` array (`title`, `subtitle?`, `imageUrl?`, `button: { label, url }`). `advance` handles `send_products` like `send_message`: when `text` is set it emits that text first as its own message (the same two-message pattern as the existing image-then-text message), then the carousel, then follows `next`. Only the intro `text` is rendered with variables; card titles and subtitles are sent exactly as typed, so a blank variable can never produce an empty title, which Meta rejects.
 2. **Worker** (`apps/worker/src/outbound.ts`): `toSendable` maps a carousel to a new `SendableMessage` kind, `{ kind: 'carousel', cards }`. `withTrackedLinks` also swaps each card's button URL for a tracked link. Tracked-link positions are the card index (one button per card), so they stay stable on retry like button positions do today. On any error the original links are sent.
 3. **Meta client** (`packages/meta/src/messages.ts`): `toGraphMessage` gains a `carousel` branch that builds the `generic` template with `web_url` buttons. Titles and subtitles are truncated to 80 characters as a last-resort guard; the editor and schema reject longer text before that.
 

@@ -180,3 +180,41 @@ describe('advance: events on non-waiting runs', () => {
     expect(result).toEqual({ run, effects: [], ignored: true })
   })
 })
+
+describe('advance: send_products', () => {
+  const cards = [
+    { title: 'Mug {{first_name}}', subtitle: '$19', button: { label: 'Buy', url: 'https://shop.example.com/mug' } },
+    { title: 'Cap', imageUrl: 'https://cdn.example.com/cap.jpg', button: { label: 'See it', url: 'https://shop.example.com/cap' } },
+  ]
+
+  it('sends the carousel and continues to the next step', () => {
+    const driver = new Driver(
+      dmFlow({
+        s1: { type: 'send_products', cards, next: 's2' },
+        s2: { type: 'tag', add: ['saw-products'] },
+      }),
+    )
+    const result = driver.startDm()
+    expect(result.effects).toEqual([
+      { type: 'send', message: { text: '', cards } },
+      { type: 'update_contact', patch: { addTags: ['saw-products'] } },
+    ])
+    expect(result.run.status).toBe('completed')
+  })
+
+  it('sends the rendered intro text as its own message before the carousel', () => {
+    const driver = new Driver(dmFlow({ s1: { type: 'send_products', text: 'Hi {{first_name|there}}, take a look', cards } }))
+    driver.startDm()
+    expect(driver.effects).toEqual([
+      { type: 'send', message: { text: 'Hi Priya, take a look' } },
+      { type: 'send', message: { text: '', cards } },
+    ])
+  })
+
+  it('sends card text exactly as typed, without rendering variables', () => {
+    const driver = new Driver(dmFlow({ s1: { type: 'send_products', cards } }))
+    driver.startDm()
+    const sent = driver.effects[0]
+    expect(sent?.type === 'send' && sent.message.cards?.[0]?.title).toBe('Mug {{first_name}}')
+  })
+})
