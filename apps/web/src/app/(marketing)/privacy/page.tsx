@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { LegalPage } from '@/components/marketing'
 import { LEGAL } from '@/lib/legal'
+import { pageMetadata } from '@/lib/metadata'
 
-export const metadata: Metadata = { title: 'Privacy policy', alternates: { canonical: '/privacy' } }
+export const metadata: Metadata = pageMetadata({ title: 'Privacy policy', path: '/privacy' })
 
 export default function PrivacyPage() {
   return (

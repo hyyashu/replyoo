@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 
 export const ogSize = { width: 1200, height: 630 }
+export const brandImageAlt = 'Replyooo: turn every comment into a customer'
 
 const INK = '#151310'
 const SAND = '#f5f1ea'

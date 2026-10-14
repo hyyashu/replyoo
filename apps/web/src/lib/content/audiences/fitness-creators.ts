@@ -43,5 +43,6 @@ export const fitnessCreators: MarketingPage = {
     FREE_FAQ,
   ],
   related: ['coaches', 'online-shops', 'photographers-and-freelancers'],
-  updated: '2026-10-09',
+  tools: ['instagram-engagement-rate-calculator', 'instagram-dm-reply-generator'],
+  updated: '2026-10-15',
 }

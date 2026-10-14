@@ -48,5 +48,6 @@ export const photographersAndFreelancers: MarketingPage = {
     FREE_FAQ,
   ],
   related: ['coaches', 'online-shops', 'fitness-creators'],
-  updated: '2026-10-09',
+  tools: ['instagram-dm-reply-generator', 'instagram-dm-link-generator'],
+  updated: '2026-10-15',
 }

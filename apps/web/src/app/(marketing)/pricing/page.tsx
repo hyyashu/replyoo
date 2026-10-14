@@ -4,8 +4,9 @@ import { MarketingFooter, MarketingHeader, PricingCards } from '@/components/mar
 import { PLAN_CATALOG } from '@/lib/plans'
 import { getSiteUrl } from '@/lib/site'
 import { graph, organizationLd, softwareApplicationLd } from '@/lib/structured-data'
+import { pageMetadata } from '@/lib/metadata'
 
-export const metadata: Metadata = { title: 'Pricing', alternates: { canonical: '/pricing' } }
+export const metadata: Metadata = pageMetadata({ title: 'Pricing', path: '/pricing' })
 
 export default async function PricingPage() {
   const siteUrl = await getSiteUrl()

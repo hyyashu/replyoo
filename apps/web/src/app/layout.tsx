@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from 'next/font/google'
+import { BASE_OPEN_GRAPH } from '@/lib/metadata'
 import { getSiteUrl } from '@/lib/site'
 import { headers } from 'next/headers'
 import { DASHBOARD_HEADER, locales } from '@/i18n/locales'
@@ -15,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(await getSiteUrl()),
     title: { default: 'Replyooo — Turn every comment into a customer', template: '%s · Replyooo' },
     description: 'Instagram and Facebook DM automation for creators. Reply to comments, stories and DMs in seconds.',
-    openGraph: { siteName: 'Replyooo', type: 'website', locale: 'en_US' },
+    openGraph: { siteName: BASE_OPEN_GRAPH.siteName, type: BASE_OPEN_GRAPH.type, locale: BASE_OPEN_GRAPH.locale },
     twitter: { card: 'summary_large_image' },
   }
 }

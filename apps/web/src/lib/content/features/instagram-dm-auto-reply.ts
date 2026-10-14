@@ -48,5 +48,6 @@ export const instagramDmAutoReply: MarketingPage = {
     FREE_FAQ,
   ],
   related: ['instagram-comment-to-dm', 'collect-emails-instagram-dm', 'instagram-story-reply-automation'],
-  updated: '2026-10-09',
+  tools: ['instagram-dm-reply-generator', 'instagram-dm-link-generator'],
+  updated: '2026-10-15',
 }

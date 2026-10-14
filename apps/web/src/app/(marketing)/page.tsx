@@ -10,17 +10,14 @@ import { ButtonLink, Keyword, cx } from '@/components/ui'
 import { DEFAULT_RECIPE, type Recipe } from '@/lib/recipe'
 import { getSiteUrl } from '@/lib/site'
 import { freePlan, graph, organizationLd, softwareApplicationLd, websiteLd } from '@/lib/structured-data'
+import { pageMetadata } from '@/lib/metadata'
 
 const FREE_CONTACTS = PLAN_LIMITS.free.contactsPerMonth.toLocaleString('en-US')
 
 const TITLE = 'Instagram comment-to-DM automation for creators'
 const DESCRIPTION = `Reply to every Instagram comment, story reply and DM in seconds. Send your link, ask for a follow before it unlocks, and collect emails in the chat. Free for ${FREE_CONTACTS} contacts a month.`
 
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  alternates: { canonical: '/' },
-}
+export const metadata: Metadata = pageMetadata({ title: TITLE, description: DESCRIPTION, path: '/' })
 
 const HERO_RECIPE: Recipe = {
   ...DEFAULT_RECIPE,

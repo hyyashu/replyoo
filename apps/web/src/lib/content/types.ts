@@ -87,6 +87,63 @@ export interface MarketingPage {
   points: { title: string; body: string }[]
   faqs: { question: string; answer: string }[]
   related: string[]
+  /** Slugs of free tools (`tools/`) worth linking from this page. */
+  tools?: string[]
   /** Date the content last really changed (YYYY-MM-DD); feeds the sitemap, so bump it by hand when you edit the page. */
+  updated: string
+}
+
+export type ToolKey = 'dm-link' | 'dm-replies' | 'utm' | 'engagement' | 'text-limits'
+
+/** A free tool page: /tools/<slug>. The tool itself is a client component picked by `tool`; the rest is the page around it. */
+export interface ToolPage {
+  slug: string
+  /** Short label for links, breadcrumbs and the footer. */
+  name: string
+  tool: ToolKey
+  title: string
+  metaTitle: string
+  description: string
+  lead: string
+  steps: { title: string; body: string }[]
+  /** How the Replyooo product connects to this tool, shown under it. */
+  pitch: { title: string; body: string; href: string; cta: string }
+  faqs: FAQ[]
+  related: string[]
+  /** Last real content change (YYYY-MM-DD); feeds the sitemap, so bump it by hand. */
+  updated: string
+}
+
+/** One tool on a best-of page. Facts come from `competitors/` (or `ours`) so prices change in one place. */
+export interface BestPick {
+  name: string
+  us?: boolean
+  compareSlug?: string
+  bestFor: string
+  summary: string
+  free: string
+  entryPlan: string
+  meter: string
+  strengths: string[]
+  /** Where it falls short. Every pick has at least one, ours included. */
+  watchOut: string[]
+}
+
+/** A "best X" round-up: /best/<slug>. Picks are grouped by who they suit, not ranked. */
+export interface BestPage {
+  slug: string
+  name: string
+  title: string
+  metaTitle: string
+  description: string
+  lead: string
+  /** How the tools were chosen and compared, shown near the top. */
+  method: string[]
+  picks: BestPick[]
+  faqs: FAQ[]
+  /** Where each competitor fact came from. Not shown on the page. */
+  sources: Source[]
+  /** The oldest `checked` date among the competitors on the page. */
+  checked: string
   updated: string
 }
