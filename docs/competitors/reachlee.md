@@ -26,7 +26,7 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 | **Live inbox** | Yes | **No** (designed in `2026-10-08-inbox-core-design.md`) |
 | **Scheduled DMs** | Yes (Pro) | **No** |
 | Re-run on old posts | Yes (Pro) | Yes, "Run on existing comments", last 7 days (built 2026-10-13, not yet deployed) |
-| **Carousel / multi-link DMs** | Yes (Pro) | **No** |
+| Carousel / multi-link DMs | Yes (Pro) | Yes, "Product cards": up to 10 cards, one link each, Instagram only (built 2026-10-14, not yet deployed) |
 | Team seats | Up to 5 (Business only) | Yes, up to 10 on every plan, free; owner can invite as admin and change roles (built 2026-10-13, not yet deployed) |
 | **Google Sheets, Meta Ads export** | Yes (Business) | **No** |
 | **AI replies, goals, MCP connector** | Yes | **No** (none in v1 by design) |

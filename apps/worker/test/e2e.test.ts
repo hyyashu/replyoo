@@ -192,4 +192,81 @@ describe('worker end to end', () => {
     await new Promise((r) => setTimeout(r, 500))
     expect(sent).toHaveLength(3)
   })
+
+  it('comment → opener → tap → intro text then a carousel with tracked card links', async () => {
+    const db = deps.db
+    const { account } = await seedAccount(db)
+    const carouselFlow: FlowDefinition = {
+      trigger: { type: 'comment_keyword', posts: { mode: 'any' }, keywords: ['shop'], match: 'contains' },
+      start: 'opener',
+      steps: {
+        opener: { type: 'send_message', text: 'Tap below', buttons: [{ type: 'reply', id: 'go', label: 'Show me', next: 'deliver' }] },
+        deliver: {
+          type: 'send_products',
+          text: 'My favourites',
+          cards: [
+            { title: 'Mug', subtitle: '$19', button: { label: 'Buy', url: 'https://shop.example/mug' } },
+            { title: 'Cap', imageUrl: 'https://cdn.example/cap.jpg', button: { label: 'Buy', url: 'https://shop.example/cap' } },
+          ],
+        },
+      },
+    }
+    await publishAutomation(db, account, carouselFlow)
+    const app = createServer(deps, { verifyToken: 'v', appSecrets: [SECRET] })
+    const post = (payload: unknown) => {
+      const body = JSON.stringify(payload)
+      const signature = `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}`
+      return app.request('/webhooks/meta', { method: 'POST', body, headers: { 'x-hub-signature-256': signature } })
+    }
+    const base = sent.length
+    const commentId = `c_${randomUUID()}`
+    const now = Date.now()
+    await post({
+      object: 'instagram',
+      entry: [
+        {
+          id: account.externalId,
+          time: Math.floor(now / 1000),
+          changes: [{ field: 'comments', value: { id: commentId, text: 'SHOP please', from: { id: 'igsid_shop', username: 'sam' }, media: { id: 'm1' } } }],
+        },
+      ],
+    })
+    await waitFor(async () => sent.length >= base + 1)
+    const opener = sent.slice(base).find((s) => s.path === 'messages')!
+    const payload: string = opener.body.message.attachment.payload.buttons[0].payload
+
+    await post({
+      object: 'instagram',
+      entry: [
+        {
+          id: account.externalId,
+          time: now,
+          messaging: [
+            {
+              sender: { id: 'igsid_shop' },
+              recipient: { id: account.externalId },
+              timestamp: now,
+              postback: { mid: `mid.${randomUUID()}`, title: 'Show me', payload },
+            },
+          ],
+        },
+      ],
+    })
+    await waitFor(async () => sent.slice(base).filter((s) => s.path === 'messages').length >= 3)
+
+    const dms = sent.slice(base).filter((s) => s.path === 'messages' && s.body.recipient.id === 'igsid_shop')
+    expect(dms[0]?.body.message).toEqual({ text: 'My favourites' })
+    const template = dms[1]?.body.message.attachment
+    expect(template.type).toBe('template')
+    expect(template.payload.template_type).toBe('generic')
+    const elements = template.payload.elements as { title: string; subtitle?: string; image_url?: string; buttons: unknown[] }[]
+    expect(elements.map((e) => e.title)).toEqual(['Mug', 'Cap'])
+    expect(elements[0]?.subtitle).toBe('$19')
+    expect(elements[1]?.image_url).toBe('https://cdn.example/cap.jpg')
+    for (const element of elements) {
+      expect(element.buttons).toEqual([
+        { type: 'web_url', title: 'Buy', url: expect.stringMatching(/^http:\/\/localhost:3000\/l\/[0-9A-Za-z]{8}$/) },
+      ])
+    }
+  })
 })

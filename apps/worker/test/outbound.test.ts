@@ -285,4 +285,62 @@ describe('link tracking', () => {
     expect(sentButtons(adapters)[0]?.url).toBe('https://shop.example/a')
     expect(await db.select().from(trackedLinks).where(eq(trackedLinks.messageId, id!))).toEqual([])
   })
+
+  const carousel = (): OutboundBody => ({
+    type: 'message',
+    message: {
+      text: '',
+      cards: [
+        { title: 'Mug', button: { label: 'Buy', url: 'https://shop.example/mug' } },
+        { title: 'Cap', subtitle: '$19', imageUrl: 'https://cdn.example/cap.jpg', button: { label: 'Buy', url: 'https://shop.example/cap' } },
+      ],
+    },
+  })
+
+  type SentCarousel = { kind: string; cards: { title: string; subtitle?: string; imageUrl?: string; button: { label: string; url: string } }[] }
+  const sentCarousel = (adapters: Awaited<ReturnType<typeof setup>>['adapters']) =>
+    adapters.instagram.sent('sendMessage')[0]?.args[1] as SentCarousel
+
+  it('sends a carousel with a tracked link per card and keeps the real destinations in the database', async () => {
+    const { db, deps, adapters, queue } = await setup()
+    const [id] = await queue({ kind: 'dm', body: carousel() })
+    await handleOutbound(deps, { messageIds: [id!] })
+
+    const rows = await db.select().from(trackedLinks).where(eq(trackedLinks.messageId, id!))
+    expect(rows.map((r) => [r.position, r.url]).sort()).toEqual([
+      [0, 'https://shop.example/mug'],
+      [1, 'https://shop.example/cap'],
+    ])
+    const byPosition = Object.fromEntries(rows.map((r) => [r.position, r.code]))
+    const sent = sentCarousel(adapters)
+    expect(sent.kind).toBe('carousel')
+    expect(sent.cards[0]).toEqual({ title: 'Mug', button: { label: 'Buy', url: `http://localhost:3000/l/${byPosition[0]}` } })
+    expect(sent.cards[1]).toEqual({
+      title: 'Cap',
+      subtitle: '$19',
+      imageUrl: 'https://cdn.example/cap.jpg',
+      button: { label: 'Buy', url: `http://localhost:3000/l/${byPosition[1]}` },
+    })
+  })
+
+  it('reuses the same carousel codes when a message is retried', async () => {
+    const { deps, queue, db } = await setup()
+    const [id] = await queue({ kind: 'dm', body: carousel() })
+    const [row] = await db.select().from(messages).where(eq(messages.id, id!))
+    const first = await withTrackedLinks(deps, row!)
+    const second = await withTrackedLinks(deps, row!)
+    expect(second.body).toEqual(first.body)
+    expect(first.body).not.toEqual(row!.body)
+  })
+
+  it('falls back to the original card links when tracking fails', async () => {
+    const { deps, queue, db } = await setup()
+    const [id] = await queue({ kind: 'dm', body: carousel() })
+    const [row] = await db.select().from(messages).where(eq(messages.id, id!))
+    const failing = async () => {
+      throw new Error('db down')
+    }
+    const result = await withTrackedLinks(deps, row!, failing as never)
+    expect(result.body).toEqual(row!.body)
+  })
 })

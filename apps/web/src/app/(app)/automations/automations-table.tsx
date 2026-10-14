@@ -58,7 +58,7 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
   return (
     <Card className="mt-6 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <div className="flex w-full rounded-full bg-sand p-1 sm:w-auto">
+        <div className="flex w-full max-w-full overflow-x-auto rounded-full bg-sand p-1 sm:w-auto">
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -94,27 +94,29 @@ export function AutomationsTable({ automations }: { automations: Automation[] })
           action={automations.length === 0 && <ButtonLink href="/automations/new">{tr('browse_templates')}</ButtonLink>}
         />
       ) : (
-        <table className="w-full text-left">
-          <thead>
-            <tr className="eyebrow border-y border-line bg-sand/70 [&>th]:h-10 [&>th]:font-medium">
-              <th className="pl-4 md:pl-5">{tr('automation')}</th>
-              <th className="hidden md:table-cell">{tr('trigger')}</th>
-              <th className="hidden text-right md:table-cell">{tr('runs_2')}</th>
-              <th className="hidden text-right md:table-cell">{tr('dms_sent')}</th>
-              <th className="hidden text-right md:table-cell">{tr('click_rate')}</th>
-              <th className="hidden pr-2 text-right md:table-cell">{tr('completion')}</th>
-              <th className="hidden lg:table-cell">{tr('created')}</th>
-              <th className="hidden lg:table-cell">{tr('updated')}</th>
-              <th className="pl-3 md:pl-6">{tr('status')}</th>
-              <th className="w-12 md:w-14" />
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((automation) => (
-              <Row key={automation.id} automation={automation} />
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="eyebrow border-y border-line bg-sand/70 [&>th]:h-10 [&>th]:font-medium">
+                <th className="pl-4 md:pl-5">{tr('automation')}</th>
+                <th className="hidden md:table-cell">{tr('trigger')}</th>
+                <th className="hidden text-right md:table-cell">{tr('runs_2')}</th>
+                <th className="hidden text-right md:table-cell">{tr('dms_sent')}</th>
+                <th className="hidden text-right md:table-cell">{tr('click_rate')}</th>
+                <th className="hidden pr-2 text-right md:table-cell">{tr('completion')}</th>
+                <th className="hidden lg:table-cell">{tr('created')}</th>
+                <th className="hidden lg:table-cell">{tr('updated')}</th>
+                <th className="pl-3 md:pl-6">{tr('status')}</th>
+                <th className="w-12 md:w-14" />
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((automation) => (
+                <Row key={automation.id} automation={automation} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </Card>
   )

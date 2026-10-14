@@ -247,6 +247,12 @@ function execute(ctx: Ctx, stepId: string, step: Step): StepOutcome {
       }
       return { next: step.next }
     }
+    case 'send_products': {
+      const intro = step.text ? renderText(step.text, ctx.contact, ctx.run.vars) : ''
+      if (intro.trim() !== '' && !send(ctx, { text: intro })) return 'stop'
+      if (!send(ctx, { text: '', cards: step.cards })) return 'stop'
+      return { next: step.next }
+    }
     case 'ask': {
       if (!send(ctx, { text: renderText(step.question, ctx.contact, ctx.run.vars) })) return 'stop'
       wait(ctx, { kind: 'reply', attempts: 0 }, step.timeoutMinutes, step.nudge)

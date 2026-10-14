@@ -20,6 +20,7 @@ type Bubble =
   | { kind: 'context'; text: string }
   | { kind: 'them'; text: string }
   | { kind: 'us'; text: string; replyButton?: string; links?: { label: string; url: string }[] }
+  | { kind: 'cards'; cards: { title: string; subtitle: string; imageUrl: string; label: string; url: string }[] }
 
 type PreviewTranslate = (key: string, values?: Record<string, string | number>) => string
 
@@ -106,6 +107,20 @@ export function conversation(recipe: Recipe, starter: number | null = 0, transla
     bubbles.push({ kind: 'us', text: render(recipe.collect.question) })
     bubbles.push({ kind: 'them', text: answer })
     contact = { ...SAMPLE, [recipe.collect.kind]: answer }
+  }
+  if (recipe.message.format === 'products') {
+    if (recipe.message.text.trim()) bubbles.push({ kind: 'us', text: render(recipe.message.text, contact) })
+    bubbles.push({
+      kind: 'cards',
+      cards: (recipe.message.cards ?? []).map((card) => ({
+        title: card.title || '…',
+        subtitle: card.subtitle,
+        imageUrl: card.imageUrl,
+        label: card.buttonLabel || (translate ? translate('previewOpen') : 'Open'),
+        url: card.buttonUrl,
+      })),
+    })
+    return bubbles
   }
   if (recipe.message.imageUrl) bubbles.push({ kind: 'us', text: translate ? translate('previewImage') : '🖼 Image' })
   bubbles.push({
@@ -194,6 +209,29 @@ function DmView({
             return (
               <div key={index} className="max-w-[80%] self-start rounded-[18px] bg-[#efefef] px-3 py-2 text-[12.5px] leading-snug">
                 {bubble.text}
+              </div>
+            )
+          }
+          if (bubble.kind === 'cards') {
+            return (
+              <div key={index} className="-mx-3.5 flex gap-2 self-stretch overflow-x-auto px-3.5 pb-1 [scrollbar-width:none]">
+                {bubble.cards.map((card, cardIndex) => (
+                  <div key={cardIndex} className="w-[160px] shrink-0 overflow-hidden rounded-[14px] border border-line bg-white">
+                    {card.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={card.imageUrl} alt="" className="aspect-[1.91/1] w-full object-cover" />
+                    ) : (
+                      <div className="aspect-[1.91/1] w-full bg-sand" />
+                    )}
+                    <div className="px-2.5 pt-2">
+                      <div className="text-[12px] leading-snug font-semibold">{card.title}</div>
+                      {card.subtitle && <div className="text-[11px] leading-snug text-subtle">{card.subtitle}</div>}
+                    </div>
+                    <div className="m-2 flex items-center justify-center gap-1 rounded-lg bg-cream py-1.5 text-[12px] font-semibold text-[#3b5bdb]">
+                      {card.label} <ExternalLink className="size-3" />
+                    </div>
+                  </div>
+                ))}
               </div>
             )
           }

@@ -10,10 +10,18 @@ export type SendableButton =
   | { type: 'url'; label: string; url: string }
   | { type: 'postback'; label: string; payload: string }
 
+export interface SendableCard {
+  title: string
+  subtitle?: string
+  imageUrl?: string
+  button: { label: string; url: string }
+}
+
 /** Exactly one Graph send call. */
 export type SendableMessage =
   | { kind: 'text'; text: string; buttons?: SendableButton[] }
   | { kind: 'image'; url: string }
+  | { kind: 'carousel'; cards: SendableCard[] }
 
 export interface SendResult {
   messageId: string | null

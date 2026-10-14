@@ -132,3 +132,51 @@ describe('DraftFlowSchema', () => {
     expect(withTrigger({ type: 'ice_breaker', items: [{ question: '', startStep: 'answer_0' }] })).toBe(true)
   })
 })
+
+describe('send_products step', () => {
+  const card = (n: number) => ({ title: `Product ${n}`, button: { label: 'Buy', url: `https://shop.example.com/${n}` } })
+
+  it('accepts 1 to 10 cards with optional text, subtitle and image', () => {
+    const one = StepSchema.safeParse({ type: 'send_products', cards: [card(1)] })
+    expect(one.success).toBe(true)
+    const full = StepSchema.safeParse({
+      type: 'send_products',
+      text: 'Here are my favourites',
+      cards: [{ ...card(1), subtitle: '$19', imageUrl: 'https://cdn.example.com/1.jpg' }],
+      next: 'tag',
+    })
+    expect(full.success).toBe(true)
+    const ten = StepSchema.safeParse({ type: 'send_products', cards: Array.from({ length: 10 }, (_, i) => card(i)) })
+    expect(ten.success).toBe(true)
+  })
+
+  it('rejects zero cards and more than ten', () => {
+    expect(StepSchema.safeParse({ type: 'send_products', cards: [] }).success).toBe(false)
+    expect(StepSchema.safeParse({ type: 'send_products', cards: Array.from({ length: 11 }, (_, i) => card(i)) }).success).toBe(false)
+  })
+
+  it('rejects empty or over-long card text', () => {
+    const ok = (patch: object) => StepSchema.safeParse({ type: 'send_products', cards: [{ ...card(1), ...patch }] }).success
+    expect(ok({ title: '   ' })).toBe(false)
+    expect(ok({ title: 'x'.repeat(81) })).toBe(false)
+    expect(ok({ title: 'x'.repeat(80) })).toBe(true)
+    expect(ok({ subtitle: 'x'.repeat(81) })).toBe(false)
+    expect(ok({ subtitle: '' })).toBe(false)
+  })
+
+  it('rejects a bad link, a bad image link and a long button label', () => {
+    const ok = (patch: object) => StepSchema.safeParse({ type: 'send_products', cards: [{ ...card(1), ...patch }] }).success
+    expect(ok({ button: { label: 'Buy', url: 'javascript:alert(1)' } })).toBe(false)
+    expect(ok({ imageUrl: 'not a url' })).toBe(false)
+    expect(ok({ button: { label: 'x'.repeat(21), url: 'https://shop.example.com' } })).toBe(false)
+  })
+
+  it('lets a half-finished carousel autosave as a draft', () => {
+    const draft = DraftFlowSchema.safeParse({
+      trigger: { type: 'any_dm' },
+      start: 's1',
+      steps: { s1: { type: 'send_products', cards: [{ title: '' }] } },
+    })
+    expect(draft.success).toBe(true)
+  })
+})

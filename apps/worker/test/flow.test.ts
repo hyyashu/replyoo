@@ -235,3 +235,12 @@ describe('handleFollowCheck', () => {
     expect(account?.status).toBe('reauth_required')
   })
 })
+
+describe('outboundRows: carousel', () => {
+  it('turns a carousel effect into a single message row with its cards', () => {
+    const cards = [{ title: 'Mug', button: { label: 'Buy', url: 'https://shop.example/mug' } }]
+    expect(outboundRows([{ type: 'send', message: { text: '', cards } }])).toEqual([
+      { kind: 'dm', commentId: null, body: { type: 'message', message: { text: '', cards } } },
+    ])
+  })
+})

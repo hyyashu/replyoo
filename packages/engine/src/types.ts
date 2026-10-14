@@ -1,4 +1,4 @@
-import type { FlowDefinition } from '@replyooo/shared'
+import type { FlowDefinition, ProductCard } from '@replyooo/shared'
 
 export { MAX_STEPS_PER_ADVANCE } from '@replyooo/shared'
 export const POSTBACK_WAIT_MINUTES = 24 * 60
@@ -57,10 +57,14 @@ export type OutboundButton =
   | { type: 'url'; label: string; url: string }
   | { type: 'reply'; label: string; stepId: string; buttonId: string }
 
+export type OutboundCard = ProductCard
+
 export interface OutboundMessage {
   text: string
   imageUrl?: string
   buttons?: OutboundButton[]
+  /** A carousel message has empty `text`; the intro text is sent as its own earlier message. */
+  cards?: OutboundCard[]
 }
 
 export interface ContactPatch {

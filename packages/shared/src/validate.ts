@@ -8,6 +8,7 @@ export type ValidationCode =
   | 'orphan_step'
   | 'comment_needs_reply_button'
   | 'platform_unsupported'
+  | 'carousel_unsupported'
   | 'no_posts_selected'
   | 'cycle_without_wait'
   | 'next_with_reply_buttons'
@@ -60,6 +61,7 @@ export function stepTargets(step: Step): string[] {
       return [step.following, step.notFollowing].filter(isDefined)
     case 'delay':
     case 'tag':
+    case 'send_products':
       return [step.next].filter(isDefined)
     case 'condition':
       return [step.yes, step.no].filter(isDefined)
@@ -76,6 +78,7 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
   const { steps, trigger } = flow
   const entries = entryStepIds(flow)
   let followCheckReported = false
+  let carouselReported = false
 
   for (const entry of entries) {
     if (!steps[entry]) {
@@ -141,6 +144,14 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
         code: 'save_type_mismatch',
         stepId,
         message: 'Answers saved to email/phone must use matching validation',
+      })
+    }
+    if (step.type === 'send_products' && platform === 'facebook' && !carouselReported) {
+      carouselReported = true
+      issues.push({
+        code: 'carousel_unsupported',
+        stepId,
+        message: 'Product cards are only available on Instagram',
       })
     }
     if (step.type === 'check_follow' && platform === 'facebook' && !followCheckReported) {

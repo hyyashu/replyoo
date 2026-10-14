@@ -5,6 +5,7 @@ import {
   addChips,
   changeTriggerType,
   compileRecipe,
+  EMPTY_CARD,
   recipeFromFlow,
   setCollectKind,
   type Recipe,
@@ -329,5 +330,83 @@ describe('recipeFromFlow without a message', () => {
     const back = recipeFromFlow(flow)
     expect(back.message.text).toBe('')
     expect(checkRecipe(back, 'instagram').issues.length).toBeGreaterThan(0)
+  })
+})
+
+describe('product cards', () => {
+  const cards = [
+    { title: 'Mug', subtitle: '$19', imageUrl: 'https://cdn.example.com/mug.jpg', buttonLabel: 'Buy', buttonUrl: 'https://shop.example.com/mug' },
+    { title: 'Cap', subtitle: '', imageUrl: '', buttonLabel: 'See it', buttonUrl: 'https://shop.example.com/cap' },
+  ]
+  const dm = (message: Partial<Recipe['message']>) =>
+    recipe({
+      trigger: { type: 'dm_keyword', keywords: ['SHOP'], match: 'contains' },
+      opener: { ...DEFAULT_RECIPE.opener, enabled: false },
+      message: { ...DEFAULT_RECIPE.message, ...message },
+    })
+
+  it('compiles the cards to a send_products step and reads them back', () => {
+    const original = dm({ format: 'products', text: 'My favourites', cards })
+    const flow = compileRecipe(original)
+    expect(flow.steps.deliver).toEqual({
+      type: 'send_products',
+      text: 'My favourites',
+      cards: [
+        { title: 'Mug', subtitle: '$19', imageUrl: 'https://cdn.example.com/mug.jpg', button: { label: 'Buy', url: 'https://shop.example.com/mug' } },
+        { title: 'Cap', button: { label: 'See it', url: 'https://shop.example.com/cap' } },
+      ],
+    })
+    expect(validateFlow(flow, 'instagram')).toEqual([])
+    const back = recipeFromFlow(flow).message
+    expect(back.format).toBe('products')
+    expect(back.text).toBe('My favourites')
+    expect(back.cards).toEqual(cards)
+  })
+
+  it('leaves out blank intro text instead of sending an empty message', () => {
+    const flow = compileRecipe(dm({ format: 'products', text: '   ', cards }))
+    expect(flow.steps.deliver).not.toHaveProperty('text')
+    expect(checkRecipe(dm({ format: 'products', text: '   ', cards }), 'instagram').issues).toEqual([])
+  })
+
+  it('adds https:// to card links and images typed without a scheme', () => {
+    const flow = compileRecipe(dm({ format: 'products', cards: [{ ...cards[0]!, buttonUrl: 'shop.example.com/mug', imageUrl: 'cdn.example.com/mug.jpg' }] }))
+    expect(flow.steps.deliver).toMatchObject({
+      cards: [{ imageUrl: 'https://cdn.example.com/mug.jpg', button: { url: 'https://shop.example.com/mug' } }],
+    })
+  })
+
+  it('keeps links and cards separate when the format is switched back and forth', () => {
+    const links = [{ label: 'Open link', url: 'https://example.com/a' }]
+    const withBoth = dm({ format: 'links', links, cards })
+    expect(compileRecipe(withBoth).steps.deliver).toMatchObject({ type: 'send_message', buttons: [{ type: 'url', url: 'https://example.com/a' }] })
+    expect(compileRecipe(withBoth).steps.deliver).not.toHaveProperty('cards')
+    const switched = dm({ format: 'products', links, cards })
+    expect(compileRecipe(switched).steps.deliver).toMatchObject({ type: 'send_products' })
+    expect(compileRecipe(switched).steps.deliver).not.toHaveProperty('buttons')
+  })
+
+  it('reports an empty or over-long carousel as a message-section issue', () => {
+    const empty = checkRecipe(dm({ format: 'products', cards: [] }), 'instagram')
+    expect(empty.issues).toContainEqual({ section: 'dm', message: 'Add at least one product card (max 10)' })
+    const long = checkRecipe(dm({ format: 'products', cards: [{ ...cards[0]!, title: 'x'.repeat(81) }] }), 'instagram')
+    expect(long.issues).toContainEqual({ section: 'dm', message: 'Card titles and subtitles must be 1–80 characters' })
+  })
+
+  it('rejects product cards on Facebook', () => {
+    const { issues } = checkRecipe(dm({ format: 'products', cards }), 'facebook')
+    expect(issues).toContainEqual({ section: 'dm', message: 'Product cards are only available on Instagram' })
+  })
+
+  it('treats a message without format or cards (every existing recipe and template) as a links message', () => {
+    const flow = compileRecipe(recipe({ trigger: { type: 'dm_keyword', keywords: ['SHOP'], match: 'contains' }, opener: { ...DEFAULT_RECIPE.opener, enabled: false } }))
+    expect(DEFAULT_RECIPE.message).not.toHaveProperty('format')
+    expect(DEFAULT_RECIPE.message).not.toHaveProperty('cards')
+    expect(flow.steps.deliver).toMatchObject({ type: 'send_message' })
+    expect(recipeFromFlow(flow).message).toEqual(DEFAULT_RECIPE.message)
+  })
+
+  it('starts a new card empty', () => {
+    expect(EMPTY_CARD).toEqual({ title: '', subtitle: '', imageUrl: '', buttonLabel: 'Shop now', buttonUrl: '' })
   })
 })

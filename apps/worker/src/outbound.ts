@@ -85,7 +85,12 @@ export async function withTrackedLinks(
   const body = message.body as unknown as OutboundBody
   if (body.type !== 'message') return message
   const buttons = body.message.buttons ?? []
-  const links = buttons.flatMap((button, position) => (button.type === 'url' ? [{ position, url: button.url }] : []))
+  const cards = body.message.cards ?? []
+  const links = [
+    ...buttons.flatMap((button, position) => (button.type === 'url' ? [{ position, url: button.url }] : [])),
+    // A message carries buttons or cards, never both, so card positions cannot clash with button positions.
+    ...cards.map((card, position) => ({ position, url: card.button.url })),
+  ]
   if (links.length === 0) return message
   try {
     const [run] = await deps.db.select({ automationId: flowRuns.automationId }).from(flowRuns).where(eq(flowRuns.id, message.flowRunId))
@@ -96,7 +101,18 @@ export async function withTrackedLinks(
       const code = codes.get(position)
       return button.type === 'url' && code ? { ...button, url: `${origin}/l/${code}` } : button
     })
-    const trackedBody: OutboundBody = { type: 'message', message: { ...body.message, buttons: tracked } }
+    const trackedCards = cards.map((card, position) => {
+      const code = codes.get(position)
+      return code ? { ...card, button: { ...card.button, url: `${origin}/l/${code}` } } : card
+    })
+    const trackedBody: OutboundBody = {
+      type: 'message',
+      message: {
+        ...body.message,
+        ...(buttons.length > 0 ? { buttons: tracked } : {}),
+        ...(cards.length > 0 ? { cards: trackedCards } : {}),
+      },
+    }
     return { ...message, body: trackedBody as unknown as Record<string, unknown> }
   } catch (error) {
     deps.log.warn({ messageId: message.id, err: error }, 'link tracking failed; sending the original links')
@@ -115,6 +131,7 @@ async function failMessages(db: Db, ids: string[], error: string): Promise<void>
 export function toSendable(body: OutboundBody, runId: string | null): SendableMessage {
   if (body.type === 'image') return { kind: 'image', url: body.url }
   if (body.type === 'comment') return { kind: 'text', text: body.text }
+  if (body.message.cards && body.message.cards.length > 0) return { kind: 'carousel', cards: body.message.cards }
   const buttons = (body.message.buttons ?? []).flatMap<SendableButton>((button) => {
     if (button.type === 'url') return [{ type: 'url', label: button.label, url: button.url }]
     if (!runId) return []

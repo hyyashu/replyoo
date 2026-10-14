@@ -164,7 +164,11 @@ export async function listLatestLeads(workspaceId: string, accountId: string, li
 export function messageText(body: Record<string, unknown>): string {
   if (typeof body.text === 'string') return body.text
   if (body.type === 'message') {
-    const message = body.message as { text?: unknown } | undefined
+    const message = body.message as { text?: unknown; cards?: unknown } | undefined
+    if (Array.isArray(message?.cards) && message.cards.length > 0) {
+      const count = message.cards.length
+      return `🛍 Product carousel (${count} ${count === 1 ? 'card' : 'cards'})`
+    }
     if (typeof message?.text === 'string') return message.text
   }
   if (body.type === 'image') return '📷 Photo'

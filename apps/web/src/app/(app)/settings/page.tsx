@@ -181,13 +181,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           ))}
           {manager && (
             <form action={inviteMember} className="flex flex-col gap-2 p-4">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
                   name="email"
                   type="email"
                   required
                   placeholder={tr('teammate_example_com')}
-                  className="h-9 flex-1 rounded-full border border-line px-4 text-[13.5px] outline-none focus:border-ink"
+                  className="h-9 min-w-[12rem] flex-1 rounded-full border border-line px-4 text-[13.5px] outline-none focus:border-ink"
                 />
                 {owner && (
                   <select

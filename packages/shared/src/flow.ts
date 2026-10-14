@@ -78,6 +78,20 @@ export const ButtonSchema = z.discriminatedUnion('type', [
 ])
 export type Button = z.infer<typeof ButtonSchema>
 
+// ---------- Product cards ----------
+
+/** Meta's generic template carries at most ten cards. */
+export const MAX_PRODUCT_CARDS = 10
+const CardText = z.string().trim().min(1).max(80)
+
+export const ProductCardSchema = z.object({
+  title: CardText,
+  subtitle: CardText.optional(),
+  imageUrl: HttpUrl.optional(),
+  button: z.object({ label: ButtonLabel, url: HttpUrl }),
+})
+export type ProductCard = z.infer<typeof ProductCardSchema>
+
 // ---------- Steps ----------
 
 export const StepSchema = z.discriminatedUnion('type', [
@@ -88,6 +102,13 @@ export const StepSchema = z.discriminatedUnion('type', [
     buttons: z.array(ButtonSchema).max(3).optional(),
     /** One reminder if they haven't tapped a reply button yet. Only used on steps with reply buttons. */
     nudge: NudgeSchema.optional(),
+    next: StepIdSchema.optional(),
+  }),
+  z.object({
+    type: z.literal('send_products'),
+    /** Optional text sent as its own message just before the carousel. */
+    text: MessageText.optional(),
+    cards: z.array(ProductCardSchema).min(1).max(MAX_PRODUCT_CARDS),
     next: StepIdSchema.optional(),
   }),
   z.object({
@@ -184,7 +205,7 @@ export const DraftFlowSchema = z.object({
   start: z.string().max(64),
   steps: z.record(
     z.string().max(64),
-    z.looseObject({ type: z.enum(['send_message', 'ask', 'check_follow', 'delay', 'tag', 'condition']) }),
+    z.looseObject({ type: z.enum(['send_message', 'send_products', 'ask', 'check_follow', 'delay', 'tag', 'condition']) }),
   ),
 })
 export type DraftFlow = z.infer<typeof DraftFlowSchema>
