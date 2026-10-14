@@ -7,12 +7,12 @@ export const instagramDmLinkGenerator: ToolPage = {
   title: 'Instagram DM link generator',
   metaTitle: 'Instagram DM link generator (ig.me) — free',
   description:
-    'Make a link that opens a DM with your Instagram account (ig.me) or Facebook Page (m.me). Free, no signup. Paste it in your bio, emails or website.',
+    'Make a link that opens a DM with your Instagram account (ig.me) or Facebook Page (m.me), plus a QR code to print. Free, no signup.',
   lead: 'Type your username and get a link that opens a chat with you in one tap. Put it in your bio, a link-in-bio page, an email or a QR code.',
   steps: [
     { title: 'Enter your username', body: 'Your Instagram username or Facebook Page username. A pasted @handle or profile link works too.' },
-    { title: 'Copy the link', body: 'Instagram links look like ig.me/m/username, Facebook ones like m.me/username.' },
-    { title: 'Share it', body: 'Anyone who taps it lands in a DM with you, in the app on a phone or in the browser on a computer.' },
+    { title: 'Copy the link or the QR code', body: 'Instagram links look like ig.me/m/username, Facebook ones like m.me/username. Download the QR code as PNG or SVG.' },
+    { title: 'Share it', body: 'Anyone who taps the link or scans the code lands in a DM with you, in the app on a phone or in the browser on a computer.' },
   ],
   pitch: {
     title: 'Answer those DMs automatically',
@@ -33,6 +33,11 @@ export const instagramDmLinkGenerator: ToolPage = {
     {
       question: 'Can I add a pre-filled message?',
       answer: 'Instagram doesn’t document a way to pre-fill the message on ig.me links, so this tool doesn’t add one. The person types their own first message.',
+    },
+    {
+      question: 'Which QR code file should I use?',
+      answer:
+        'PNG for social posts, slides and most printing. SVG for a designer or a print shop: it stays sharp at any size. Either way, scan it with your own phone before you print a batch.',
     },
     {
       question: 'Do you check that the account exists?',

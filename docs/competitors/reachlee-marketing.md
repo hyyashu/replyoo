@@ -15,7 +15,7 @@ Checked 2026-10-13. Companion to [reachlee.md](reachlee.md) (the product compari
 | Industry pages (`/for/`) | 19 (salons, restaurants, realtors, gyms, clinics, ...) | 4 (coaches, fitness creators, online shops, photographers and freelancers) |
 | Use cases | 24 | 4 |
 | Feature pages | 5 | 5 |
-| Free tools (`/tools/`) | 22 (calculators and generators) | 5 (DM reply generator, DM link generator, UTM link builder, engagement rate calculator, character counter; built 2026-10-15) |
+| Free tools (`/tools/`) | 22 (calculators and generators) | 5 (DM reply generator, DM link generator with QR code, UTM link builder, engagement rate calculator, character counter; built 2026-10-15) |
 | Best-of lists (`/best/`) | 8 | 1 (`instagram-dm-automation-tools`, 8 tools; built 2026-10-15) |
 | How-to (`/how-to/`) | 7 | none |
 | AI pages (`/ai/`) | 13 | none (no AI product) |
@@ -45,7 +45,7 @@ Checked 2026-10-13. Companion to [reachlee.md](reachlee.md) (the product compari
 2. **A guides section on Meta rules**: the 24-hour messaging window, Instagram DM limits, "is automation allowed / will I get banned", common error codes, "why did my automation stop working". High search intent, and our code and the live Meta testing give first-hand material. Cite Meta's docs and add a last-verified date.
 3. **A blog**, but fewer and better. They publish 83 posts in 13 weeks; copying that volume is not the goal. Start with about 10 posts that map to what the product does: comment-to-DM setup, collecting emails, follow gate, selling digital products, giveaways, India-specific tool lists.
 4. **Industry pages** (`/for/`): we have 4 of their 19. Salons, restaurants, realtors, gyms, clinics and agencies are the obvious additions.
-5. **Free tools** as lead magnets. Built 2026-10-15: DM reply generator (hand-written templates, no AI), DM link generator, UTM link builder, engagement rate calculator and character counter (`/tools`). Still open: a QR code for the DM link, which needs a QR library.
+5. **Free tools** as lead magnets. Built 2026-10-15: DM reply generator (hand-written templates, no AI), DM link generator (with a downloadable PNG/SVG QR code), UTM link builder, engagement rate calculator and character counter (`/tools`).
 6. **Trust pages** once Meta App Review and Business Verification are done: a "Meta-verified" page, an About page, real usage numbers.
 7. **Public docs/help**, lowest priority until there are users asking.
 

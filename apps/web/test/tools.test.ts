@@ -4,6 +4,7 @@ import { TOOL_PAGES, getToolPage } from '@/lib/content/tools'
 import { cleanHandle, dmLink } from '@/lib/tools/dm-link'
 import { REPLY_SCENARIO_KEYS, REPLY_SCENARIOS, REPLY_TONES, generateReplies, renderReply } from '@/lib/tools/dm-replies'
 import { engagementRate } from '@/lib/tools/engagement'
+import { qrSvg } from '@/lib/tools/qr'
 import { TEXT_LIMITS, countCharacters, textStats } from '@/lib/tools/text-limits'
 import { buildUtmUrl } from '@/lib/tools/utm'
 
@@ -27,6 +28,23 @@ describe('dmLink', () => {
     expect(dmLink('instagram', 'a'.repeat(31))).toBeNull()
     expect(dmLink('facebook', 'abc')).toBeNull()
     expect(dmLink('facebook', 'maya_makes')).toBeNull()
+  })
+})
+
+describe('qrSvg', () => {
+  it('draws a version 2 code for a short DM link, quiet zone included', () => {
+    // 25 modules for version 2, plus 4 blank modules on each side.
+    const svg = qrSvg('https://ig.me/m/maya.makes')
+    expect(svg).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 33 33"/)
+    expect(svg).toContain('<rect width="33" height="33" fill="#fff"/>')
+    // The top-left finder pattern starts right after the quiet zone; nothing is drawn inside the zone.
+    expect(svg).toContain('M4 4h1v1h-1z')
+    expect(svg).not.toMatch(/M[0-3] \d+h|M\d+ [0-3]h/)
+  })
+
+  it('is deterministic and changes with the link', () => {
+    expect(qrSvg('https://ig.me/m/a')).toBe(qrSvg('https://ig.me/m/a'))
+    expect(qrSvg('https://ig.me/m/a')).not.toBe(qrSvg('https://ig.me/m/b'))
   })
 })
 
