@@ -4,14 +4,16 @@ import { useDashboardError } from '@/i18n/use-errors'
 import { useTranslations } from 'next-intl'
 
 import type { Platform } from '@replyooo/shared'
-import { ArrowDown, ArrowUp, AtSign, BellRing, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
+import { ArrowDown, ArrowUp, AtSign, BellRing, ChevronDown, CircleAlert, Link2, MousePointerClick, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
 import { Toggle, cx } from '@/components/ui'
 import {
   EMPTY_CARD,
   MAX_CARDS,
   MAX_LINKS,
+  DEFAULT_CLICK_FOLLOW_UP,
   MAX_NUDGE_HOURS,
+  clickFollowUpApplies,
   changeTriggerType,
   normalizeUrl,
   nudgeApplies,
@@ -686,10 +688,15 @@ export function BoostersSection({
   const setCollect = (kind: 'email' | 'phone') => update((d) => setCollectKind(d, kind))
 
   const canNudge = nudgeApplies(recipe)
+  const canFollowUp = clickFollowUpApplies(recipe)
+  const followUp = recipe.clickFollowUp ?? DEFAULT_CLICK_FOLLOW_UP
+  const updateFollowUp = (change: (followUp: typeof DEFAULT_CLICK_FOLLOW_UP) => void) =>
+    update((d) => change((d.clickFollowUp ??= { ...DEFAULT_CLICK_FOLLOW_UP })))
   const active = [
     recipe.followGate.enabled && tr('follow_gate'),
     collect !== 'none' && tr(collect === 'email' ? 'ask_for_email' : 'ask_for_phone'),
     canNudge && recipe.nudge.enabled && tr('reminder'),
+    canFollowUp && followUp.enabled && tr('link_follow_up'),
     recipe.tags.length > 0 && tr('tags'),
   ]
   return (
@@ -804,24 +811,42 @@ export function BoostersSection({
             rows={2}
             onChange={(text) => update((d) => void (d.nudge.text = text))}
             footer={
-              <span className="flex items-center gap-2 text-[13px] text-muted">
-                {tr('send_after')}{' '}
-                <input
-                  type="number"
-                  aria-label={tr('hours_without_a_reply_before_the_reminder')}
-                  min={1}
-                  max={MAX_NUDGE_HOURS}
-                  value={recipe.nudge.afterHours}
-                  onChange={(e) =>
-                    update((d) => {
-                      const hours = Math.round(Number(e.target.value))
-                      d.nudge.afterHours = Number.isFinite(hours) ? Math.min(MAX_NUDGE_HOURS, Math.max(1, hours)) : 1
-                    })
-                  }
-                  className="h-7 w-14 rounded-lg border border-line bg-white px-2 text-center text-[13px] text-ink outline-none focus:border-ink"
-                />
-                {tr('hours_without_a_reply')}{' '}
-              </span>
+              <AfterHours
+                label={tr('hours_without_a_reply_before_the_reminder')}
+                suffix={tr('hours_without_a_reply')}
+                value={recipe.nudge.afterHours}
+                onChange={(hours) => update((d) => void (d.nudge.afterHours = hours))}
+              />
+            }
+          />
+        </div>
+      )}
+
+      <Booster
+        icon={<MousePointerClick className="size-4" />}
+        title={tr('follow_up_if_no_click')}
+        body={canFollowUp ? tr('resend_the_links_to_people_who_haven_t_opened_them') : tr('needs_a_link_button_or_product_cards_in_the_message')}
+        checked={canFollowUp && followUp.enabled}
+        disabled={!canFollowUp}
+        onChange={(v) => updateFollowUp((f) => void (f.enabled = v))}
+      />
+
+      {canFollowUp && followUp.enabled && (
+        <div>
+          <Label hint={tr('sent_once_with_the_same_links_max_h', { v0: MAX_NUDGE_HOURS })}>{tr('follow_up_message')}</Label>
+          <MessageInput
+            label={tr('follow_up_message')}
+            value={followUp.text}
+            maxLength={recipe.message.format === 'products' ? 1000 : 640}
+            rows={2}
+            onChange={(text) => updateFollowUp((f) => void (f.text = text))}
+            footer={
+              <AfterHours
+                label={tr('hours_without_a_click_before_the_follow_up')}
+                suffix={tr('hours_without_a_click')}
+                value={followUp.afterHours}
+                onChange={(hours) => updateFollowUp((f) => void (f.afterHours = hours))}
+              />
             }
           />
         </div>
@@ -842,6 +867,38 @@ export function BoostersSection({
         />
       </div>
     </Section>
+  )
+}
+
+function AfterHours({
+  label,
+  suffix,
+  value,
+  onChange,
+}: {
+  label: string
+  suffix: string
+  value: number
+  onChange: (hours: number) => void
+}) {
+  const tr = useTranslations('automations')
+  return (
+    <span className="flex items-center gap-2 text-[13px] text-muted">
+      {tr('send_after')}{' '}
+      <input
+        type="number"
+        aria-label={label}
+        min={1}
+        max={MAX_NUDGE_HOURS}
+        value={value}
+        onChange={(e) => {
+          const hours = Math.round(Number(e.target.value))
+          onChange(Number.isFinite(hours) ? Math.min(MAX_NUDGE_HOURS, Math.max(1, hours)) : 1)
+        }}
+        className="h-7 w-14 rounded-lg border border-line bg-white px-2 text-center text-[13px] text-ink outline-none focus:border-ink"
+      />
+      {suffix}{' '}
+    </span>
   )
 }
 

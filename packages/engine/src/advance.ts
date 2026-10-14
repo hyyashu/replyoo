@@ -10,6 +10,7 @@ import type {
   Effect,
   EngineEvent,
   FlowRunState,
+  OutboundFollowUp,
   OutboundMessage,
   StartTrigger,
   Wait,
@@ -250,7 +251,9 @@ function execute(ctx: Ctx, stepId: string, step: Step): StepOutcome {
     case 'send_products': {
       const intro = step.text ? renderText(step.text, ctx.contact, ctx.run.vars) : ''
       if (intro.trim() !== '' && !send(ctx, { text: intro })) return 'stop'
-      if (!send(ctx, { text: '', cards: step.cards })) return 'stop'
+      const carousel: OutboundMessage = { text: '', cards: step.cards }
+      if (step.clickFollowUp) carousel.followUp = followUp(ctx, step.clickFollowUp)
+      if (!send(ctx, carousel)) return 'stop'
       return { next: step.next }
     }
     case 'ask': {
@@ -297,7 +300,12 @@ function buildMessage(ctx: Ctx, stepId: string, step: StepOf<'send_message'>): O
         : { type: 'reply', label: button.label, stepId, buttonId: button.id },
     )
   }
+  if (step.clickFollowUp) message.followUp = followUp(ctx, step.clickFollowUp)
   return message
+}
+
+function followUp(ctx: Ctx, config: { afterMinutes: number; text: string }): OutboundFollowUp {
+  return { afterMinutes: config.afterMinutes, text: renderText(config.text, ctx.contact, ctx.run.vars) }
 }
 
 /** Emits the message using the allowed channel. Returns false (and fails the run) if none is open. */

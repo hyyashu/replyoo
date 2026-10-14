@@ -1,6 +1,6 @@
 # Dodo-sourced pricing, yearly plans and regional prices
 
-Date: 2026-10-09
+Date: 2026-10-09. Status: implemented and merged to `main`; not yet deployed.
 
 ## Goal
 

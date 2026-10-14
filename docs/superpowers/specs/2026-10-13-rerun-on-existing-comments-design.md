@@ -1,6 +1,6 @@
 # Re-run on existing comments: Design
 
-Date: 2026-10-13. Status: approved, implemented on branch feat/rerun-existing-comments.
+Date: 2026-10-13. Status: approved, implemented and merged to `main`; not yet deployed.
 
 Why this one: Reachlee offers "re-run on old posts" on its Pro plan and we have nothing like it. See [../../competitors/reachlee.md](../../competitors/reachlee.md). Today an automation only reacts to comments that reach us through the webhook after it goes live, so comments made earlier, or missed during downtime or a reauth gap, are never answered.
 

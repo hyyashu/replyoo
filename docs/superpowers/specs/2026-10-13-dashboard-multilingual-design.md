@@ -1,5 +1,7 @@
 # Multilingual dashboard
 
+Date: 2026-10-13. Status: approved, implemented and merged to `main`; not yet deployed. Operator notes: [../../dashboard-localization.md](../../dashboard-localization.md).
+
 ## Goal
 
 Launch the Replyooo dashboard in English (`en`) and Spanish (`es`), with a shared translation architecture that can expand to 90 reviewed languages. English is the source language and fallback. Additional languages are enabled individually after translation and layout review.

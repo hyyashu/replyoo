@@ -1,6 +1,6 @@
 # Product carousel: Design
 
-Date: 2026-10-14. Status: approved, implemented on branch feat/product-carousel.
+Date: 2026-10-14. Status: approved, implemented and merged to `main`; not yet deployed.
 
 Why this one: Reachlee's Pro plan sends a product carousel in DMs (swipeable cards, each with an image, a title, a price line and a link). We can only send a text message with up to three link buttons. See [../../competitors/reachlee.md](../../competitors/reachlee.md), row "Carousel / multi-link DMs".
 

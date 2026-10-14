@@ -5,6 +5,7 @@ import { MetaError } from '@replyooo/meta'
 import { encodePostback } from '@replyooo/shared'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { flagReauth } from './alerts'
+import { scheduleClickFollowUp } from './click-follow-ups'
 import type { Deps, OutboundJobData } from './deps'
 import type { OutboundBody } from './flow'
 import type { ContactRow } from './records'
@@ -53,6 +54,10 @@ export async function handleOutbound(
         .set({ status: 'sent', externalId: result.messageId, sentAt: now, error: null })
         .where(and(eq(messages.id, id), eq(messages.status, 'queued')))
       await countUsage(db, account.workspaceId, contact.id, now)
+      // The DM is out; a lost follow-up must not make the job retry it.
+      await scheduleClickFollowUp(db, message, now).catch((error: unknown) =>
+        deps.log.warn({ messageId: id, err: error }, 'could not schedule the click follow-up'),
+      )
     } catch (error) {
       if (!(error instanceof MetaError)) throw error
       if (error.kind === 'retryable' && !attempt.isFinal) throw error

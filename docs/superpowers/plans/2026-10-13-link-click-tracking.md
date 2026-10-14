@@ -1,6 +1,6 @@
 # Link Click Tracking Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Count taps on the link buttons of automation DMs and show clicks, unique clickers and click-through rate per automation and per link, on every plan.
 
@@ -84,7 +84,7 @@
   - `automationLinkInsights(db, automationId, since: Date): Promise<LinkInsight[]>`
   - `automationLinkDaily(db, automationId, url, days = 14): Promise<{ day: string; clicks: number }[]>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `packages/db/test/link-tracking.test.ts`:
 
@@ -334,12 +334,12 @@ describe('deleted records', () => {
 })
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm --filter @replyooo/db exec vitest run test/link-tracking.test.ts`
 Expected: FAIL with a TypeScript/import error such as `createTrackedLinks is not a function` (nothing exists yet).
 
-- [ ] **Step 3: Add the tables to the schema**
+- [x] **Step 3: Add the tables to the schema**
 
 Append to the end of `packages/db/src/schema.ts` (after the `bioEvents` table):
 
@@ -383,14 +383,14 @@ export const linkClicks = pgTable(
 )
 ```
 
-- [ ] **Step 4: Generate the migration and check it**
+- [x] **Step 4: Generate the migration and check it**
 
 Run: `pnpm --filter @replyooo/db exec drizzle-kit generate --name link_click_tracking`
 Expected: creates `packages/db/migrations/0008_link_click_tracking.sql` and updates `migrations/meta/_journal.json` and a new snapshot.
 
 Read `packages/db/migrations/0008_link_click_tracking.sql`. It must contain `CREATE TABLE "tracked_links"`, `CREATE TABLE "link_clicks"`, foreign keys on `message_id`, `contact_id` and `automation_id` with `ON DELETE set null`, the one on `link_clicks.link_id` with `ON DELETE cascade`, `CREATE UNIQUE INDEX "tracked_links_code_uq"`, `CREATE UNIQUE INDEX "tracked_links_message_position_uq"`, and the two plain indexes. If any `ON DELETE` is wrong, fix the schema and regenerate (delete the generated `0008_*` files and the snapshot first).
 
-- [ ] **Step 5: Add the link-code helpers**
+- [x] **Step 5: Add the link-code helpers**
 
 Create `packages/db/src/link-codes.ts`:
 
@@ -426,7 +426,7 @@ Add to `packages/db/src/index.ts` (after the `./crypto` line):
 export * from './link-codes'
 ```
 
-- [ ] **Step 6: Add the queries**
+- [x] **Step 6: Add the queries**
 
 In `packages/db/src/queries.ts`, change the first import line and the schema import:
 
@@ -582,14 +582,14 @@ export async function automationLinkDaily(
 }
 ```
 
-- [ ] **Step 7: Run the tests to verify they pass**
+- [x] **Step 7: Run the tests to verify they pass**
 
 Run: `pnpm --filter @replyooo/db exec vitest run test/link-tracking.test.ts`
 Expected: PASS (all tests in the file).
 Then: `pnpm --filter @replyooo/db test && pnpm --filter @replyooo/db typecheck`
 Expected: PASS, no type errors.
 
-- [ ] **Step 8: Align the spec's stats definition**
+- [x] **Step 8: Align the spec's stats definition**
 
 In `docs/superpowers/specs/2026-10-13-link-click-tracking-design.md` §3 "Stats", replace the line beginning `- Clickers: distinct` with:
 
@@ -597,7 +597,7 @@ In `docs/superpowers/specs/2026-10-13-link-click-tracking-design.md` §3 "Stats"
 - Clickers: distinct `contact_id` among those recipients' links that have at least one `link_clicks` row (links are counted by creation date, clicks at any time), so clickers never exceed recipients.
 ```
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/db docs/superpowers/specs/2026-10-13-link-click-tracking-design.md
@@ -618,7 +618,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `createTrackedLinks` (Task 1); existing `Deps` (`deps.db`, `deps.log`, `deps.appUrl`), `OutboundBody` from `./flow`, `MessageRow`.
 - Produces: `withTrackedLinks(deps, message, create = createTrackedLinks): Promise<MessageRow>`: returns the message with each `url` button's `url` replaced by `${appUrl}/l/<code>`, or the unchanged message when nothing is tracked or tracking fails.
 
-- [ ] **Step 1: Update the existing test and write the new failing tests**
+- [x] **Step 1: Update the existing test and write the new failing tests**
 
 In `apps/worker/test/outbound.test.ts`:
 
@@ -741,12 +741,12 @@ describe('link tracking', () => {
 })
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/outbound.test.ts`
 Expected: FAIL: `withTrackedLinks` is not exported; the updated first test fails because the URL is not rewritten yet.
 
-- [ ] **Step 3: Implement `withTrackedLinks` and use it**
+- [x] **Step 3: Implement `withTrackedLinks` and use it**
 
 In `apps/worker/src/outbound.ts`:
 
@@ -798,14 +798,14 @@ export async function withTrackedLinks(
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/outbound.test.ts`
 Expected: PASS.
 Then: `pnpm --filter @replyooo/worker test && pnpm --filter @replyooo/worker typecheck`
 Expected: PASS. If another worker test asserted a raw `https://` button URL, update it the same way as step 1(b) (the URL is now `http://localhost:3000/l/<8 chars>`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker
@@ -831,7 +831,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `getTrackedLink`, `isLinkCode`, `recordLinkClick`, `generateLinkCode`, `trackedLinks`, `linkClicks` from `@replyooo/db` (Task 1); `isSafeHttpUrl` from `@/lib/bio`; `db()` from `@/lib/db`.
 - Produces: `isBotUserAgent(userAgent)` in `@/lib/bots` (same behavior as before); `GET` and `HEAD` handlers at `/l/[code]`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `apps/web/test/link-redirect.test.ts`:
 
@@ -915,12 +915,12 @@ describe('GET /l/[code]', () => {
 })
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/link-redirect.test.ts`
 Expected: FAIL: cannot resolve `@/app/l/[code]/route`.
 
-- [ ] **Step 3: Move the bot filter**
+- [x] **Step 3: Move the bot filter**
 
 Create `apps/web/src/lib/bots.ts`:
 
@@ -947,7 +947,7 @@ In `apps/web/test/bio.test.ts` change the first import to drop `isBotUserAgent` 
 import { isBotUserAgent } from '@/lib/bots'
 ```
 
-- [ ] **Step 4: Write the redirect route**
+- [x] **Step 4: Write the redirect route**
 
 Create `apps/web/src/app/l/[code]/route.ts`:
 
@@ -982,7 +982,7 @@ export async function HEAD(request: Request, { params }: { params: Promise<{ cod
 }
 ```
 
-- [ ] **Step 5: Keep crawlers off `/l/`**
+- [x] **Step 5: Keep crawlers off `/l/`**
 
 In `apps/web/src/app/robots.ts` add `'/l/'` to the `disallow` array (after `'/api/'`):
 
@@ -991,14 +991,14 @@ In `apps/web/src/app/robots.ts` add `'/l/'` to the `disallow` array (after `'/ap
         '/l/',
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/link-redirect.test.ts test/bio.test.ts`
 Expected: PASS.
 Then: `pnpm --filter @replyooo/web typecheck`
 Expected: PASS (no remaining import of `isBotUserAgent` from `@/lib/bio`; if the typecheck reports one, change that import to `@/lib/bots`).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web
@@ -1022,7 +1022,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `linkStatsByAutomation` (Task 1); `clickRate(clicks, views)` from `@/lib/bio` (returns a whole percent, `0` when `views <= 0`).
 - Produces: `AutomationStats` now has `recipients: number` and `clickers: number`; every `Automation` returned by `listAutomations` / `getAutomation` carries them.
 
-- [ ] **Step 1: Update and add the failing tests**
+- [x] **Step 1: Update and add the failing tests**
 
 In `apps/web/test/automations.test.ts`:
 
@@ -1071,12 +1071,12 @@ import { randomUUID } from 'node:crypto'
   })
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/automations.test.ts`
 Expected: FAIL: the first expectation lacks `recipients`/`clickers`, and the new test gets `undefined`.
 
-- [ ] **Step 3: Extend the stats type and query**
+- [x] **Step 3: Extend the stats type and query**
 
 In `apps/web/src/lib/data/types.ts`:
 
@@ -1123,12 +1123,12 @@ const EMPTY_STATS: AutomationStats = { runs: 0, completed: 0, dmsSent: 0, leads:
 
 (replace the existing two loops and the existing `return stats`.)
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/automations.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Show the numbers in the list and the editor**
+- [x] **Step 5: Show the numbers in the list and the editor**
 
 In `apps/web/src/app/(app)/automations/automations-table.tsx`:
 
@@ -1181,12 +1181,12 @@ import { clickRate } from '@/lib/bio'
                   <Metric value={stats.recipients > 0 ? `${clickRate(stats.clickers, stats.recipients)}%` : '—'} label="click rate" />
 ```
 
-- [ ] **Step 6: Typecheck and run the web tests**
+- [x] **Step 6: Typecheck and run the web tests**
 
 Run: `pnpm --filter @replyooo/web typecheck && pnpm --filter @replyooo/web test`
 Expected: PASS. If a test or page builds an `AutomationStats` literal without the new fields, add `recipients: 0, clickers: 0` there.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web
@@ -1214,7 +1214,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
   - Server actions `getLinkInsights(automationId)` → `{ ok: true; links: LinkInsight[] } | { ok: false; error: string }` and `getLinkDaily(automationId, url)` → `{ ok: true; days: { day: string; clicks: number }[] } | { ok: false; error: string }`.
   - `<LinkInsights automationId={string} />` client component.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `apps/web/test/link-insights.test.ts`:
 
@@ -1289,12 +1289,12 @@ describe('linkDaily', () => {
 })
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/link-insights.test.ts`
 Expected: FAIL: `data.linkInsights is not a function`.
 
-- [ ] **Step 3: Add the data functions**
+- [x] **Step 3: Add the data functions**
 
 In `apps/web/src/lib/data/automations.ts`, add `automationLinkDaily, automationLinkInsights, type LinkInsight` to the `@replyooo/db` import, then add after `getAutomation`:
 
@@ -1321,12 +1321,12 @@ export async function linkDaily(workspaceId: string, id: string, url: string): P
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/link-insights.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Add the server actions**
+- [x] **Step 5: Add the server actions**
 
 In `apps/web/src/app/actions.ts`, add after `switchWorkspace`:
 
@@ -1344,7 +1344,7 @@ export async function getLinkDaily(automationId: string, url: string) {
 }
 ```
 
-- [ ] **Step 6: Write the component**
+- [x] **Step 6: Write the component**
 
 Create `apps/web/src/app/(app)/automations/[id]/link-insights.tsx`:
 
@@ -1455,7 +1455,7 @@ function Tile({ value, label }: { value: string; label: string }) {
 }
 ```
 
-- [ ] **Step 7: Render it in the editor**
+- [x] **Step 7: Render it in the editor**
 
 In `apps/web/src/app/(app)/automations/[id]/editor.tsx`:
 
@@ -1484,13 +1484,13 @@ with
 
 (If the exact text differs, find the `</Accordion>` that closes the section list and add the line directly after it, inside the same left-column `div`.)
 
-- [ ] **Step 8: Typecheck, test and look at it in a browser**
+- [x] **Step 8: Typecheck, test and look at it in a browser**
 
 Run: `pnpm --filter @replyooo/web typecheck && pnpm --filter @replyooo/web test`
 Expected: PASS.
 The visual check happens in Task 6 with real data.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/web
@@ -1510,7 +1510,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: everything above.
 - Produces: a verified feature, ready for the branch to be finished.
 
-- [ ] **Step 1: Run every package's tests, typechecks and the web build**
+- [x] **Step 1: Run every package's tests, typechecks and the web build**
 
 Run:
 ```bash
@@ -1520,7 +1520,7 @@ pnpm --filter @replyooo/web build
 ```
 Expected: all PASS. (Docker must be running for Testcontainers.)
 
-- [ ] **Step 2: Apply the migration to the local dev database**
+- [x] **Step 2: Apply the migration to the local dev database**
 
 The local dev Postgres is the `replyooo-3b-postgres-1` container (port 56789). Start it if it is stopped (`docker start replyooo-3b-postgres-1`), then:
 
@@ -1529,7 +1529,7 @@ cd packages/db && set -a && source ../../apps/web/.env.local && set +a && pnpm e
 ```
 Expected: the `0008_link_click_tracking` migration applies; `docker exec replyooo-3b-postgres-1 psql -U replyooo -d replyooo -c '\d tracked_links'` shows the table.
 
-- [ ] **Step 3: Create one real tracked link for the demo automation**
+- [x] **Step 3: Create one real tracked link for the demo automation**
 
 ```bash
 docker exec replyooo-3b-postgres-1 psql -U replyooo -d replyooo -c "
@@ -1543,7 +1543,7 @@ limit 1;"
 ```
 Expected: `INSERT 0 1`. (If it inserts 0 rows, pick another active automation that has a sent outbound message.)
 
-- [ ] **Step 4: Exercise the redirect and see the numbers**
+- [x] **Step 4: Exercise the redirect and see the numbers**
 
 Start the app: `cd apps/web && pnpm exec next dev --port 3217` (background it). Then:
 
@@ -1557,21 +1557,21 @@ Expected: `302 https://example.com/guide`, then `302`, then `404`, and a click c
 
 Then log in as `demo@replyooo.dev` / `replyooo-demo` and open the "Grow your email list" automation in the browser preview. Expected: the stats bar shows "link clickers" and "click rate" (`100%`), the "Link clicks" section lists `https://example.com/guide` with "1 of 1 · 100%", and opening the row shows the three tiles and a 14-day chart with today's bar filled. The automations list shows a "Click rate" column with `100%` for that automation. Look at the screenshot, not just the DOM text.
 
-- [ ] **Step 5: Confirm production links will point at the web app**
+- [x] **Step 5: Confirm production links will point at the web app**
 
 Run: `grep -n "APP_URL" docs/deploy.md docker-compose.prod.yml deploy/.env.example`
 Confirm the worker's `APP_URL` is the public **web** origin (`https://${DOMAIN}` in `docker-compose.prod.yml`), not the separate webhook host mentioned in the Dokploy steps. If `docs/deploy.md` does not say that the worker's `APP_URL` is also where `/l/<code>` links are served, add one sentence next to the worker env vars:
 
 > The worker builds `/l/<code>` link-tracking URLs from `APP_URL`, so it must be the public address of the web app, not the webhooks host.
 
-- [ ] **Step 6: Clean up the demo data and stop the dev server**
+- [x] **Step 6: Clean up the demo data and stop the dev server**
 
 ```bash
 docker exec replyooo-3b-postgres-1 psql -U replyooo -d replyooo -c "delete from tracked_links where code = 'Demo1234'"
 pkill -f "next dev --port 3217"
 ```
 
-- [ ] **Step 7: Record the live test and commit**
+- [x] **Step 7: Record the live test and commit**
 
 Add to the pending real-world tests (memory file `pending-real-world-tests.md`): "Link click tracking: send a real DM with a link button from a connected account, tap it on a phone, confirm the click lands once, and check Instagram's in-app browser or link scanner does not pre-fetch the link and inflate counts."
 

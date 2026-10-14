@@ -1,7 +1,7 @@
 # Replyooo — Design Spec
 
 **Date:** 2026-10-05
-**Status:** Draft for review
+**Status:** Approved; v1 built and merged to `main`, not yet deployed
 **Scope:** v1 of a public SaaS that auto-replies on Instagram and Facebook using keyword-triggered flows.
 
 ---
@@ -32,6 +32,8 @@ Billing is subscription-based via Dodo Payments, metered on contacts reached per
 
 Live inbox / manual replying, broadcasts, visual flow canvas, step-list editor, link click tracking (Clicks/CTR, "follow up if no click"), "welcome new followers" (no Meta webhook exists), link in bio, AI replies, analytics charts beyond basic counts, WhatsApp/TikTok, public API/Zapier, multi-language UI.
 
+Since built on top of v1 (all merged to `main`, none deployed yet): link in bio, link click tracking in automation DMs, follow up if no click, an English and Spanish dashboard ([../../dashboard-localization.md](../../dashboard-localization.md)), Dodo pricing with yearly plans, team seats, run on existing comments, and product carousels. Each has its own spec in this folder.
+
 ### 1.3 After launch
 
 Link in bio shipped, but these extras are deferred until after launch:
@@ -40,13 +42,12 @@ Link in bio shipped, but these extras are deferred until after launch:
 - **Bio page design:** avatar upload, badge toggle and custom slug editing.
 - **Bio blocks:** image, embed and email-capture blocks.
 - **Pro gating** for bio page features.
-- **DM variables menu:** add `{{display_name}}` (it already works in public replies).
 - **Home dashboard:** a "Link clicks" tile.
-- **Inbox** (Reachlee-style live inbox with manual replies), built in three parts, one at a time:
+- **Inbox** (Reachlee-style live inbox with manual replies), starting after Meta App Review is approved, built in three parts, one at a time:
   1. Core: conversation list, chat view, manual DM replies within the 24-hour window, unread, archive, search. Design: [2026-10-08-inbox-core-design.md](2026-10-08-inbox-core-design.md).
   2. Workflow tools: labels, private notes, contact details panel, saved replies (`/`).
   3. Advanced: scheduled sends, image attachments, the Outreach tab (DMs sent by hand in the Instagram app), sound alert.
-- **Competitor gaps** (click tracking in automation DMs, Google Sheets sync, scheduled DMs, re-run on old posts, team seats, AI): see [../../competitors/reachlee.md](../../competitors/reachlee.md) for the comparison and suggested order.
+- **Competitor gaps** (Google Sheets sync, scheduled DMs, AI): see [../../competitors/reachlee.md](../../competitors/reachlee.md) for the comparison and suggested order.
 - **Production hardening** (the current `Dockerfile` + `docker-compose.prod.yml` stack is enough to launch). The full write-up is Plan 5, kept on the `plan-5-deployment` branch (`docs/superpowers/plans/2026-10-07-plan-5-deployment.md`):
   - Advisory-locked migration runner, so two concurrent migrate runs can't race (matters for multiple replicas or an automated deploy pipeline).
   - Readiness probes: `/health/ready` on the worker (Postgres + Redis) and `/api/health/ready` on web (Postgres).

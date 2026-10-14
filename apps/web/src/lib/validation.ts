@@ -39,7 +39,9 @@ export function checkRecipe(recipe: Recipe, platform: Platform): { flow: FlowDef
   }
 
   for (const issue of validateFlow(parsed.data, platform)) {
-    const section = issue.stepId ? sectionForStep(issue.stepId) : 'trigger'
+    // The follow-up is edited with the extras, though it lives on the final message.
+    const followUp = issue.code.startsWith('click_follow_up') || issue.message.startsWith('A follow-up')
+    const section = followUp ? 'boosters' : issue.stepId ? sectionForStep(issue.stepId) : 'trigger'
     issues.push({ section, message: issue.message })
   }
   return { flow, issues: dedupe(issues) }
@@ -47,6 +49,7 @@ export function checkRecipe(recipe: Recipe, platform: Platform): { flow: FlowDef
 
 function sectionForPath(path: PropertyKey[]): RecipeSection {
   if (path[0] === 'trigger') return path[1] === 'publicReplies' ? 'publicReply' : 'trigger'
+  if (path[0] === 'steps' && path[2] === 'clickFollowUp') return 'boosters'
   if (path[0] === 'steps' && typeof path[1] === 'string') return sectionForStep(path[1])
   return 'dm'
 }

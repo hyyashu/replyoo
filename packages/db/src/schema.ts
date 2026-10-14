@@ -555,3 +555,42 @@ export const backfillRuns = pgTable(
     index('backfill_runs_automation_created_idx').on(t.automationId, t.createdAt),
   ],
 )
+
+// ---------- follow up if no click ----------
+
+export const clickFollowUpStatusEnum = pgEnum('click_follow_up_status', ['pending', 'sent', 'skipped'])
+
+/**
+ * A follow-up scheduled when a message with tracked links (and a `followUp` in its body) is sent. The worker's sweep
+ * sends the same links again at `due_at`, unless one of the original message's links was opened by then.
+ */
+export const clickFollowUps = pgTable(
+  'click_follow_ups',
+  {
+    id: id(),
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    contactId: uuid('contact_id')
+      .notNull()
+      .references(() => contacts.id, { onDelete: 'cascade' }),
+    connectedAccountId: uuid('connected_account_id')
+      .notNull()
+      .references(() => connectedAccounts.id, { onDelete: 'cascade' }),
+    automationId: uuid('automation_id').references(() => automations.id, { onDelete: 'set null' }),
+    flowRunId: uuid('flow_run_id').references(() => flowRuns.id, { onDelete: 'set null' }),
+    /** Rendered with the contact's variables when the original message was built. */
+    text: text('text').notNull(),
+    dueAt: tz('due_at').notNull(),
+    status: clickFollowUpStatusEnum('status').notNull().default('pending'),
+    /** Why it was skipped: clicked, window_closed, account_inactive, automation_inactive, in_conversation. */
+    reason: text('reason'),
+    followUpMessageId: uuid('follow_up_message_id').references(() => messages.id, { onDelete: 'set null' }),
+    createdAt: tz('created_at').notNull().defaultNow(),
+    finishedAt: tz('finished_at'),
+  },
+  (t) => [
+    uniqueIndex('click_follow_ups_message_uq').on(t.messageId),
+    index('click_follow_ups_due_idx').on(t.status, t.dueAt),
+  ],
+)

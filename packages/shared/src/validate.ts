@@ -18,6 +18,8 @@ export type ValidationCode =
   | 'nudge_without_wait'
   | 'nudge_after_private_reply'
   | 'nudge_too_late'
+  | 'click_follow_up_without_links'
+  | 'click_follow_up_after_private_reply'
   | 'duplicate_button_id'
   | 'keyword_never_matches'
   | 'too_many_steps_without_wait'
@@ -132,6 +134,30 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
           code: 'nudge_after_private_reply',
           stepId,
           message: 'Meta allows only one message after a comment until the person replies, so this step cannot send a reminder',
+        })
+      }
+    }
+    if ((step.type === 'send_message' || step.type === 'send_products') && step.clickFollowUp) {
+      if (step.type === 'send_message' && !(step.buttons ?? []).some((button) => button.type === 'url')) {
+        issues.push({
+          code: 'click_follow_up_without_links',
+          stepId,
+          message: 'A follow-up for unopened links needs a link button on this message',
+        })
+      }
+      // The follow-up repeats the link buttons, so Meta's button template limit applies to its text too.
+      if (step.type === 'send_message' && step.clickFollowUp.text.length > MAX_BUTTON_TEMPLATE_TEXT) {
+        issues.push({
+          code: 'buttons_text_too_long',
+          stepId,
+          message: `A follow-up with link buttons can be at most ${MAX_BUTTON_TEMPLATE_TEXT} characters`,
+        })
+      }
+      if (trigger.type === 'comment_keyword' && stepId === flow.start) {
+        issues.push({
+          code: 'click_follow_up_after_private_reply',
+          stepId,
+          message: 'Meta allows only one message after a comment until the person replies, so this step cannot send a follow-up',
         })
       }
     }

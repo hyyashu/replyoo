@@ -367,7 +367,15 @@
     "rerun_failure_account_inactive": "This account needs to be reconnected first.",
     "rerun_failure_automation_not_active": "The automation was paused or removed before the run started.",
     "rerun_failure_not_a_comment_automation": "Only comment automations can be re-run.",
-    "rerun_failure_unknown": "Something went wrong. Try again."
+    "rerun_failure_unknown": "Something went wrong. Try again.",
+    "follow_up_if_no_click": "Follow up if they don't open the link",
+    "resend_the_links_to_people_who_haven_t_opened_them": "Resend the links to people who haven't opened them",
+    "needs_a_link_button_or_product_cards_in_the_message": "Needs a link button or product cards in the message",
+    "link_follow_up": "Link follow-up",
+    "follow_up_message": "Follow-up message",
+    "sent_once_with_the_same_links_max_h": "Sent once with the same links · max {v0}h, inside Meta''s 24h messaging window",
+    "hours_without_a_click": "hours without a click",
+    "hours_without_a_click_before_the_follow_up": "Hours without a click before the follow-up"
   },
   "bio": {
     "live_preview": "Live preview",
@@ -750,6 +758,9 @@
     "buttonMessageLength": "Messages with buttons can be at most {count} characters",
     "invalidStep": "A step referenced by this automation no longer exists",
     "stepLimit": "A flow can have at most {count} steps",
-    "waitNeeded": "Add a wait or shorten the chain of steps"
+    "waitNeeded": "Add a wait or shorten the chain of steps",
+    "clickFollowUpLinks": "A follow-up needs a link button on the message",
+    "commentClickFollowUp": "Meta permits one message after a comment until the person replies; this step cannot send a follow-up",
+    "followUpButtonLength": "A follow-up with link buttons can be at most {count} characters"
   }
 }

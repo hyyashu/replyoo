@@ -1,6 +1,6 @@
 # Product Carousel Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Let an Instagram automation's final message be a carousel of 1 to 10 product cards (image, title, subtitle, one link button), sent as a Meta generic template with tracked links.
 
@@ -46,7 +46,7 @@ Failure modes the spec implies but a straight implementation would not exercise.
 **Interfaces:**
 - Produces (exported from `@replyooo/shared`): `MAX_PRODUCT_CARDS = 10`, `ProductCardSchema`, `type ProductCard = { title: string; subtitle?: string; imageUrl?: string; button: { label: string; url: string } }`, step variant `{ type: 'send_products'; text?: string; cards: ProductCard[]; next?: string }` (so `StepOf<'send_products'>` works), validation code `'carousel_unsupported'`.
 
-- [ ] **Step 1: Write the failing schema tests**
+- [x] **Step 1: Write the failing schema tests**
 
 Append to `packages/shared/test/flow.test.ts`:
 
@@ -147,12 +147,12 @@ describe('send_products validation', () => {
 })
 ```
 
-- [ ] **Step 2: Run the tests to see them fail**
+- [x] **Step 2: Run the tests to see them fail**
 
 Run: `pnpm --filter @replyooo/shared exec vitest run test/flow.test.ts test/validate.test.ts`
 Expected: FAIL (the `send_products` type is unknown to `StepSchema`; TypeScript errors about the step shape may also print).
 
-- [ ] **Step 3: Implement the schema**
+- [x] **Step 3: Implement the schema**
 
 In `packages/shared/src/flow.ts`, after the `ButtonSchema` / `Button` block and before `// ---------- Steps ----------`, add:
 
@@ -190,7 +190,7 @@ In `DraftFlowSchema`, change the enum to:
     z.looseObject({ type: z.enum(['send_message', 'send_products', 'ask', 'check_follow', 'delay', 'tag', 'condition']) }),
 ```
 
-- [ ] **Step 4: Implement the validation**
+- [x] **Step 4: Implement the validation**
 
 In `packages/shared/src/validate.ts`:
 
@@ -220,12 +220,12 @@ In `validateFlow`, add `let carouselReported = false` next to `let followCheckRe
 
 `isWaitStep` needs no change: a carousel has no reply buttons, so it falls through to `false`.
 
-- [ ] **Step 5: Run the tests and the type check**
+- [x] **Step 5: Run the tests and the type check**
 
 Run: `pnpm --filter @replyooo/shared exec vitest run && pnpm --filter @replyooo/shared typecheck`
 Expected: all PASS, no type errors in this package. (Other packages may now report non-exhaustive `switch` errors on `Step`; Tasks 3 and 6 fix those.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/shared/src/flow.ts packages/shared/src/validate.ts packages/shared/test/flow.test.ts packages/shared/test/validate.test.ts
@@ -246,7 +246,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Produces: `type SendableCard = { title: string; subtitle?: string; imageUrl?: string; button: { label: string; url: string } }`, `SendableMessage` gains `{ kind: 'carousel'; cards: SendableCard[] }`, constants `MAX_CAROUSEL_CARDS = 10`, `MAX_CARD_TEXT_LENGTH = 80` (exported from `@replyooo/meta`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add inside the existing `describe('toGraphMessage', ...)` in `packages/meta/test/messages.test.ts`:
 
@@ -301,12 +301,12 @@ Add inside the existing `describe('toGraphMessage', ...)` in `packages/meta/test
   })
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `pnpm --filter @replyooo/meta exec vitest run test/messages.test.ts`
 Expected: FAIL (`kind: 'carousel'` falls through to the text branch and crashes on `message.text`/buttons, or fails the type check).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `packages/meta/src/types.ts`, replace the `SendableMessage` block with:
 
@@ -353,12 +353,12 @@ and, in `toGraphMessage`, right after the `image` branch:
   }
 ```
 
-- [ ] **Step 4: Run tests and type check**
+- [x] **Step 4: Run tests and type check**
 
 Run: `pnpm --filter @replyooo/meta exec vitest run && pnpm --filter @replyooo/meta typecheck`
 Expected: PASS. If a type error names the Facebook or Instagram adapter, it is only because a `switch` on `kind` needs the new case; both adapters call `toGraphMessage` and need no change.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/meta/src/types.ts packages/meta/src/messages.ts packages/meta/test/messages.test.ts
@@ -381,7 +381,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `StepOf<'send_products'>`, `ProductCard` from Task 1.
 - Produces: `OutboundCard = ProductCard`; `OutboundMessage` gains `cards?: OutboundCard[]`. A carousel message is `{ text: '', cards }`. `advance` emits, for a `send_products` step: an optional `{ type: 'send', message: { text } }` (rendered intro) then `{ type: 'send', message: { text: '', cards } }`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `packages/engine/test/advance-core.test.ts` (new `describe` at the end of the file; `Driver` and `dmFlow` are already imported there):
 
@@ -425,12 +425,12 @@ describe('advance: send_products', () => {
 })
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `pnpm --filter @replyooo/engine exec vitest run test/advance-core.test.ts`
 Expected: FAIL (`execute` has no `send_products` case; the type check also reports a non-exhaustive switch).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `packages/engine/src/types.ts`, change the first line to `import type { FlowDefinition, ProductCard } from '@replyooo/shared'`, then replace the `OutboundMessage` interface with:
 
@@ -461,12 +461,12 @@ If `intro` renders to blank (all variables empty), the intro message is skipped 
 
 Amend the spec: in `docs/superpowers/specs/2026-10-14-product-carousel-design.md`, section 4, find the sentence that says text rendering (variables like `first_name`) applies to the text, titles and subtitles, and replace it with: "Only the intro text is rendered with variables; card titles and subtitles are sent exactly as typed, so a blank variable can never produce an empty title, which Meta rejects."
 
-- [ ] **Step 4: Run tests and type check**
+- [x] **Step 4: Run tests and type check**
 
 Run: `pnpm --filter @replyooo/engine exec vitest run && pnpm --filter @replyooo/engine typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine/src/types.ts packages/engine/src/advance.ts packages/engine/test/advance-core.test.ts docs/superpowers/specs/2026-10-14-product-carousel-design.md
@@ -487,7 +487,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `OutboundMessage.cards` (Task 3), `SendableMessage` kind `carousel` (Task 2).
 - Produces: `toSendable(body, runId)` returns `{ kind: 'carousel', cards }` when `body.message.cards` is non-empty. `withTrackedLinks` stores one tracked link per card with `position` = card index and swaps each card's `button.url` for `${origin}/l/<code>`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `apps/worker/test/outbound.test.ts`, inside `describe('link tracking', ...)` (it already defines `setup`, `queue`, `shop`, and imports `trackedLinks`, `withTrackedLinks`, `handleOutbound`, `OutboundBody`):
 
@@ -563,12 +563,12 @@ describe('outboundRows: carousel', () => {
 })
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/outbound.test.ts test/flow.test.ts`
 Expected: FAIL (the carousel is sent as a plain text message and no tracked links are created). Worker tests need the local Postgres container used by the other worker tests; if they cannot connect, start it the same way you do for `pnpm test` at the repo root.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `apps/worker/src/outbound.ts`, replace the link-gathering and body-building part of `withTrackedLinks` (from `const buttons = ...` through the `trackedBody` assignment) with:
 
@@ -614,12 +614,12 @@ In `toSendable`, add before the `const buttons = ...` line:
   if (body.message.cards && body.message.cards.length > 0) return { kind: 'carousel', cards: body.message.cards }
 ```
 
-- [ ] **Step 4: Run tests and type check**
+- [x] **Step 4: Run tests and type check**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run && pnpm --filter @replyooo/worker typecheck`
 Expected: PASS, including the pre-existing link-tracking tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/src/outbound.ts apps/worker/test/outbound.test.ts apps/worker/test/flow.test.ts
@@ -638,7 +638,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: Tasks 1 to 4. Uses the file's existing `sent` array (shared by every test in the file, so the new test measures from a baseline), `deps`, `waitFor`, `publishAutomation`, `seedAccount`, `createServer`, `SECRET`.
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 Add this test inside `describe('worker end to end', ...)` in `apps/worker/test/e2e.test.ts`, after the existing test:
 
@@ -721,12 +721,12 @@ Add this test inside `describe('worker end to end', ...)` in `apps/worker/test/e
   })
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/e2e.test.ts`
 Expected: PASS once Tasks 1 to 4 are in place (this task adds coverage, not behaviour). If the intro text arrives after the carousel, the order of the two `send` effects in Task 3 is wrong; fix it there. If the existing first test starts failing on its absolute `sent` counts, change its counts to be relative to a baseline taken at its start, the same way this test does.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/worker/test/e2e.test.ts
@@ -753,7 +753,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
   - `export const MAX_CARDS = MAX_PRODUCT_CARDS` and `export const EMPTY_CARD: CardInput`
   - `compileRecipe` emits `steps.deliver` as `send_products` when `format === 'products'`; `recipeFromFlow` reads it back.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `apps/web/test/recipe.test.ts` (imports at the top already include `DEFAULT_RECIPE`, `compileRecipe`, `recipeFromFlow`, `type Recipe`, `checkRecipe`, `validateFlow`; add `EMPTY_CARD` to the `@/lib/recipe` import):
 
@@ -829,12 +829,12 @@ describe('product cards', () => {
 })
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/recipe.test.ts`
 Expected: FAIL (`EMPTY_CARD` does not exist; `format` is not a known key).
 
-- [ ] **Step 3: Implement the recipe**
+- [x] **Step 3: Implement the recipe**
 
 In `apps/web/src/lib/recipe.ts`:
 
@@ -925,7 +925,7 @@ function compileCard(card: CardInput): StepOf<'send_products'>['cards'][number] 
         break
 ```
 
-- [ ] **Step 4: Implement the error wording**
+- [x] **Step 4: Implement the error wording**
 
 In `apps/web/src/lib/validation.ts`, in `describe()`, before the `if (last === 'label')` line add:
 
@@ -960,17 +960,17 @@ In `apps/web/messages/es.json`, same place:
 
 (Keep the files' valid JSON: check the comma after the preceding line.)
 
-- [ ] **Step 5: Fix the other places that build `message`**
+- [x] **Step 5: Fix the other places that build `message`**
 
 Run: `pnpm --filter @replyooo/web typecheck`
 For every error of the form "Property 'format' is missing" or "'cards' is missing", add `format: 'links', cards: []` to that `message: { ... }` literal (expect the `message: {...}` literals in `apps/web/test/recipe.test.ts`; fix every file the compiler reports and no others. Only change a literal typed as a `Recipe` message; `apps/web/src/app/(marketing)/page.tsx` has an unrelated `message:` object that stays as is unless the compiler reports it). In `recipe.test.ts` the equality assertion in `compiles up to three delivery links and an image, and reads them back` compares `recipeFromFlow(flow).message` to `original.message`; with the new fields in the literal it still holds.
 
-- [ ] **Step 6: Run tests, type check and translations**
+- [x] **Step 6: Run tests, type check and translations**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/recipe.test.ts test/i18n-errors.test.ts test/i18n-catalogs.test.ts && pnpm --filter @replyooo/web typecheck && pnpm --filter @replyooo/web translations:check`
 Expected: all PASS / clean.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/src/lib/recipe.ts apps/web/src/lib/validation.ts apps/web/src/i18n/errors.ts apps/web/messages/en.json apps/web/messages/es.json apps/web/test/recipe.test.ts
@@ -997,7 +997,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `Recipe['message']`, `CardInput`, `EMPTY_CARD`, `MAX_CARDS` from Task 6.
 - Produces: `conversation()` returns a `{ kind: 'cards'; intro?... }` bubble list (see Step 3); `messageText` returns `🛍 Product carousel (N)` for a carousel body.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `apps/web/test/phone-preview-localization.test.ts`:
 
@@ -1029,12 +1029,12 @@ Add to the `describe('messageText', ...)` block in `apps/web/test/contacts.test.
   })
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/phone-preview-localization.test.ts test/contacts.test.ts`
 Expected: FAIL (the preview ignores `format`; `messageText` returns an empty string).
 
-- [ ] **Step 3: Implement the preview**
+- [x] **Step 3: Implement the preview**
 
 In `apps/web/src/components/phone-preview.tsx`:
 
@@ -1099,7 +1099,7 @@ In `DmView`'s `bubbles.map`, add a branch right after the `them` branch (before 
 
 If the repo lints `<img>` differently (check how other components render remote images, e.g. in `bio-page-view.tsx`), match that approach and drop the eslint comment if unused.
 
-- [ ] **Step 4: Implement `messageText`**
+- [x] **Step 4: Implement `messageText`**
 
 In `apps/web/src/lib/data/contacts.ts`, replace the `if (body.type === 'message')` block with:
 
@@ -1114,7 +1114,7 @@ In `apps/web/src/lib/data/contacts.ts`, replace the `if (body.type === 'message'
   }
 ```
 
-- [ ] **Step 5: Implement the editor**
+- [x] **Step 5: Implement the editor**
 
 In `apps/web/src/app/(app)/automations/[id]/editor.tsx`, line ~463, pass the platform:
 
@@ -1296,12 +1296,12 @@ function CardsEditor({ cards, onChange }: { cards: CardInput[]; onChange: (cards
     "move_card_down": "Bajar tarjeta",
 ```
 
-- [ ] **Step 6: Run everything for the web app**
+- [x] **Step 6: Run everything for the web app**
 
 Run: `pnpm --filter @replyooo/web exec vitest run && pnpm --filter @replyooo/web typecheck && pnpm --filter @replyooo/web translations:check`
 Expected: all PASS / clean.
 
-- [ ] **Step 7: Check it in a browser**
+- [x] **Step 7: Check it in a browser**
 
 Start the app the way earlier sessions did (local Postgres container `replyooo-3b-postgres-1`, demo login `demo@replyooo.dev` / `replyooo-demo`), open an Instagram automation, and check:
 - the "Links | Product cards" switch appears, and a Facebook account does not show it;
@@ -1312,7 +1312,7 @@ Start the app the way earlier sessions did (local Postgres container `replyooo-3
 - the editor shows the "Add at least one…" and 80-character issues, and Publish is blocked until they are fixed.
 Report what you saw. Do not claim the browser check passed if the preview window could not be opened.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add "apps/web/src/app/(app)/automations/[id]/sections.tsx" "apps/web/src/app/(app)/automations/[id]/editor.tsx" apps/web/src/components/phone-preview.tsx apps/web/src/lib/data/contacts.ts apps/web/messages/en.json apps/web/messages/es.json apps/web/test/phone-preview-localization.test.ts apps/web/test/contacts.test.ts
@@ -1329,7 +1329,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Modify: `docs/competitors/reachlee.md` (carousel row)
 - Modify: `docs/superpowers/specs/2026-10-14-product-carousel-design.md` (status line)
 
-- [ ] **Step 1: Update the competitor doc**
+- [x] **Step 1: Update the competitor doc**
 
 In `docs/competitors/reachlee.md`, replace the row `| **Carousel / multi-link DMs** | Yes (Pro) | **No** |` with:
 
@@ -1337,16 +1337,16 @@ In `docs/competitors/reachlee.md`, replace the row `| **Carousel / multi-link DM
 | Carousel / multi-link DMs | Yes (Pro) | Yes, "Product cards": up to 10 cards, one link each, Instagram only (built 2026-10-14, not yet deployed) |
 ```
 
-- [ ] **Step 2: Update the spec status**
+- [x] **Step 2: Update the spec status**
 
 Change the spec's second line to `Date: 2026-10-14. Status: approved, implemented on branch feat/product-carousel.` (use the real branch name used for the implementation).
 
-- [ ] **Step 3: Run the full suite**
+- [x] **Step 3: Run the full suite**
 
 Run: `pnpm test && pnpm typecheck && pnpm --filter @replyooo/web translations:check`
 Expected: all tasks pass, no type errors, translations clean. Quote the final summary lines of each command in the report.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/competitors/reachlee.md docs/superpowers/specs/2026-10-14-product-carousel-design.md
@@ -1355,6 +1355,6 @@ git commit -m "docs: product carousel built
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 5: Hand off the live checks**
+- [x] **Step 5: Hand off the live checks**
 
 The live checks cannot run in tests and need a deployed build plus a real Instagram account. Add them to `~/.claude/projects/-Users-hyyashu-Projects-Replyooo/memory/pending-real-world-tests.md` as a new bullet ("Product carousel: pending live test"): send a real DM carousel of 3 cards from a connected account, confirm it renders and scrolls on a phone, tap each card link and confirm one click per tap in the automation's analytics, check it on Instagram desktop (Meta says it is not shown), and confirm the optional image-less card renders. Do not claim any of this is verified.

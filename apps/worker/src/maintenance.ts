@@ -11,6 +11,7 @@ import type { StartTrigger } from '@replyooo/engine'
 import { MetaError } from '@replyooo/meta'
 import { and, asc, eq, gt, isNull, lt } from 'drizzle-orm'
 import { flagReauth } from './alerts'
+import { sendDueClickFollowUps } from './click-follow-ups'
 import type { Deps } from './deps'
 import { credentials } from './records'
 
@@ -75,7 +76,9 @@ export async function sweep(deps: Deps) {
   await failStuckBackfillRuns(db, deps.now())
   for (const runId of await queuedBackfillRunIds(db, SWEEP_BATCH)) await jobs.backfill(runId)
 
-  const result = { timeouts: overdue.length, starts, messages: stuck.length, events: events.length }
+  const followUps = await sendDueClickFollowUps(deps)
+
+  const result = { timeouts: overdue.length, starts, messages: stuck.length, events: events.length, followUps }
   if (Object.values(result).some((n) => n > 0)) deps.log.info(result, 'sweeper re-enqueued work')
   return result
 }

@@ -1,6 +1,6 @@
 # Re-run on Existing Comments Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a "Run on existing comments" action that fetches the comments already on a comment automation's post(s) from Meta and runs them through the automation like live webhook comments, to catch up after publishing or recover missed comments.
 
@@ -80,13 +80,13 @@ Inputs and conditions the spec implies but that are easy to get wrong, with the 
   - `handledCommentIds(db, accountId, commentIds): Promise<Set<string>>`
   - type `BackfillOutcome = { found: number; skippedHandled: number; skippedNoMatch: number; enqueued: number; capped: boolean }`
 
-- [ ] **Step 1: Create the branch**
+- [x] **Step 1: Create the branch**
 
 ```bash
 cd /Users/hyyashu/Projects/Replyooo && git switch -c feat/rerun-existing-comments
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `packages/db/test/backfill.test.ts`:
 
@@ -278,12 +278,12 @@ describe('handledCommentIds', () => {
 })
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `pnpm --filter @replyooo/db exec vitest run test/backfill.test.ts`
 Expected: FAIL (imports such as `createBackfillRun` / `backfillRuns` are not exported yet).
 
-- [ ] **Step 4: Add the schema**
+- [x] **Step 4: Add the schema**
 
 Append to `packages/db/src/schema.ts`:
 
@@ -327,7 +327,7 @@ export const backfillRuns = pgTable(
 )
 ```
 
-- [ ] **Step 5: Add the helpers**
+- [x] **Step 5: Add the helpers**
 
 Create `packages/db/src/backfill.ts`:
 
@@ -450,22 +450,22 @@ export async function handledCommentIds(db: Db, accountId: string, commentIds: r
 
 Edit `packages/db/src/index.ts` to add `export * from './backfill'` after the `./link-codes` line.
 
-- [ ] **Step 6: Generate the migration**
+- [x] **Step 6: Generate the migration**
 
 Run: `pnpm --filter @replyooo/db exec drizzle-kit generate --name rerun_comments`
 Expected: creates `packages/db/migrations/0010_rerun_comments.sql`, `meta/0010_snapshot.json`, and updates `meta/_journal.json`. Open the SQL: it must contain `CREATE TYPE "backfill_status"`, `CREATE TABLE "backfill_runs"` with FKs `ON DELETE cascade`, and `CREATE UNIQUE INDEX "backfill_runs_one_active_per_automation" ... WHERE "backfill_runs"."status" in ('queued', 'running')`. If drizzle-kit names the file differently (for example `0010_<adjective>_<name>.sql`), keep that name.
 
-- [ ] **Step 7: Run the tests and typecheck**
+- [x] **Step 7: Run the tests and typecheck**
 
 Run: `pnpm --filter @replyooo/db exec vitest run test/backfill.test.ts && pnpm --filter @replyooo/db typecheck`
 Expected: PASS (8 tests), typecheck clean.
 
-- [ ] **Step 8: Run the whole db suite**
+- [x] **Step 8: Run the whole db suite**
 
 Run: `pnpm --filter @replyooo/db test`
 Expected: all pass.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/db
@@ -494,7 +494,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
   - `gatherComments(adapter, account, input: { trigger; pinnedMediaId; since; max }): Promise<{ comments: CommentItem[]; capped: boolean }>`
   - `NormalizedEvent` `comment_created` gains optional `restrictToAutomationId?: string`
 
-- [ ] **Step 1: Write the failing adapter tests**
+- [x] **Step 1: Write the failing adapter tests**
 
 Add to `packages/meta/test/instagram.test.ts` inside the `describe('createInstagramAdapter', ...)` block:
 
@@ -564,7 +564,7 @@ Add to `packages/meta/test/facebook.test.ts` (use the same `capture`, `base` and
   })
 ```
 
-- [ ] **Step 2: Write the failing helper tests**
+- [x] **Step 2: Write the failing helper tests**
 
 Create `packages/meta/test/comments.test.ts`:
 
@@ -718,12 +718,12 @@ describe('gatherComments', () => {
 })
 ```
 
-- [ ] **Step 3: Run them to verify they fail**
+- [x] **Step 3: Run them to verify they fail**
 
 Run: `pnpm --filter @replyooo/meta exec vitest run test/comments.test.ts test/instagram.test.ts test/facebook.test.ts`
 Expected: FAIL (`listComments` / `collectComments` do not exist).
 
-- [ ] **Step 4: Add the types**
+- [x] **Step 4: Add the types**
 
 In `packages/meta/src/types.ts`, add after `MediaItem`:
 
@@ -769,7 +769,7 @@ Add to `PlatformAdapter`, after `listMedia`:
   listComments(account: AccountCredentials, mediaId: string, opts?: { cursor?: string; since?: Date }): Promise<CommentPage>
 ```
 
-- [ ] **Step 5: Implement Instagram and Facebook**
+- [x] **Step 5: Implement Instagram and Facebook**
 
 In `packages/meta/src/instagram.ts`, add after `listMedia`:
 
@@ -842,7 +842,7 @@ In `packages/meta/src/facebook.ts`, add after `listMedia`:
     },
 ```
 
-- [ ] **Step 6: Implement the gather helper**
+- [x] **Step 6: Implement the gather helper**
 
 Create `packages/meta/src/comments.ts`:
 
@@ -913,12 +913,12 @@ export async function gatherComments(
 
 Add `export * from './comments'` to `packages/meta/src/index.ts`.
 
-- [ ] **Step 7: Run the tests and typecheck**
+- [x] **Step 7: Run the tests and typecheck**
 
 Run: `pnpm --filter @replyooo/meta test && pnpm --filter @replyooo/meta typecheck`
 Expected: PASS. Typecheck of `meta` passes; other packages that implement `PlatformAdapter` (the worker's `FakeAdapter`) fail until Task 4, which is expected here, so do not run their typechecks yet.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/meta
@@ -940,7 +940,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `matchAutomation`, `TriggerCandidate` from `./router`.
 - Produces: `classifyComments<T extends BackfillComment>(comments: readonly T[], candidate: TriggerCandidate, handled: ReadonlySet<string>, now: Date): Record<BackfillBucket, T[]>`; types `BackfillComment { id; mediaId; text; createdAt: Date }`, `BackfillBucket = 'handled' | 'too_old' | 'no_match' | 'eligible'`; constant `PRIVATE_REPLY_MAX_AGE_MS`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/engine/test/backfill.test.ts`:
 
@@ -1006,12 +1006,12 @@ describe('classifyComments', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `pnpm --filter @replyooo/engine exec vitest run test/backfill.test.ts`
 Expected: FAIL (`classifyComments` is not exported).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `packages/engine/src/backfill.ts`:
 
@@ -1067,12 +1067,12 @@ export { classifyComments, PRIVATE_REPLY_MAX_AGE_MS } from './backfill'
 export type { BackfillBucket, BackfillComment } from './backfill'
 ```
 
-- [ ] **Step 4: Run the tests and typecheck**
+- [x] **Step 4: Run the tests and typecheck**
 
 Run: `pnpm --filter @replyooo/engine test && pnpm --filter @replyooo/engine typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/engine
@@ -1098,7 +1098,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
   - `Jobs.backfill(runId: string): Promise<void>`
   - queue name `'backfill'`; `sweep` queues `queued` runs and fails stuck ones.
 
-- [ ] **Step 1: Extend the test doubles**
+- [x] **Step 1: Extend the test doubles**
 
 In `apps/worker/test/support.ts`:
 
@@ -1136,7 +1136,7 @@ export const listedComment = (
 ): CommentItem => ({ id, mediaId, text, createdAt, authorId, authorUsername: 'priya', authorName: null })
 ```
 
-- [ ] **Step 2: Write the failing restriction test**
+- [x] **Step 2: Write the failing restriction test**
 
 Add to `apps/worker/test/inbound.test.ts` inside `describe('handleInbound', ...)` (it reuses `commentFlow`, `setup`, `publishAutomation`, `insertEvent`, `comment`, `NOW`):
 
@@ -1165,12 +1165,12 @@ Add to `apps/worker/test/inbound.test.ts` inside `describe('handleInbound', ...)
 
 (The `comment(...)` builder returns `NormalizedEvent`; spreading it and adding `restrictToAutomationId` type-checks only for the `comment_created` variant, so cast: `as NormalizedEvent`. Add `import type { NormalizedEvent } from '@replyooo/meta'` at the top of the test file and write `{ ...comment(...), restrictToAutomationId: id } as NormalizedEvent`.)
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/inbound.test.ts -t "re-run"`
 Expected: FAIL (the newest automation answers; the restriction does not exist yet).
 
-- [ ] **Step 4: Implement the restriction**
+- [x] **Step 4: Implement the restriction**
 
 In `apps/worker/src/inbound.ts`, replace
 
@@ -1189,12 +1189,12 @@ with
       : allCandidates
 ```
 
-- [ ] **Step 5: Run the inbound tests**
+- [x] **Step 5: Run the inbound tests**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/inbound.test.ts`
 Expected: PASS (all, including the two new ones).
 
-- [ ] **Step 6: Write the failing backfill tests**
+- [x] **Step 6: Write the failing backfill tests**
 
 Create `apps/worker/test/backfill.test.ts`:
 
@@ -1410,12 +1410,12 @@ describe('handleBackfill', () => {
 })
 ```
 
-- [ ] **Step 7: Run it to verify it fails**
+- [x] **Step 7: Run it to verify it fails**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/backfill.test.ts`
 Expected: FAIL (`../src/backfill` does not exist).
 
-- [ ] **Step 8: Implement `handleBackfill`**
+- [x] **Step 8: Implement `handleBackfill`**
 
 Create `apps/worker/src/backfill.ts`:
 
@@ -1542,12 +1542,12 @@ async function execute(deps: Deps, run: { id: string; automationId: string; wind
 }
 ```
 
-- [ ] **Step 9: Run the backfill tests**
+- [x] **Step 9: Run the backfill tests**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/backfill.test.ts`
 Expected: the cases pass except possibly `flagReauth` details. If `flagReauth` needs a member to mail (see `outbound.test.ts` reauth case which calls `seedMember` first), the account status still flips to `reauth_required`; if the test errors inside `flagReauth`, read `apps/worker/src/alerts.ts` and seed a workspace member in that test the same way `outbound.test.ts` does (`seedMember(db, account.workspaceId, 'owner')`). Fix the test, not the production code, unless `flagReauth` throws for a workspace with no members (then guard in `alerts.ts` is out of scope; seed the member).
 
-- [ ] **Step 10: Write the failing sweep and queue tests**
+- [x] **Step 10: Write the failing sweep and queue tests**
 
 Add to `apps/worker/test/maintenance.test.ts` (imports `backfillRuns`, `claimBackfillRun`, `createBackfillRun` from `@replyooo/db`; it already imports `sweep`, `createTestContext`, `NOW`, `publishAutomation`, `seedAccount`):
 
@@ -1580,12 +1580,12 @@ describe('sweep: re-run on existing comments', () => {
 })
 ```
 
-- [ ] **Step 11: Run it to verify it fails**
+- [x] **Step 11: Run it to verify it fails**
 
 Run: `pnpm --filter @replyooo/worker exec vitest run test/maintenance.test.ts -t "re-run"`
 Expected: FAIL (`jobs.backfill` is not part of `Jobs`; sweep does not queue runs).
 
-- [ ] **Step 12: Wire the job, sweep and queue**
+- [x] **Step 12: Wire the job, sweep and queue**
 
 In `apps/worker/src/deps.ts`, add to `Jobs`:
 
@@ -1617,12 +1617,12 @@ In `apps/worker/src/queues.ts`:
     new Worker('backfill', async (job: Job<{ runId: string }>) => handleBackfill(deps, job.data.runId), { ...base, concurrency: 1 }),
 ```
 
-- [ ] **Step 13: Run the whole worker suite and typecheck**
+- [x] **Step 13: Run the whole worker suite and typecheck**
 
 Run: `pnpm --filter @replyooo/worker test && pnpm --filter @replyooo/worker typecheck`
 Expected: PASS. If typecheck reports another `Jobs` or `PlatformAdapter` implementer (search with `grep -rn "implements Jobs\|implements PlatformAdapter\|: Jobs = " apps packages --include=*.ts`), add the missing method there, mirroring the test double.
 
-- [ ] **Step 14: Commit**
+- [x] **Step 14: Commit**
 
 ```bash
 git add apps/worker
@@ -1653,7 +1653,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
   - `RERUN_WINDOWS` from `@/lib/rerun` (client-safe)
 - Actions in `actions.ts`: `previewRerun(automationId, windowHours)`, `startRerun(automationId, windowHours)`, `getLatestRerun(automationId)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `apps/web/test/rerun.test.ts`:
 
@@ -1814,12 +1814,12 @@ describe('startRerun and latestRerun', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/rerun.test.ts`
 Expected: FAIL (`@/lib/rerun` and the data functions do not exist).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `apps/web/src/lib/rerun.ts`:
 
@@ -2016,12 +2016,12 @@ export async function getLatestRerun(automationId: string) {
 }
 ```
 
-- [ ] **Step 4: Run the tests and typecheck**
+- [x] **Step 4: Run the tests and typecheck**
 
 Run: `pnpm --filter @replyooo/web exec vitest run test/rerun.test.ts && pnpm --filter @replyooo/web typecheck`
 Expected: PASS. If the Instagram graph version in tests is not `v24.0`, read `apps/web/test/setup.ts` for `META_GRAPH_VERSION` and use that in the msw URL.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web
@@ -2043,7 +2043,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Consumes: `previewRerun`, `startRerun`, `getLatestRerun` from `@/app/actions`; `RERUN_WINDOWS` from `@/lib/rerun`; types `RerunPreview`, `RerunRun`, `RerunErrorCode` from `@/lib/data`; `useDashboardFormatters` for `formatNumber`; `buttonClass`, `Button` from `@/components/ui`.
 - Produces: `<RerunSection automationId={string} />`.
 
-- [ ] **Step 1: Add the strings**
+- [x] **Step 1: Add the strings**
 
 Append these keys at the end of the `automations` object in `apps/web/messages/en.json` (mind the comma after the previous last key, `last_14_days`):
 
@@ -2117,12 +2117,12 @@ and the Spanish equivalents at the end of the `automations` object in `apps/web/
     "rerun_error_network": "No se pudo conectar con Replyooo. Revisa tu conexión e inténtalo de nuevo."
 ```
 
-- [ ] **Step 2: Check the catalogs**
+- [x] **Step 2: Check the catalogs**
 
 Run: `pnpm --filter @replyooo/web translations:check`
 Expected: PASS (both catalogs have the same keys and arguments; ICU syntax valid). The typographic apostrophes (’) are intentional: a straight `'` is an escape character in ICU messages.
 
-- [ ] **Step 3: Create the component**
+- [x] **Step 3: Create the component**
 
 Create `apps/web/src/app/(app)/automations/[id]/rerun-section.tsx`:
 
@@ -2362,7 +2362,7 @@ function RerunDialog({
 }
 ```
 
-- [ ] **Step 4: Render it in the editor**
+- [x] **Step 4: Render it in the editor**
 
 In `apps/web/src/app/(app)/automations/[id]/editor.tsx`, add the import next to the `LinkInsights` import:
 
@@ -2382,16 +2382,16 @@ as:
           {status === 'active' && automation.flow.trigger.type === 'comment_keyword' && <RerunSection automationId={automation.id} />}
 ```
 
-- [ ] **Step 5: Typecheck, lint and run the web suite**
+- [x] **Step 5: Typecheck, lint and run the web suite**
 
 Run: `pnpm --filter @replyooo/web typecheck && pnpm --filter @replyooo/web translations:check && pnpm --filter @replyooo/web test`
 Expected: PASS. If `buttonClass`'s second argument or `shared('close')` / `shared('cancel')` differ from usage elsewhere (they are used by `confirm-action.tsx`), match that file.
 
-- [ ] **Step 6: Check it in the browser**
+- [x] **Step 6: Check it in the browser**
 
 Start the dev stack the way `docs/handoffs/2026-10-13-link-click-tracking.md` describes for its browser check, open a published comment automation, and confirm: the "Run on existing comments" card shows; the dialog opens; with the demo account (revoked access) the dialog shows the "Meta revoked access" error and "Run now" stays disabled; Escape and Cancel close it; the card does not show for DM automations or drafts; the page works in Spanish (switch the dashboard language). A real run against Meta is covered by the pending phone test (Task 7).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web
@@ -2409,7 +2409,7 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Modify: `docs/competitors/reachlee.md`
 - Modify: `/Users/hyyashu/.claude/projects/-Users-hyyashu-Projects-Replyooo/memory/pending-real-world-tests.md`
 
-- [ ] **Step 1: Bring the spec in line with what was built**
+- [x] **Step 1: Bring the spec in line with what was built**
 
 In the spec:
 - Section 6 step 2, `any` bullet: replace "lists recent media via `adapter.listMedia` and keeps posts published inside the window" with "scans the account's 24 most recent posts (`adapter.listMedia`), because a recent comment can be on an older post".
@@ -2421,11 +2421,11 @@ In the spec:
 - Section 10: remove the first open item. Replace the second with "Whether a capped run should offer a 'continue' button instead of 'run again'."
 - Status line: `Status: approved, implemented on branch feat/rerun-existing-comments.`
 
-- [ ] **Step 2: Update the competitor note**
+- [x] **Step 2: Update the competitor note**
 
 In `docs/competitors/reachlee.md`, change the table row `| **Re-run on old posts** | Yes (Pro) | **No** |` to `| Re-run on old posts | Yes (Pro) | Yes, "Run on existing comments", last 7 days (built 2026-10-13, not yet deployed) |` and remove "scheduled DMs and re-run on old posts" wording from priority 3 so it reads "**Inbox**, then scheduled DMs."
 
-- [ ] **Step 3: Add the live test to the pending list**
+- [x] **Step 3: Add the live test to the pending list**
 
 Append to `/Users/hyyashu/.claude/projects/-Users-hyyashu-Projects-Replyooo/memory/pending-real-world-tests.md` under a new heading "Run on existing comments: pending live test":
 - On a connected account with a post that already has a comment matching a published automation: open the automation, run on existing comments for 3 days, confirm the preview counts, run it, and confirm the commenter receives the public reply and DM exactly once.
@@ -2433,12 +2433,12 @@ Append to `/Users/hyyashu/.claude/projects/-Users-hyyashu-Projects-Replyooo/memo
 - Confirm the Instagram `from.id` field is actually returned by `/{media-id}/comments` for a real commenter (the docs say it is).
 - Confirm Facebook returns `from` for Page post comments with a Page token.
 
-- [ ] **Step 4: Run everything**
+- [x] **Step 4: Run everything**
 
 Run: `pnpm install --frozen-lockfile && pnpm typecheck && pnpm test`
 Expected: all packages pass (db, meta, engine, worker, web; email and shared unaffected). Then `pnpm --filter @replyooo/web translations:check`. Run `git diff main --stat` and confirm only the files named in this plan changed, plus the generated migration files.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs
@@ -2447,6 +2447,6 @@ git commit -m "docs: align the re-run spec with the build and update the competi
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 6: Hand off**
+- [x] **Step 6: Hand off**
 
 Do not merge or push without the user's go-ahead. Report: branch name, what is verified (automated suites, browser check of the UI states), what is not (a real Meta run, which stays on the pending list), and that migration `0010` runs on the next deploy. The dev-DB note from link tracking (old `0008` tracking tables) is unrelated to this migration.
