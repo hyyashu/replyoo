@@ -15,7 +15,7 @@ export const instagramFollowGate: MarketingPage = {
     trigger: commentTrigger('GUIDE'),
     opener: { enabled: true, text: 'Hey {{first_name}}! Tap below to get the guide 👇', buttonLabel: 'Send it to me' },
     followGate: { ...DEFAULT_RECIPE.followGate, enabled: true },
-    message: { format: 'links', cards: [], text: "You're in! 🎉 Here's the guide.", imageUrl: '', links: [{ label: 'Get the guide', url: 'https://example.com/guide' }] },
+    message: { text: "You're in! 🎉 Here's the guide.", imageUrl: '', links: [{ label: 'Get the guide', url: 'https://example.com/guide' }] },
   },
   mode: 'dm',
   username: 'maya.makes',

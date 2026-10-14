@@ -112,7 +112,7 @@ export function conversation(recipe: Recipe, starter: number | null = 0, transla
     if (recipe.message.text.trim()) bubbles.push({ kind: 'us', text: render(recipe.message.text, contact) })
     bubbles.push({
       kind: 'cards',
-      cards: recipe.message.cards.map((card) => ({
+      cards: (recipe.message.cards ?? []).map((card) => ({
         title: card.title || '…',
         subtitle: card.subtitle,
         imageUrl: card.imageUrl,

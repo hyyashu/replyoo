@@ -56,11 +56,12 @@ export interface Recipe {
   collect: { kind: 'none' | 'email' | 'phone'; question: string; retryText: string }
   /**
    * The final message. `format` picks what is sent: text with link buttons (`imageUrl` goes just before it as its own
-   * picture, '' means none), or a carousel of product cards where `text` is an optional intro. Both sets of fields are
+   * picture, '' means none; no `format` means this), or a carousel of product cards where `text` is an optional intro.
+   * `format` and `cards` stay unset on link messages so existing recipes and templates need no change. Both sets of fields are
    * kept while editing, so switching format back and forth in one session loses nothing. Only the selected one is
    * compiled, so the saved draft holds just that one and the other is gone after a reload.
    */
-  message: { format: 'links' | 'products'; text: string; imageUrl: string; links: LinkButton[]; cards: CardInput[] }
+  message: { format?: 'links' | 'products'; text: string; imageUrl: string; links: LinkButton[]; cards?: CardInput[] }
   /** One reminder if they go quiet at a tap/answer step. Needs an open DM window, so never the first message after a comment. */
   nudge: { enabled: boolean; afterHours: number; text: string }
   tags: string[]
@@ -86,7 +87,7 @@ export const DEFAULT_RECIPE: Recipe = {
     question: "What's your email? I'll send a copy there too.",
     retryText: "Hmm, that doesn't look right. Mind trying again?",
   },
-  message: { format: 'links', text: 'Here you go! 🎉', imageUrl: '', links: [{ label: 'Open link', url: 'https://example.com' }], cards: [] },
+  message: { text: 'Here you go! 🎉', imageUrl: '', links: [{ label: 'Open link', url: 'https://example.com' }] },
   nudge: {
     enabled: false,
     afterHours: 4,
@@ -207,7 +208,7 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
       ? {
           type: 'send_products',
           ...(recipe.message.text.trim() ? { text: recipe.message.text } : {}),
-          cards: recipe.message.cards.map(compileCard),
+          cards: (recipe.message.cards ?? []).map(compileCard),
           ...(head ? { next: head } : {}),
         }
       : {
@@ -320,7 +321,6 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
   const recipe: Recipe = structuredClone(DEFAULT_RECIPE)
   recipe.opener.enabled = false
   recipe.message.links = []
-  recipe.message.cards = []
 
   const { trigger } = flow
   if (trigger.type === 'ice_breaker') {

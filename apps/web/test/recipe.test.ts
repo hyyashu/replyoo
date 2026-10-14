@@ -61,8 +61,6 @@ describe('compileRecipe', () => {
   it('adds https:// to a link typed without a scheme, so it passes validation and is saved with it', () => {
     const typed = recipe({
       message: {
-        format: 'links',
-        cards: [],
         text: 'Hi',
         imageUrl: ' cdn.example.com/pic.png ',
         links: [
@@ -85,7 +83,7 @@ describe('compileRecipe', () => {
 
   it('leaves a link that already has http:// or https:// exactly as typed', () => {
     const { flow, issues } = checkRecipe(
-      recipe({ message: { format: 'links', cards: [], text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'http://example.com' }] } }),
+      recipe({ message: { text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'http://example.com' }] } }),
       'instagram',
     )
     expect(issues).toEqual([])
@@ -95,7 +93,7 @@ describe('compileRecipe', () => {
 
   it('still rejects text that is not a web address, even though bare domains are now accepted', () => {
     for (const url of ['not a url', 'hello', 'javascript:alert(1)', 'data:text/html,hi', 'mailto:a@example.com', 'localhost:3000']) {
-      const { issues } = checkRecipe(recipe({ message: { format: 'links', cards: [], text: 'Hi', imageUrl: '', links: [{ label: 'Open', url }] } }), 'instagram')
+      const { issues } = checkRecipe(recipe({ message: { text: 'Hi', imageUrl: '', links: [{ label: 'Open', url }] } }), 'instagram')
       expect(issues, url).toContainEqual({ section: 'dm', message: 'Enter a valid link, including https://' })
     }
   })
@@ -104,20 +102,20 @@ describe('compileRecipe', () => {
     const { issues } = checkRecipe(
       recipe({
         trigger: changeTriggerType(DEFAULT_RECIPE.trigger, 'dm_keyword'),
-        message: { format: 'links', cards: [], text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'not a url' }] },
+        message: { text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'not a url' }] },
       }),
       'instagram',
     )
     expect(issues).toContainEqual({ section: 'dm', message: 'Enter a valid link, including https://' })
 
     const unsafe = checkRecipe(
-      recipe({ message: { format: 'links', cards: [], text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'javascript:alert(1)' }] } }),
+      recipe({ message: { text: 'Hi', imageUrl: '', links: [{ label: 'Open', url: 'javascript:alert(1)' }] } }),
       'instagram',
     )
     expect(unsafe.issues).toContainEqual({ section: 'dm', message: 'Enter a valid link, including https://' })
 
     const badImage = checkRecipe(
-      recipe({ message: { format: 'links', cards: [], text: 'Hi', imageUrl: 'data:image/png;base64,AAAA', links: [] } }),
+      recipe({ message: { text: 'Hi', imageUrl: 'data:image/png;base64,AAAA', links: [] } }),
       'instagram',
     )
     expect(badImage.issues).toContainEqual({ section: 'dm', message: 'Enter a valid image link, including https://' })
@@ -184,8 +182,6 @@ describe('links and images', () => {
   it('compiles up to three delivery links and an image, and reads them back', () => {
     const original = recipe({
       message: {
-        format: 'links',
-        cards: [],
         text: 'Here',
         imageUrl: 'https://cdn.example.com/a.jpg',
         links: [1, 2, 3].map((n) => ({ label: `Link ${n}`, url: `https://example.com/${n}` })),
@@ -198,7 +194,7 @@ describe('links and images', () => {
 
   it('rejects a fourth link', () => {
     const links = [1, 2, 3, 4].map((n) => ({ label: `L${n}`, url: `https://example.com/${n}` }))
-    const { issues } = checkRecipe(recipe({ message: { format: 'links', cards: [], text: 'Hi', imageUrl: '', links } }), 'instagram')
+    const { issues } = checkRecipe(recipe({ message: { text: 'Hi', imageUrl: '', links } }), 'instagram')
     expect(issues.length).toBeGreaterThan(0)
   })
 })
@@ -400,6 +396,14 @@ describe('product cards', () => {
   it('rejects product cards on Facebook', () => {
     const { issues } = checkRecipe(dm({ format: 'products', cards }), 'facebook')
     expect(issues).toContainEqual({ section: 'dm', message: 'Product cards are only available on Instagram' })
+  })
+
+  it('treats a message without format or cards (every existing recipe and template) as a links message', () => {
+    const flow = compileRecipe(recipe({ trigger: { type: 'dm_keyword', keywords: ['SHOP'], match: 'contains' }, opener: { ...DEFAULT_RECIPE.opener, enabled: false } }))
+    expect(DEFAULT_RECIPE.message).not.toHaveProperty('format')
+    expect(DEFAULT_RECIPE.message).not.toHaveProperty('cards')
+    expect(flow.steps.deliver).toMatchObject({ type: 'send_message' })
+    expect(recipeFromFlow(flow).message).toEqual(DEFAULT_RECIPE.message)
   })
 
   it('starts a new card empty', () => {

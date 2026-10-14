@@ -579,7 +579,7 @@ export function DmSection({
       id="dm"
       index={index}
       title={recipe.trigger.type === 'comment_keyword' ? tr('send_them_a_dm') : tr('send_them_a_reply')}
-      subtitle={[opener && tr('opener_tap_to_continue'), tr('message_4'), (products ? tr('cardsCount', { count: recipe.message.cards.length }) : links.length > 0 && tr('linksCount', { count: links.length }))]
+      subtitle={[opener && tr('opener_tap_to_continue'), tr('message_4'), (products ? tr('cardsCount', { count: (recipe.message.cards ?? []).length }) : links.length > 0 && tr('linksCount', { count: links.length }))]
         .filter(Boolean)
         .join(' · ')}
       issues={issues('dm')}
@@ -623,7 +623,7 @@ export function DmSection({
         {platform === 'instagram' && (
           <div className="mb-3">
             <Segmented
-              value={recipe.message.format}
+              value={recipe.message.format ?? 'links'}
               options={[
                 { value: 'links', label: tr('format_links') },
                 { value: 'products', label: tr('format_products') },
@@ -631,7 +631,7 @@ export function DmSection({
               onChange={(format) =>
                 update((d) => {
                   d.message.format = format
-                  if (format === 'products' && d.message.cards.length === 0) d.message.cards.push({ ...EMPTY_CARD })
+                  if (format === 'products' && !d.message.cards?.length) d.message.cards = [{ ...EMPTY_CARD }]
                 })
               }
             />
@@ -648,7 +648,7 @@ export function DmSection({
           footer={products ? undefined : <LinkButtons links={links} onChange={(next) => update((d) => void (d.message.links = next))} />}
         />
         {products ? (
-          <CardsEditor cards={recipe.message.cards} onChange={(cards) => update((d) => void (d.message.cards = cards))} />
+          <CardsEditor cards={recipe.message.cards ?? []} onChange={(cards) => update((d) => void (d.message.cards = cards))} />
         ) : (
           <div className="mt-3">
             <Label hint={tr('sent_as_a_picture_just_before_the_message')}>{tr('image_optional')}</Label>

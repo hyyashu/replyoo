@@ -35,8 +35,6 @@ const HERO_RECIPE: Recipe = {
   followGate: { ...DEFAULT_RECIPE.followGate, enabled: false },
   collect: { ...DEFAULT_RECIPE.collect, kind: 'none' },
   message: {
-    format: 'links',
-    cards: [],
     text: "Here you go! 🎉 Save it so you don't lose it.",
     imageUrl: '',
     links: [{ label: 'Get the guide', url: 'https://mayamakes.co/7day' }],

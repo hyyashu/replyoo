@@ -20,7 +20,7 @@ export const bookCallsFromInstagramDms: MarketingPage = {
       retryText: "That doesn't look like a phone number. Could you send it again?",
     },
     tags: ['phone-lead'],
-    message: { format: 'links', cards: [], text: 'Thanks! 🙌 Pick a time that suits you here.', imageUrl: '', links: [{ label: 'Book a call', url: 'https://example.com/book' }] },
+    message: { text: 'Thanks! 🙌 Pick a time that suits you here.', imageUrl: '', links: [{ label: 'Book a call', url: 'https://example.com/book' }] },
   },
   mode: 'dm',
   username: 'maya.makes',

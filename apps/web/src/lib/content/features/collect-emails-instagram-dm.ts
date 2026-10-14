@@ -20,7 +20,7 @@ export const collectEmailsInstagramDm: MarketingPage = {
       retryText: "Hmm, that doesn't look like an email. Mind trying again?",
     },
     tags: ['email-lead'],
-    message: { format: 'links', cards: [], text: 'Thanks! 🎉 Here’s the template.', imageUrl: '', links: [{ label: 'Open the template', url: 'https://example.com/template' }] },
+    message: { text: 'Thanks! 🎉 Here’s the template.', imageUrl: '', links: [{ label: 'Open the template', url: 'https://example.com/template' }] },
   },
   mode: 'dm',
   username: 'maya.makes',

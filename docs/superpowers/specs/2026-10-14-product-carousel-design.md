@@ -65,7 +65,7 @@ z.object({
 ```
 
 - `StepSchema` gains the variant, and the loose type enum near `flow.ts:187` gains `'send_products'`.
-- Validation (`validate.ts`): the step's `next` takes part in reachability and loop checks like every other step. A comment-triggered flow whose first step is a `send_products` already fails `comment_needs_reply_button` (the first step must be a `send_message` with a reply button), so no new rule is needed for the first-message restriction. A carousel on a Facebook automation raises `platform_unsupported`.
+- Validation (`validate.ts`): the step's `next` takes part in reachability and loop checks like every other step. A comment-triggered flow whose first step is a `send_products` already fails `comment_needs_reply_button` (the first step must be a `send_message` with a reply button), so no new rule is needed for the first-message restriction. A carousel on a Facebook automation raises the new code `carousel_unsupported` ("Product cards are only available on Instagram"), reported once per flow.
 - No database migration. Flows are stored as JSON, and the `messages.body` JSON holds the outbound payload.
 
 ## 4. Send path
@@ -76,7 +76,7 @@ z.object({
 
 ## 5. Editor
 
-- Recipe (`apps/web/src/lib/recipe.ts`): `message` gains `format: 'links' | 'products'` and `cards: ProductCardInput[]`. `compileRecipe` emits a `send_products` step when `format` is `products`, and `decompileRecipe` reads one back. Card links and images go through `normalizeUrl`, like the links in the text message do.
+- Recipe (`apps/web/src/lib/recipe.ts`): `message` gains an optional `format?: 'links' | 'products'` (unset means links) and an optional `cards?: CardInput[]`, so existing recipes, templates and content need no change. `compileRecipe` emits a `send_products` step when `format` is `products`, and `decompileRecipe` reads one back. Card links and images go through `normalizeUrl`, like the links in the text message do.
 - Section (`sections.tsx`): the final message section has a "Links | Product cards" switch. Product cards shows a list of 1 to 10 cards, each with an image URL, title, subtitle and button label and link, with move up, move down, remove and add. The existing text and image fields stay for the intro text (the image field is hidden in product mode).
 - Preview (`phone-preview.tsx`): a scrollable row of cards in the phone mock.
 - Hint under the section: use JPG or PNG images, ideally wide (1.91:1), since Meta may crop other shapes; carousels do not show on desktop Instagram.

@@ -15,7 +15,7 @@ export const growFollowersWithGiveaways: MarketingPage = {
     trigger: commentTrigger('FREE'),
     opener: { enabled: true, text: 'Hey {{first_name}}! Tap below to claim it 👇', buttonLabel: 'Claim it' },
     followGate: { ...DEFAULT_RECIPE.followGate, enabled: true },
-    message: { format: 'links', cards: [], text: "You're in! 🎉 Enjoy.", imageUrl: '', links: [{ label: 'Claim your reward', url: 'https://example.com/reward' }] },
+    message: { text: "You're in! 🎉 Enjoy.", imageUrl: '', links: [{ label: 'Claim your reward', url: 'https://example.com/reward' }] },
   },
   mode: 'dm',
   username: 'maya.makes',
