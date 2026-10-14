@@ -50,4 +50,53 @@ describe('toGraphMessage', () => {
       attachment: { type: 'image', payload: { url: 'https://cdn.example.com/a.jpg' } },
     })
   })
+
+  it('sends a carousel as a generic template with one link button per card', () => {
+    expect(
+      toGraphMessage({
+        kind: 'carousel',
+        cards: [
+          { title: 'Mug', button: { label: 'Buy', url: 'https://shop.example.com/mug' } },
+          {
+            title: 'Cap',
+            subtitle: '$19',
+            imageUrl: 'https://cdn.example.com/cap.jpg',
+            button: { label: 'See it', url: 'https://shop.example.com/cap' },
+          },
+        ],
+      }),
+    ).toEqual({
+      attachment: {
+        type: 'template',
+        payload: {
+          template_type: 'generic',
+          elements: [
+            { title: 'Mug', buttons: [{ type: 'web_url', title: 'Buy', url: 'https://shop.example.com/mug' }] },
+            {
+              title: 'Cap',
+              subtitle: '$19',
+              image_url: 'https://cdn.example.com/cap.jpg',
+              buttons: [{ type: 'web_url', title: 'See it', url: 'https://shop.example.com/cap' }],
+            },
+          ],
+        },
+      },
+    })
+  })
+
+  it('truncates card text to 80 characters and never sends more than ten cards', () => {
+    const cards = Array.from({ length: 12 }, (_, i) => ({
+      title: 't'.repeat(100),
+      subtitle: 's'.repeat(100),
+      button: { label: 'Buy', url: `https://shop.example.com/${i}` },
+    }))
+    const message = toGraphMessage({ kind: 'carousel', cards }) as {
+      attachment: { payload: { elements: { title: string; subtitle: string }[] } }
+    }
+    const { elements } = message.attachment.payload
+    expect(elements).toHaveLength(10)
+    expect(elements[0]!.title).toHaveLength(80)
+    expect(elements[0]!.title.endsWith('…')).toBe(true)
+    expect(elements[0]!.subtitle).toHaveLength(80)
+  })
 })
