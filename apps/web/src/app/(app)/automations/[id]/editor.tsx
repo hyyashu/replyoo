@@ -460,7 +460,7 @@ export function Editor({ automation, platform, username }: { automation: Automat
               issues={sectionIssues}
             />
             <PublicReplySection recipe={recipe} update={update} issues={sectionIssues} />
-            <DmSection index={hasPublicReply ? 3 : 2} recipe={recipe} update={update} issues={sectionIssues} />
+            <DmSection index={hasPublicReply ? 3 : 2} recipe={recipe} update={update} platform={platform} issues={sectionIssues} />
             <BoostersSection index={hasPublicReply ? 4 : 3} recipe={recipe} update={update} platform={platform} issues={sectionIssues} />
 
             <div className="sticky bottom-4 mt-1 flex flex-wrap items-center gap-x-8 gap-y-2 rounded-[18px] bg-ink px-6 py-4 text-white">

@@ -4,10 +4,12 @@ import { useDashboardError } from '@/i18n/use-errors'
 import { useTranslations } from 'next-intl'
 
 import type { Platform } from '@replyooo/shared'
-import { AtSign, BellRing, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
+import { ArrowDown, ArrowUp, AtSign, BellRing, ChevronDown, CircleAlert, Link2, Phone, Plus, Tag, Trash2, UserPlus } from 'lucide-react'
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
 import { Toggle, cx } from '@/components/ui'
 import {
+  EMPTY_CARD,
+  MAX_CARDS,
   MAX_LINKS,
   MAX_NUDGE_HOURS,
   changeTriggerType,
@@ -16,6 +18,7 @@ import {
   openerRequired,
   setCollectKind,
   TAG_LIMITS,
+  type CardInput,
   type LinkButton,
   type Recipe,
   type RecipeTrigger,
@@ -554,11 +557,13 @@ export function DmSection({
   index,
   recipe,
   update,
+  platform,
   issues,
 }: {
   index: number
   recipe: Recipe
   update: Update
+  platform: Platform
   issues: (section: RecipeSection) => RecipeIssue[]
 }) {
   const tr = useTranslations('automations')
@@ -567,13 +572,14 @@ export function DmSection({
   const required = openerRequired(recipe.trigger)
   const opener = recipe.opener.enabled || required
   const { links } = recipe.message
+  const products = recipe.message.format === 'products'
 
   return (
     <Section
       id="dm"
       index={index}
       title={recipe.trigger.type === 'comment_keyword' ? tr('send_them_a_dm') : tr('send_them_a_reply')}
-      subtitle={[opener && tr('opener_tap_to_continue'), tr('message_4'), links.length > 0 && tr('linksCount', { count: links.length })]
+      subtitle={[opener && tr('opener_tap_to_continue'), tr('message_4'), (products ? tr('cardsCount', { count: recipe.message.cards.length }) : links.length > 0 && tr('linksCount', { count: links.length }))]
         .filter(Boolean)
         .join(' · ')}
       issues={issues('dm')}
@@ -614,24 +620,47 @@ export function DmSection({
       </div>
 
       <div>
-        <Label hint={opener ? tr('sent_after_they_tap') : undefined}>{opener ? tr('then_send') : tr('message_4')}</Label>
+        {platform === 'instagram' && (
+          <div className="mb-3">
+            <Segmented
+              value={recipe.message.format}
+              options={[
+                { value: 'links', label: tr('format_links') },
+                { value: 'products', label: tr('format_products') },
+              ]}
+              onChange={(format) =>
+                update((d) => {
+                  d.message.format = format
+                  if (format === 'products' && d.message.cards.length === 0) d.message.cards.push({ ...EMPTY_CARD })
+                })
+              }
+            />
+          </div>
+        )}
+        <Label hint={opener ? tr('sent_after_they_tap') : undefined}>
+          {products ? tr('intro_optional') : opener ? tr('then_send') : tr('message_4')}
+        </Label>
         <MessageInput
-          label={opener ? tr('then_send') : tr('message_4')}
+          label={products ? tr('intro_optional') : opener ? tr('then_send') : tr('message_4')}
           value={recipe.message.text}
-          maxLength={links.length > 0 ? 640 : 1000}
+          maxLength={!products && links.length > 0 ? 640 : 1000}
           onChange={(text) => update((d) => void (d.message.text = text))}
-          footer={<LinkButtons links={links} onChange={(next) => update((d) => void (d.message.links = next))} />}
+          footer={products ? undefined : <LinkButtons links={links} onChange={(next) => update((d) => void (d.message.links = next))} />}
         />
-        <div className="mt-3">
-          <Label hint={tr('sent_as_a_picture_just_before_the_message')}>{tr('image_optional')}</Label>
-          <TextInput
-            label={tr('image_optional')}
-            value={recipe.message.imageUrl}
-            placeholder={tr('https_link_to_a_jpg_or_png')}
-            onChange={(imageUrl) => update((d) => void (d.message.imageUrl = imageUrl.trim()))}
-            onBlur={(e) => update((d) => void (d.message.imageUrl = normalizeUrl(e.target.value)))}
-          />
-        </div>
+        {products ? (
+          <CardsEditor cards={recipe.message.cards} onChange={(cards) => update((d) => void (d.message.cards = cards))} />
+        ) : (
+          <div className="mt-3">
+            <Label hint={tr('sent_as_a_picture_just_before_the_message')}>{tr('image_optional')}</Label>
+            <TextInput
+              label={tr('image_optional')}
+              value={recipe.message.imageUrl}
+              placeholder={tr('https_link_to_a_jpg_or_png')}
+              onChange={(imageUrl) => update((d) => void (d.message.imageUrl = imageUrl.trim()))}
+              onBlur={(e) => update((d) => void (d.message.imageUrl = normalizeUrl(e.target.value)))}
+            />
+          </div>
+        )}
       </div>
     </Section>
   )
@@ -888,6 +917,76 @@ function LinkButtons({ links, onChange }: { links: LinkButton[]; onChange: (link
           onClick={() => onChange([...links, { label: '', url: '' }])}
         >
           <Plus className="size-3.5" /> {tr('add_link_button')} {links.length > 0 ? tr('message_5', { v0: links.length, v1: MAX_LINKS }) : ''}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function CardsEditor({ cards, onChange }: { cards: CardInput[]; onChange: (cards: CardInput[]) => void }) {
+  const tr = useTranslations('automations')
+  const change = (index: number, patch: Partial<CardInput>) => onChange(cards.map((card, i) => (i === index ? { ...card, ...patch } : card)))
+  const move = (index: number, by: -1 | 1) => {
+    const next = [...cards]
+    const [card] = next.splice(index, 1)
+    next.splice(index + by, 0, card!)
+    onChange(next)
+  }
+  return (
+    <div className="mt-3 flex flex-col gap-3">
+      <p className="text-[12.5px] text-subtle">{tr('cards_hint')}</p>
+      {cards.map((card, index) => (
+        <div key={index} className="flex flex-col gap-2 rounded-[14px] border border-line p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[12.5px] font-semibold">{tr('card_n', { v0: index + 1 })}</span>
+            <span className="flex items-center gap-1">
+              <button type="button" aria-label={tr('move_card_up')} disabled={index === 0} className="text-faint hover:text-ink disabled:opacity-30" onClick={() => move(index, -1)}>
+                <ArrowUp className="size-3.5" />
+              </button>
+              <button type="button" aria-label={tr('move_card_down')} disabled={index === cards.length - 1} className="text-faint hover:text-ink disabled:opacity-30" onClick={() => move(index, 1)}>
+                <ArrowDown className="size-3.5" />
+              </button>
+              <button type="button" aria-label={tr('remove_card')} disabled={cards.length === 1} className="text-faint hover:text-ink disabled:opacity-30" onClick={() => onChange(cards.filter((_, i) => i !== index))}>
+                <Trash2 className="size-3.5" />
+              </button>
+            </span>
+          </div>
+          <TextInput label={tr('card_title', { v0: index + 1 })} value={card.title} maxLength={80} placeholder={tr('card_title_placeholder')} onChange={(title) => change(index, { title })} />
+          <TextInput label={tr('card_subtitle', { v0: index + 1 })} value={card.subtitle} maxLength={80} placeholder={tr('card_subtitle_placeholder')} onChange={(subtitle) => change(index, { subtitle })} />
+          <TextInput
+            label={tr('card_image', { v0: index + 1 })}
+            value={card.imageUrl}
+            placeholder={tr('https_link_to_a_jpg_or_png')}
+            onChange={(imageUrl) => change(index, { imageUrl: imageUrl.trim() })}
+            onBlur={(e) => change(index, { imageUrl: normalizeUrl(e.target.value) })}
+          />
+          <div className="flex items-center gap-2">
+            <ButtonField
+              label={tr('card_button_label', { v0: index + 1 })}
+              icon={<Link2 className="size-3.5 text-brand" />}
+              value={card.buttonLabel}
+              placeholder={tr('button_label')}
+              onChange={(buttonLabel) => change(index, { buttonLabel })}
+            />
+            <span className="text-faint">→</span>
+            <input
+              value={card.buttonUrl}
+              aria-label={tr('card_link', { v0: index + 1 })}
+              placeholder={tr('https')}
+              onChange={(e) => change(index, { buttonUrl: e.target.value })}
+              onBlur={(e) => change(index, { buttonUrl: normalizeUrl(e.target.value) })}
+              className="min-w-0 flex-1 bg-transparent text-[13px] text-muted outline-none placeholder:text-faint"
+            />
+          </div>
+        </div>
+      ))}
+      {cards.length < MAX_CARDS && (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 self-start text-[13px] font-medium text-muted hover:text-ink"
+          onClick={() => onChange([...cards, { ...EMPTY_CARD }])}
+        >
+          <Plus className="size-3.5" /> {tr('add_card')} ({cards.length}/{MAX_CARDS})
         </button>
       )}
     </div>

@@ -146,4 +146,10 @@ describe('messageText', () => {
     expect(messageText({ payload: 'r:1', title: 'Yes please' })).toBe('Yes please')
     expect(messageText({ text: null, isReaction: true })).toBe('')
   })
+
+  it('describes a carousel message instead of showing a blank line', () => {
+    const cards = [{ title: 'Mug' }, { title: 'Cap' }]
+    expect(messageText({ type: 'message', message: { text: '', cards } })).toBe('🛍 Product carousel (2 cards)')
+    expect(messageText({ type: 'message', message: { text: '', cards: [{ title: 'Mug' }] } })).toBe('🛍 Product carousel (1 card)')
+  })
 })
