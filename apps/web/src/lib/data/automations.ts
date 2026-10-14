@@ -1,7 +1,11 @@
 import 'server-only'
 import {
+  type AutomationDay,
+  type FollowUpStats,
   type LinkInsight,
   type Tx,
+  automationDaily,
+  automationFollowUpStats,
   automationLinkDaily,
   automationLinkInsights,
   automationVersions,
@@ -174,6 +178,20 @@ export async function linkInsights(workspaceId: string, id: string, now = new Da
 export async function linkDaily(workspaceId: string, id: string, url: string): Promise<{ day: string; clicks: number }[] | null> {
   if (!(await ownsAutomation(workspaceId, id))) return null
   return automationLinkDaily(db(), id, url, 14)
+}
+
+/** Daily activity and follow-up results for the last 30 days; null when the automation isn't in this workspace. */
+export async function automationActivity(
+  workspaceId: string,
+  id: string,
+  now = new Date(),
+): Promise<{ days: AutomationDay[]; followUps: FollowUpStats } | null> {
+  if (!(await ownsAutomation(workspaceId, id))) return null
+  const [days, followUps] = await Promise.all([
+    automationDaily(db(), id, STATS_WINDOW_DAYS),
+    automationFollowUpStats(db(), id, statsSince(now)),
+  ])
+  return { days, followUps }
 }
 
 export async function createAutomation(

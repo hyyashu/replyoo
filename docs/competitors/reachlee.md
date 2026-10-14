@@ -30,7 +30,7 @@ Checked 2026-10-13. Reachlee is a close, cheaper Instagram/Facebook DM-automatio
 | Team seats | Up to 5 (Business only) | Yes, up to 10 on every plan, free; owner can invite as admin and change roles (built 2026-10-13, not yet deployed) |
 | **Google Sheets, Meta Ads export** | Yes (Business) | **No** |
 | **AI replies, goals, MCP connector** | Yes | **No** (none in v1 by design) |
-| **Per-automation analytics** | Click trends, lifetime | Counts plus link clicks; no trend charts |
+| Per-automation analytics | Click trends, lifetime | 30-day daily charts of conversations, DMs sent and link clicks, plus follow-up results (built 2026-10-15, not yet deployed); no lifetime view |
 | Facebook comment triggers | Yes | Yes (Page `feed` comment webhooks) |
 | "Meta-Verified" badge | Claimed | Needs App Review and Business Verification first |
 

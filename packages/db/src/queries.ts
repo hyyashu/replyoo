@@ -8,6 +8,7 @@ import {
   bioBlocks,
   bioEvents,
   bioPages,
+  clickFollowUps,
   connectedAccounts,
   linkClicks,
   messages,
@@ -331,4 +332,88 @@ export async function automationLinkDaily(
     order by d.day
   `)
   return Array.from(rows)
+}
+
+export type AutomationDay = {
+  /** UTC day, YYYY-MM-DD. */
+  day: string
+  /** Conversations started. */
+  runs: number
+  /** DMs and private replies sent. */
+  dmsSent: number
+  /** Taps on this automation's tracked links. */
+  clicks: number
+}
+
+/** Activity per day for one automation over the last `days` days, oldest first (UTC days, zeros included). */
+export async function automationDaily(db: Db | Tx, automationId: string, days = 30): Promise<AutomationDay[]> {
+  const rows = await db.execute<AutomationDay>(sql`
+    with bounds as (
+      select (now() at time zone 'utc')::date - (${days}::int - 1) as first_day
+    ),
+    since as (
+      select (first_day::timestamp at time zone 'utc') as at from bounds
+    ),
+    runs as (
+      select (r.created_at at time zone 'utc')::date as day, count(*)::int as n
+      from flow_runs r
+      where r.automation_id = ${automationId} and r.created_at >= (select at from since)
+      group by 1
+    ),
+    sent as (
+      select (m.created_at at time zone 'utc')::date as day, count(*)::int as n
+      from messages m
+      join flow_runs r on r.id = m.flow_run_id
+      where r.automation_id = ${automationId}
+        and m.direction = 'out' and m.status = 'sent' and m.kind in ('dm', 'private_reply')
+        and m.created_at >= (select at from since)
+      group by 1
+    ),
+    clicks as (
+      select (lc.created_at at time zone 'utc')::date as day, count(*)::int as n
+      from link_clicks lc
+      join tracked_links tl on tl.id = lc.link_id
+      where tl.automation_id = ${automationId} and lc.created_at >= (select at from since)
+      group by 1
+    )
+    select to_char(d.day, 'YYYY-MM-DD') as day,
+      coalesce(runs.n, 0) as runs,
+      coalesce(sent.n, 0) as "dmsSent",
+      coalesce(clicks.n, 0) as clicks
+    from generate_series(
+      (select first_day from bounds),
+      (now() at time zone 'utc')::date,
+      interval '1 day'
+    ) as d(day)
+    left join runs on runs.day = d.day::date
+    left join sent on sent.day = d.day::date
+    left join clicks on clicks.day = d.day::date
+    order by d.day
+  `)
+  return Array.from(rows)
+}
+
+export interface FollowUpStats {
+  /** Follow-ups that went out. */
+  sent: number
+  /** Of those, how many led to a tap on one of the follow-up's links. */
+  opened: number
+  /** Not needed because the person had already opened the link. */
+  skippedClicked: number
+}
+
+/** Click follow-up results for one automation, for follow-ups scheduled since `since`. */
+export async function automationFollowUpStats(db: Db | Tx, automationId: string, since: Date): Promise<FollowUpStats> {
+  const [row] = await db
+    .select({
+      sent: sql<number>`count(*) filter (where ${messages.status} = 'sent')::int`,
+      opened: sql<number>`count(*) filter (where ${messages.status} = 'sent' and exists (
+        select 1 from ${trackedLinks} tl join ${linkClicks} lc on lc.link_id = tl.id where tl.message_id = ${clickFollowUps.followUpMessageId}
+      ))::int`,
+      skippedClicked: sql<number>`count(*) filter (where ${clickFollowUps.status} = 'skipped' and ${clickFollowUps.reason} = 'clicked')::int`,
+    })
+    .from(clickFollowUps)
+    .leftJoin(messages, eq(messages.id, clickFollowUps.followUpMessageId))
+    .where(and(eq(clickFollowUps.automationId, automationId), gte(clickFollowUps.createdAt, since)))
+  return row ?? { sent: 0, opened: 0, skippedClicked: 0 }
 }
