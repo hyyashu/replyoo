@@ -65,6 +65,14 @@ export interface OutboundMessage {
   buttons?: OutboundButton[]
   /** A carousel message has empty `text`; the intro text is sent as its own earlier message. */
   cards?: OutboundCard[]
+  /** Set on the message carrying the links: the worker sends `text` with the same links if none is opened in time. */
+  followUp?: OutboundFollowUp
+}
+
+export interface OutboundFollowUp {
+  afterMinutes: number
+  /** Already rendered with the contact's variables. */
+  text: string
 }
 
 export interface ContactPatch {
