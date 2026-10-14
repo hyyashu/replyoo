@@ -367,7 +367,15 @@
     "rerun_failure_account_inactive": "Primero hay que volver a conectar esta cuenta.",
     "rerun_failure_automation_not_active": "La automatización se pausó o eliminó antes de que empezara la ejecución.",
     "rerun_failure_not_a_comment_automation": "Solo las automatizaciones de comentarios se pueden volver a ejecutar.",
-    "rerun_failure_unknown": "Algo salió mal. Inténtalo de nuevo."
+    "rerun_failure_unknown": "Algo salió mal. Inténtalo de nuevo.",
+    "follow_up_if_no_click": "Hacer seguimiento si no abren el enlace",
+    "resend_the_links_to_people_who_haven_t_opened_them": "Reenviar los enlaces a quienes aún no los abrieron",
+    "needs_a_link_button_or_product_cards_in_the_message": "Requiere un botón de enlace o tarjetas de producto en el mensaje",
+    "link_follow_up": "Seguimiento del enlace",
+    "follow_up_message": "Mensaje de seguimiento",
+    "sent_once_with_the_same_links_max_h": "Se envía una vez con los mismos enlaces · máximo {v0} h, dentro del plazo de 24 h de Meta",
+    "hours_without_a_click": "horas sin abrir el enlace",
+    "hours_without_a_click_before_the_follow_up": "Horas sin abrir el enlace antes del seguimiento"
   },
   "bio": {
     "live_preview": "Vista previa en tiempo real",
@@ -750,6 +758,9 @@
     "buttonMessageLength": "Los mensajes con botones pueden tener como máximo {count} caracteres",
     "invalidStep": "Un paso referenciado por esta automatización ya no existe",
     "stepLimit": "Un flujo puede tener como máximo {count} pasos",
-    "waitNeeded": "Añade una espera o acorta la cadena de pasos"
+    "waitNeeded": "Añade una espera o acorta la cadena de pasos",
+    "clickFollowUpLinks": "El seguimiento requiere un botón de enlace en el mensaje",
+    "commentClickFollowUp": "Meta permite un mensaje después de un comentario hasta que la persona responda; este paso no puede enviar un seguimiento",
+    "followUpButtonLength": "Un seguimiento con botones de enlace puede tener como máximo {count} caracteres"
   }
 }

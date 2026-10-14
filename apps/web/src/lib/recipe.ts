@@ -64,6 +64,11 @@ export interface Recipe {
   message: { format?: 'links' | 'products'; text: string; imageUrl: string; links: LinkButton[]; cards?: CardInput[] }
   /** One reminder if they go quiet at a tap/answer step. Needs an open DM window, so never the first message after a comment. */
   nudge: { enabled: boolean; afterHours: number; text: string }
+  /**
+   * One follow-up, with the same links again, if none of the final message's links is opened. Optional so existing
+   * recipes and templates need no change; unset means off.
+   */
+  clickFollowUp?: { enabled: boolean; afterHours: number; text: string }
   tags: string[]
 }
 
@@ -97,6 +102,12 @@ export const DEFAULT_RECIPE: Recipe = {
 }
 
 export const MAX_NUDGE_HOURS = 23
+
+export const DEFAULT_CLICK_FOLLOW_UP = {
+  enabled: false,
+  afterHours: 3,
+  text: 'Did you get a chance to check it out? Here it is again 👇',
+}
 
 export const COLLECT_DEFAULTS = {
   email: {
@@ -160,6 +171,13 @@ export function nudgeApplies(recipe: Recipe): boolean {
   return firstDmIsOpener || recipe.followGate.enabled || recipe.collect.kind !== 'none'
 }
 
+/** Whether the final message has links a follow-up can repeat. Comment flows always start with the opener, so the
+ * final message is never the one-shot private reply. */
+export function clickFollowUpApplies(recipe: Recipe): boolean {
+  if (recipe.trigger.type === 'ice_breaker') return false
+  return recipe.message.format === 'products' ? (recipe.message.cards ?? []).length > 0 : recipe.message.links.length > 0
+}
+
 /**
  * Adds https:// to an address typed without a scheme ("example.com/x"). Anything else is returned trimmed
  * and left for validation to reject: text with spaces, bare words, and other schemes such as javascript: or mailto:.
@@ -203,12 +221,18 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
   const nudge = recipe.nudge.enabled
     ? { nudge: { afterMinutes: Math.round(recipe.nudge.afterHours * 60), text: recipe.nudge.text } }
     : {}
+  const followUp = recipe.clickFollowUp
+  const clickFollowUp =
+    followUp?.enabled && clickFollowUpApplies(recipe)
+      ? { clickFollowUp: { afterMinutes: Math.round(followUp.afterHours * 60), text: followUp.text } }
+      : {}
   steps.deliver =
     recipe.message.format === 'products'
       ? {
           type: 'send_products',
           ...(recipe.message.text.trim() ? { text: recipe.message.text } : {}),
           cards: (recipe.message.cards ?? []).map(compileCard),
+          ...clickFollowUp,
           ...(head ? { next: head } : {}),
         }
       : {
@@ -216,6 +240,7 @@ export function compileRecipe(recipe: Recipe): FlowDefinition {
           text: recipe.message.text,
           ...(recipe.message.imageUrl ? { imageUrl: normalizeUrl(recipe.message.imageUrl) } : {}),
           ...withLinks(recipe.message.links),
+          ...clickFollowUp,
           ...(head ? { next: head } : {}),
         }
   head = 'deliver'
@@ -359,6 +384,7 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
           recipe.message.text = step.text
           recipe.message.imageUrl = step.imageUrl ?? ''
           recipe.message.links = linksOf(step)
+          readClickFollowUp(recipe, step)
           id = step.next
         }
         break
@@ -374,6 +400,7 @@ export function recipeFromFlow(flow: FlowDefinition): Recipe {
           buttonLabel: card.button.label,
           buttonUrl: card.button.url,
         }))
+        readClickFollowUp(recipe, step)
         id = step.next
         break
       case 'check_follow': {
@@ -426,6 +453,15 @@ function readNudge(recipe: Recipe, step: StepOf<'send_message'> | StepOf<'ask'>)
     enabled: true,
     afterHours: Math.min(MAX_NUDGE_HOURS, Math.max(1, Math.round(step.nudge.afterMinutes / 60))),
     text: step.nudge.text,
+  }
+}
+
+function readClickFollowUp(recipe: Recipe, step: StepOf<'send_message'> | StepOf<'send_products'>): void {
+  if (!step.clickFollowUp) return
+  recipe.clickFollowUp = {
+    enabled: true,
+    afterHours: Math.min(MAX_NUDGE_HOURS, Math.max(1, Math.round(step.clickFollowUp.afterMinutes / 60))),
+    text: step.clickFollowUp.text,
   }
 }
 

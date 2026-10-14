@@ -30,6 +30,8 @@ const codes: Record<string, string> = {
   'A reminder needs a reply button to wait on': 'reminderButton',
   'The reminder must come before the question times out': 'reminderTimeout',
   'Meta allows only one message after a comment until the person replies, so this step cannot send a reminder': 'commentReminder',
+  'A follow-up for unopened links needs a link button on this message': 'clickFollowUpLinks',
+  'Meta allows only one message after a comment until the person replies, so this step cannot send a follow-up': 'commentClickFollowUp',
   'Answers saved to email/phone must use matching validation': 'answerValidation',
   'Comment automations must start with a message that has a reply button — Meta allows only one message until the person replies': 'commentButton',
   'The first message after a comment is a single private reply and cannot include an image': 'commentImage',
@@ -67,6 +69,8 @@ export function dashboardIssue(message: string): DashboardIssue {
   if (limit) return { code: 'automationLimit', values: { count: Number(limit[2]) } }
   const buttonLength = /^Messages with buttons can be at most (\d+) characters$/.exec(message)
   if (buttonLength) return { code: 'buttonMessageLength', values: { count: Number(buttonLength[1]) } }
+  const followUpLength = /^A follow-up with link buttons can be at most (\d+) characters$/.exec(message)
+  if (followUpLength) return { code: 'followUpButtonLength', values: { count: Number(followUpLength[1]) } }
   if (/^(Start step|Step) ".+" does not exist$/.test(message)) return { code: 'invalidStep' }
   const steps = /^A flow can have at most (\d+) steps$/.exec(message)
   if (steps) return { code: 'stepLimit', values: { count: Number(steps[1]) } }

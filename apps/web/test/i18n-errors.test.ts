@@ -17,3 +17,17 @@ it('retains user-provided variable names as interpolation data', () => {
     values: { variable: '{{unknown}}' },
   })
 })
+it('translates every click follow-up validation message', () => {
+  const t = createTranslator({ locale: 'es', messages: es, namespace: 'errors' })
+  const messages = [
+    'A follow-up for unopened links needs a link button on this message',
+    'Meta allows only one message after a comment until the person replies, so this step cannot send a follow-up',
+    'A follow-up with link buttons can be at most 640 characters',
+  ]
+  for (const message of messages) {
+    const issue = dashboardIssue(message)
+    expect(issue.code).not.toBe('generic')
+    expect(t(issue.code as keyof typeof es.errors, issue.values)).not.toContain('errors.')
+  }
+  expect(t('followUpButtonLength', { count: 640 })).toContain('640')
+})

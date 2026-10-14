@@ -255,6 +255,43 @@ describe('reminder (nudge)', () => {
   })
 })
 
+describe('click follow-up', () => {
+  const clickFollowUp = { enabled: true, afterHours: 2, text: 'Here it is again' }
+  const expected = { afterMinutes: 120, text: 'Here it is again' }
+  const card = { ...EMPTY_CARD, title: 'Mug', buttonUrl: 'https://shop.example.com/mug' }
+
+  it('goes on the final link message of a comment flow and validates', () => {
+    const { issues, flow } = checkRecipe(recipe({ clickFollowUp }), 'instagram')
+    expect(issues).toEqual([])
+    expect(flow.steps.deliver).toMatchObject({ clickFollowUp: expected })
+    expect(flow.steps.opener).not.toHaveProperty('clickFollowUp')
+  })
+
+  it('goes on the carousel', () => {
+    const flow = compileRecipe(recipe({ message: { ...DEFAULT_RECIPE.message, format: 'products', cards: [card] }, clickFollowUp }))
+    expect(flow.steps.deliver).toMatchObject({ type: 'send_products', clickFollowUp: expected })
+  })
+
+  it('is dropped when the message has no links', () => {
+    const flow = compileRecipe(recipe({ message: { ...DEFAULT_RECIPE.message, links: [] }, clickFollowUp }))
+    expect(flow.steps.deliver).not.toHaveProperty('clickFollowUp')
+  })
+
+  it('round-trips for both formats and stays stable', () => {
+    for (const message of [DEFAULT_RECIPE.message, { ...DEFAULT_RECIPE.message, format: 'products' as const, cards: [card] }]) {
+      const flow = compileRecipe(recipe({ trigger: { type: 'any_dm' }, message, clickFollowUp }))
+      const back = recipeFromFlow(flow)
+      expect(back.clickFollowUp).toEqual(clickFollowUp)
+      expect(compileRecipe(back)).toEqual(flow)
+    }
+  })
+
+  it('is off by default', () => {
+    expect(JSON.stringify(compileRecipe(DEFAULT_RECIPE))).not.toContain('clickFollowUp')
+    expect(recipeFromFlow(compileRecipe(DEFAULT_RECIPE)).clickFollowUp).toBeUndefined()
+  })
+})
+
 describe('follow reminder', () => {
   const gated = () => recipe({ followGate: { ...DEFAULT_RECIPE.followGate, enabled: true, reminderText: 'Still not following 👀' } })
 
