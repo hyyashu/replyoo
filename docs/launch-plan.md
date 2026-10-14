@@ -36,7 +36,7 @@ Before inviting customers to connect accounts:
   - Follow gate, email question, follow-up reminder and story triggers.
   - Link click tracking: tap a tracked link button and confirm one click is counted, without Instagram's in-app browser or link scanner inflating the count.
   - Run on existing comments: run a 3-day window on a post with a matching comment, confirm the public reply and DM arrive once, and that a second run sends nothing. Confirm Instagram and Facebook return the commenter (`from`) on listed comments.
-  - Follow up if no click (once built): leave a link unopened and confirm one follow-up arrives with working tracked links; open the link first and confirm none arrives.
+  - Follow up if no click: leave a link unopened and confirm one follow-up arrives with working tracked links; open the link first and confirm none arrives.
   - Product carousel: a 3-card carousel renders and scrolls on a phone, each card tap counts once, an image-less card works, and Meta accepts the generic template (only tested against the fake Graph API so far).
 - Record a real demonstration. Distinguish sample screens and simulated data from actual customer results.
 

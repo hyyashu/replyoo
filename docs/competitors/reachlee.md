@@ -44,6 +44,7 @@ Click tracking, re-run on old posts, product carousels and team seats are built.
 2. **Google Sheets sync.** Email capture is a core use case. Kit (ConvertKit) sync was dropped from the plan on 2026-10-13.
 3. **Inbox** (after Meta App Review is approved), then scheduled DMs. The inbox design is already written.
 4. ~~"Follow up if no click"~~: built 2026-10-15 for link buttons and product cards, not yet deployed.
+5. ~~Per-automation trend charts~~: built 2026-10-15 (30-day activity chart), not yet deployed.
 
 AI features can wait. Nothing here blocks launch except Meta approval.
 
