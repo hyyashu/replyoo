@@ -1,0 +1,1 @@
+CREATE INDEX "flow_runs_automation_created_idx" ON "flow_runs" USING btree ("automation_id","created_at");

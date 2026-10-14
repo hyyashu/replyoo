@@ -1,6 +1,6 @@
 # Follow up if no click: Design
 
-Date: 2026-10-14. Status: approved, implemented on branch feat/click-follow-up.
+Date: 2026-10-14. Status: built, merged to `main`, not yet deployed.
 
 Why this one: link click tracking (2026-10-13) tells us who opened a link, so we can now remind the people who did not. The 2026-10-05 design listed "follow up if no click" as out of scope until click tracking existed. Reachlee has a follow-up nudge; see [../../competitors/reachlee.md](../../competitors/reachlee.md).
 
@@ -95,7 +95,7 @@ The recipe gets an optional `clickFollowUp: { enabled, afterHours, text }` (unse
 
 ## 4. Visibility
 
-No new dashboard section in this part. Follow-up messages appear in the contact's message history, and their clicks count toward the automation's clickers. Link stats count distinct contacts, so a follow-up does not inflate the recipient count. The `click_follow_ups` table keeps sent and skipped counts for a later "Follow-ups sent" figure.
+No new dashboard section in this part. Follow-up messages appear in the contact's message history, and their clicks count toward the automation's clickers. Link stats count distinct contacts, so a follow-up does not inflate the recipient count. The `click_follow_ups` table keeps sent and skipped counts; the automation's Activity section shows them (see [2026-10-15-automation-activity-chart-design.md](2026-10-15-automation-activity-chart-design.md)).
 
 ## 5. Testing
 

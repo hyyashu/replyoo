@@ -47,6 +47,12 @@ export async function getLinkDaily(automationId: string, url: string) {
   return days ? ({ ok: true, days } as const) : ({ ok: false, error: 'Automation not found' } as const)
 }
 
+export async function getAutomationActivity(automationId: string) {
+  const { workspaceId } = await requireWorkspace()
+  const activity = await data.automationActivity(workspaceId, automationId)
+  return activity ? ({ ok: true, ...activity } as const) : ({ ok: false, error: 'Automation not found' } as const)
+}
+
 export async function previewRerun(automationId: string, windowHours: number) {
   const { workspaceId } = await requireWorkspace()
   return data.previewRerun(workspaceId, automationId, windowHours)

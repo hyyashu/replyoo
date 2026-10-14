@@ -19,6 +19,7 @@ import { recipeFromFlow, type Recipe } from '@/lib/recipe'
 import { checkRecipe, type RecipeSection } from '@/lib/validation'
 import { Segmented } from './fields'
 import { LinkInsights } from './link-insights'
+import { Activity } from './activity'
 import { RerunSection } from './rerun-section'
 import { PhonePreview, previewModes, type PreviewMode } from '@/components/phone-preview'
 import { Accordion, BoostersSection, DmSection, ProgressCue, PublicReplySection, TriggerSection, type Update } from './sections'
@@ -487,6 +488,7 @@ export function Editor({ automation, platform, username }: { automation: Automat
               )}
             </div>
           </Accordion>
+          {status !== 'draft' && stats.runs > 0 && <Activity automationId={automation.id} />}
           {status !== 'draft' && stats.recipients > 0 && <LinkInsights automationId={automation.id} />}
           {status === 'active' && automation.flow.trigger.type === 'comment_keyword' && <RerunSection automationId={automation.id} />}
         </div>
