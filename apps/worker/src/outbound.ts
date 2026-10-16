@@ -3,7 +3,7 @@ import { connectedAccounts, contacts, createTrackedLinks, flowRuns, messages, us
 import type { AccountCredentials, PlatformAdapter, SendableButton, SendableMessage, SendResult } from '@replyooo/meta'
 import { MetaError } from '@replyooo/meta'
 import { encodePostback } from '@replyooo/shared'
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { flagReauth } from './alerts'
 import { scheduleClickFollowUp } from './click-follow-ups'
 import type { Deps, OutboundJobData } from './deps'
@@ -12,11 +12,28 @@ import type { ContactRow } from './records'
 import { credentials, endRun } from './records'
 
 export const DM_WINDOW_MS = 24 * 60 * 60 * 1000
+/** How long a claim protects a message from other senders. Far above one Graph call (15s timeout). */
+export const SEND_LEASE_MS = 10 * 60 * 1000
+/** Claims per message across all jobs and sweeps; the last one fails the message whatever the error. */
+export const MAX_SEND_ATTEMPTS = 5
 
 export type OutboundResult = { status: 'done' } | { status: 'rate_limited'; retryInMs: number }
 
 type MessageRow = typeof messages.$inferSelect
 
+/** A message another sender may take: queued, or claimed so long ago that the claim has lapsed. */
+export function claimable(now: Date) {
+  return or(
+    eq(messages.status, 'queued'),
+    and(eq(messages.status, 'sending'), lt(messages.claimedAt, new Date(now.getTime() - SEND_LEASE_MS))),
+  )!
+}
+
+/**
+ * Sends each message at most once per lease: a message is claimed (`sending`) right before its Graph call and only
+ * a lapsed claim can be taken again. A crash or DB error after Meta accepted therefore leaves the message claimed,
+ * and the retry skips it instead of sending it twice.
+ */
 export async function handleOutbound(
   deps: Deps,
   job: OutboundJobData,
@@ -30,47 +47,76 @@ export async function handleOutbound(
       .innerJoin(contacts, eq(messages.contactId, contacts.id))
       .innerJoin(connectedAccounts, eq(messages.connectedAccountId, connectedAccounts.id))
       .where(eq(messages.id, id))
-    if (!row || row.message.status !== 'queued') continue
-    const { message, contact, account } = row
+    if (!row) continue
+    const { contact, account } = row
     const now = deps.now()
+    if (row.message.status !== 'queued' && row.message.status !== 'sending') continue
+    // Someone else holds this message; later ones must wait for it to keep the order.
+    if (row.message.status === 'sending' && !leaseLapsed(row.message.claimedAt, now)) return { status: 'done' }
 
     const stop = async (reason: string, runStatus: 'failed' | 'expired'): Promise<OutboundResult> => {
-      await failMessages(db, [id], reason)
+      await failMessages(db, [id], reason, ['queued', 'sending'])
       await failMessages(db, job.messageIds.slice(index + 1), 'skipped')
-      if (message.flowRunId) await endRun(db, message.flowRunId, runStatus, reason, now)
+      if (row.message.flowRunId) await endRun(db, row.message.flowRunId, runStatus, reason, now)
       return { status: 'done' }
     }
 
     if (account.status !== 'active') return stop('account_inactive', 'failed')
-    if (message.kind === 'dm' && !withinWindow(contact.lastInboundAt, now)) return stop('window_closed', 'expired')
+    if (row.message.kind === 'dm' && !withinWindow(contact.lastInboundAt, now)) return stop('window_closed', 'expired')
 
     const waitMs = await deps.rateLimiter.take(account.id)
     if (waitMs > 0) return { status: 'rate_limited', retryInMs: waitMs }
 
+    const [message] = await db
+      .update(messages)
+      .set({ status: 'sending', claimedAt: now, attempts: sql`${messages.attempts} + 1` })
+      .where(and(eq(messages.id, id), claimable(now)))
+      .returning()
+    if (!message) return { status: 'done' }
+
+    let result: SendResult
     try {
-      const result = await send(deps.adapters[account.platform], credentials(account, deps.tokenKey), contact, await withTrackedLinks(deps, message))
-      await db
-        .update(messages)
-        .set({ status: 'sent', externalId: result.messageId, sentAt: now, error: null })
-        .where(and(eq(messages.id, id), eq(messages.status, 'queued')))
-      await countUsage(db, account.workspaceId, contact.id, now)
-      // The DM is out; a lost follow-up must not make the job retry it.
-      await scheduleClickFollowUp(db, message, now).catch((error: unknown) =>
-        deps.log.warn({ messageId: id, err: error }, 'could not schedule the click follow-up'),
-      )
+      result = await send(deps.adapters[account.platform], credentials(account, deps.tokenKey), contact, await withTrackedLinks(deps, message))
     } catch (error) {
-      if (!(error instanceof MetaError)) throw error
-      if (error.kind === 'retryable' && !attempt.isFinal) throw error
-      if (error.kind === 'reauth') await flagReauth(deps, account.id)
-      const reason = error.details.reason ?? error.kind
+      const meta = error instanceof MetaError ? error : null
+      const last = attempt.isFinal || message.attempts >= MAX_SEND_ATTEMPTS
+      if (!last && (!meta || meta.kind === 'retryable')) {
+        // Nothing went out (or we cannot tell, e.g. a timeout); hand the message back for the job's retry.
+        await release(db, id)
+        throw error
+      }
+      if (meta?.kind === 'reauth') await flagReauth(deps, account.id)
+      const reason = meta ? (meta.details.reason ?? meta.kind) : 'send_error'
       deps.log.warn(
-        { messageId: id, kind: message.kind, reason, metaMessage: error.message, ...error.details },
+        { messageId: id, kind: message.kind, reason, err: meta ? undefined : error, metaMessage: meta?.message, ...meta?.details },
         'outbound message failed',
       )
       return stop(reason, reason === 'window_closed' ? 'expired' : 'failed')
     }
+
+    // Meta accepted the message. From here on a failure must not resend it: the claim stays until marked sent.
+    await db
+      .update(messages)
+      .set({ status: 'sent', externalId: result.messageId, sentAt: now, error: null, claimedAt: null })
+      .where(and(eq(messages.id, id), eq(messages.status, 'sending')))
+    await countUsage(db, account.workspaceId, contact.id, now)
+    // The DM is out; a lost follow-up must not make the job retry it.
+    await scheduleClickFollowUp(db, message, now).catch((error: unknown) =>
+      deps.log.warn({ messageId: id, err: error }, 'could not schedule the click follow-up'),
+    )
   }
   return { status: 'done' }
+}
+
+function leaseLapsed(claimedAt: Date | null, now: Date): boolean {
+  return claimedAt === null || now.getTime() - claimedAt.getTime() > SEND_LEASE_MS
+}
+
+async function release(db: Db, id: string): Promise<void> {
+  await db
+    .update(messages)
+    .set({ status: 'queued', claimedAt: null })
+    .where(and(eq(messages.id, id), eq(messages.status, 'sending')))
 }
 
 function withinWindow(lastInboundAt: Date | null, now: Date): boolean {
@@ -125,12 +171,18 @@ export async function withTrackedLinks(
   }
 }
 
-async function failMessages(db: Db, ids: string[], error: string): Promise<void> {
+/** Only queued messages by default: a `sending` one belongs to whoever claimed it. */
+export async function failMessages(
+  db: Db,
+  ids: string[],
+  error: string,
+  from: ('queued' | 'sending')[] = ['queued'],
+): Promise<void> {
   if (ids.length === 0) return
   await db
     .update(messages)
-    .set({ status: 'failed', error })
-    .where(and(inArray(messages.id, ids), eq(messages.status, 'queued')))
+    .set({ status: 'failed', error, claimedAt: null })
+    .where(and(inArray(messages.id, ids), inArray(messages.status, from)))
 }
 
 export function toSendable(body: OutboundBody, runId: string | null): SendableMessage {

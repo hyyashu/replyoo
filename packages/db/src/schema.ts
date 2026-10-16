@@ -46,7 +46,7 @@ export const messageKindEnum = pgEnum('message_kind', [
   'story_reply',
   'comment',
 ])
-export const messageStatusEnum = pgEnum('message_status', ['queued', 'sent', 'failed', 'received'])
+export const messageStatusEnum = pgEnum('message_status', ['queued', 'sending', 'sent', 'failed', 'received'])
 export const planEnum = pgEnum('plan', ['free', 'pro', 'business'])
 export const billingIntervalEnum = pgEnum('billing_interval', BILLING_INTERVALS)
 
@@ -351,6 +351,10 @@ export const messages = pgTable(
     commentId: text('comment_id'),
     status: messageStatusEnum('status').notNull(),
     error: text('error'),
+    /** Set when a worker claims an outbound message (status 'sending'); an old claim is a lease that has run out. */
+    claimedAt: tz('claimed_at'),
+    /** Send attempts so far; bounds retries across jobs and sweeps. */
+    attempts: integer('attempts').notNull().default(0),
     sentAt: tz('sent_at'),
     createdAt: tz('created_at').notNull().defaultNow(),
   },
@@ -363,6 +367,29 @@ export const messages = pgTable(
       .where(sql`${t.kind} = 'comment_reply'`),
     index('messages_contact_created_idx').on(t.contactId, t.createdAt),
     index('messages_status_created_idx').on(t.status, t.createdAt),
+  ],
+)
+
+/**
+ * Transactional outbox: jobs written in the same transaction as the state they act on, enqueued after commit.
+ * Rows still unenqueued after a crash are replayed by the sweep; `job_id` is the BullMQ job id, so replays dedupe.
+ */
+export const jobOutbox = pgTable(
+  'job_outbox',
+  {
+    id: id(),
+    queue: text('queue').notNull(),
+    jobId: text('job_id').notNull(),
+    name: text('name').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+    createdAt: tz('created_at').notNull().defaultNow(),
+    enqueuedAt: tz('enqueued_at'),
+  },
+  (t) => [
+    uniqueIndex('job_outbox_job_id_uq').on(t.jobId),
+    index('job_outbox_pending_idx')
+      .on(t.createdAt)
+      .where(sql`${t.enqueuedAt} is null`),
   ],
 )
 

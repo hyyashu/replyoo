@@ -137,7 +137,10 @@ describe('handleInbound', () => {
     const [run] = await db.select().from(flowRuns).where(eq(flowRuns.contactId, contact!.id))
     expect(run).toMatchObject({ automationId: automation.id, status: 'running', stateVersion: 0 })
     expect(jobs.flows).toEqual([
-      { data: { runId: run!.id, event: { type: 'start', trigger: { kind: 'dm', text: 'PRICE?' } }, expectedVersion: 0 } },
+      {
+        data: { runId: run!.id, event: { type: 'start', trigger: { kind: 'dm', text: 'PRICE?' } }, expectedVersion: 0 },
+        opts: { jobId: `start-${run!.id}` },
+      },
     ])
     const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
     expect(event?.processedAt).toEqual(NOW)
@@ -205,7 +208,12 @@ describe('handleInbound', () => {
       stateVersion: 1,
     })
     await handleInbound(deps, await insertEvent(db, dm(account, 'u4', 'priya@gmail.com')))
-    expect(jobs.flows).toEqual([{ data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' } } }])
+    expect(jobs.flows).toEqual([
+      {
+        data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' }, expectedVersion: 1 },
+        opts: { jobId: expect.stringMatching(/^resume-/) },
+      },
+    ])
     const runs = await db.select().from(flowRuns).where(eq(flowRuns.contactId, contact.id))
     expect(runs).toHaveLength(1)
   })
@@ -239,7 +247,10 @@ describe('handleInbound', () => {
     expect(jobs.flows).toEqual([])
     await handleInbound(deps, await insertEvent(db, postback(account, 'owner', payload)))
     expect(jobs.flows).toEqual([
-      { data: { runId: run.id, event: { type: 'postback', stepId: 's1', buttonId: 'b1' } } },
+      {
+        data: { runId: run.id, event: { type: 'postback', stepId: 's1', buttonId: 'b1' }, expectedVersion: run.stateVersion },
+        opts: { jobId: expect.stringMatching(/^resume-/) },
+      },
     ])
   })
 
@@ -319,6 +330,11 @@ describe('plan limits', () => {
     await seedUsage(db, account.workspaceId, FREE_LIMIT)
 
     await handleInbound(deps, await insertEvent(db, dm(account, 'u-waiting', 'priya@gmail.com')))
-    expect(jobs.flows).toEqual([{ data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' } } }])
+    expect(jobs.flows).toEqual([
+      {
+        data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' }, expectedVersion: 1 },
+        opts: { jobId: expect.stringMatching(/^resume-/) },
+      },
+    ])
   })
 })

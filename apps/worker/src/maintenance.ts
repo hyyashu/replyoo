@@ -3,17 +3,20 @@ import {
   encryptToken,
   failStuckBackfillRuns,
   flowRuns,
+  jobOutbox,
   messages,
   queuedBackfillRunIds,
   webhookEvents,
 } from '@replyooo/db'
 import type { StartTrigger } from '@replyooo/engine'
 import { MetaError } from '@replyooo/meta'
-import { and, asc, eq, gt, isNull, lt } from 'drizzle-orm'
+import { and, asc, eq, gt, isNotNull, isNull, lt, or } from 'drizzle-orm'
 import { flagReauth } from './alerts'
 import { sendDueClickFollowUps } from './click-follow-ups'
 import type { Deps } from './deps'
-import { credentials } from './records'
+import { failMessages, MAX_SEND_ATTEMPTS, SEND_LEASE_MS } from './outbound'
+import { replayOutbox } from './outbox'
+import { credentials, endRun } from './records'
 
 export const SWEEP_BATCH = 500
 const SECOND = 1000
@@ -31,7 +34,10 @@ export async function sweep(deps: Deps) {
     .where(and(eq(flowRuns.status, 'waiting'), lt(flowRuns.waitUntil, ago(30 * SECOND))))
     .limit(SWEEP_BATCH)
   for (const run of overdue) {
-    await jobs.flow({ runId: run.id, event: { type: 'timeout' }, expectedVersion: run.stateVersion })
+    await jobs.flow(
+      { runId: run.id, event: { type: 'timeout' }, expectedVersion: run.stateVersion },
+      { jobId: `timeout-${run.id}-${run.stateVersion}` },
+    )
   }
 
   const lost = await db
@@ -43,22 +49,41 @@ export async function sweep(deps: Deps) {
   for (const run of lost) {
     if (!run.triggerRef) continue
     const trigger = run.triggerRef as unknown as StartTrigger
-    await jobs.flow({ runId: run.id, event: { type: 'start', trigger }, expectedVersion: 0 })
+    await jobs.flow({ runId: run.id, event: { type: 'start', trigger }, expectedVersion: 0 }, { jobId: `start-${run.id}` })
     starts++
   }
 
+  // Queued for a while, or claimed by a sender whose lease ran out (it crashed). A live claim is left alone.
   const stuck = await db
-    .select({ id: messages.id, flowRunId: messages.flowRunId })
+    .select({ id: messages.id, flowRunId: messages.flowRunId, attempts: messages.attempts })
     .from(messages)
-    .where(and(eq(messages.status, 'queued'), eq(messages.direction, 'out'), lt(messages.createdAt, ago(5 * MINUTE))))
+    .where(
+      and(
+        eq(messages.direction, 'out'),
+        or(
+          and(eq(messages.status, 'queued'), lt(messages.createdAt, ago(5 * MINUTE))),
+          and(eq(messages.status, 'sending'), lt(messages.claimedAt, ago(SEND_LEASE_MS))),
+        ),
+      ),
+    )
     .orderBy(asc(messages.createdAt), asc(messages.id))
     .limit(SWEEP_BATCH)
   const groups = new Map<string, string[]>()
+  let exhausted = 0
   for (const message of stuck) {
+    if (message.attempts >= MAX_SEND_ATTEMPTS) {
+      // Out of attempts: never resend; fail it like a permanent error would.
+      await failMessages(db, [message.id], 'max_attempts', ['queued', 'sending'])
+      if (message.flowRunId) await endRun(db, message.flowRunId, 'failed', 'max_attempts', deps.now())
+      exhausted++
+      continue
+    }
     const key = message.flowRunId ?? message.id
     groups.set(key, [...(groups.get(key) ?? []), message.id])
   }
   for (const messageIds of groups.values()) await jobs.outbound({ messageIds })
+
+  const outbox = await replayOutbox(deps, ago(30 * SECOND), SWEEP_BATCH)
 
   const events = await db
     .select({ id: webhookEvents.id })
@@ -78,7 +103,15 @@ export async function sweep(deps: Deps) {
 
   const followUps = await sendDueClickFollowUps(deps)
 
-  const result = { timeouts: overdue.length, starts, messages: stuck.length, events: events.length, followUps }
+  const result = {
+    timeouts: overdue.length,
+    starts,
+    messages: stuck.length - exhausted,
+    exhausted,
+    outbox,
+    events: events.length,
+    followUps,
+  }
   if (Object.values(result).some((n) => n > 0)) deps.log.info(result, 'sweeper re-enqueued work')
   return result
 }
@@ -148,5 +181,6 @@ export async function pruneWebhookEvents(deps: Deps): Promise<number> {
     .delete(webhookEvents)
     .where(lt(webhookEvents.receivedAt, cutoff))
     .returning({ id: webhookEvents.id })
+  await deps.db.delete(jobOutbox).where(and(isNotNull(jobOutbox.enqueuedAt), lt(jobOutbox.createdAt, cutoff)))
   return deleted.length
 }

@@ -14,6 +14,7 @@ import type { AccountCredentials, NormalizedEvent, PlatformAdapter, Profile } fr
 import { and, eq, isNull, lt, sql } from 'drizzle-orm'
 import type { Deps, FlowJobData } from './deps'
 import { mayStartRun } from './limits'
+import { flushOutbox, stageJobs } from './outbox'
 import type { Logger } from './logger'
 import type { AccountRow, ContactRow } from './records'
 import { credentials, toContactState, toRunState } from './records'
@@ -28,8 +29,8 @@ export async function handleInbound(deps: Deps, webhookEventId: string): Promise
   const [row] = await deps.db.select().from(webhookEvents).where(eq(webhookEvents.id, webhookEventId))
   if (!row || row.processedAt) return
   try {
-    const job = await processEvent(deps, row.id, row.payload as NormalizedEvent)
-    if (job) await deps.jobs.flow(job)
+    const staged = await processEvent(deps, row.id, row.payload as NormalizedEvent)
+    await flushOutbox(deps, staged)
   } catch (error) {
     await deps.db
       .update(webhookEvents)
@@ -39,7 +40,8 @@ export async function handleInbound(deps: Deps, webhookEventId: string): Promise
   }
 }
 
-async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEvent): Promise<FlowJobData | null> {
+/** Returns the outbox rows staged with the event, to enqueue once committed. */
+async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEvent): Promise<string[]> {
   const { db } = deps
   const now = deps.now()
   const markProcessed = (executor: Db | Tx) =>
@@ -51,7 +53,7 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
     .where(and(eq(connectedAccounts.platform, event.platform), eq(connectedAccounts.externalId, event.accountExternalId)))
   if (!account || account.status !== 'active') {
     await markProcessed(db)
-    return null
+    return []
   }
 
   const adapter = deps.adapters[account.platform]
@@ -67,33 +69,30 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
     event.type === 'comment_created' && event.restrictToAutomationId
       ? allCandidates.filter((c) => c.automationId === event.restrictToAutomationId)
       : allCandidates
-  const waitingRun = existing ? await loadWaitingRun(db, existing.id) : null
   const mediaPublishedAt =
     event.type === 'comment_created' && needsMediaTime(candidates)
       ? await adapter.getMediaPublishedAt(creds, event.mediaId).catch(() => null)
       : null
 
-  const route = decideRoute({
-    event,
-    contact: existing ? toContactState(existing) : newContactState(event, profile),
-    waitingRun,
-    candidates,
-    mediaPublishedAt,
-    now,
-  })
-  if (route.kind === 'ignore') deps.log.debug({ reason: route.reason, eventRowId }, 'inbound event not routed')
-
-  const job = await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
+    // The upsert row-locks the contact (insert, or ON CONFLICT DO UPDATE), serialising this contact's events
+    // and flow jobs. Routing reads the waiting run under that lock, so two DMs cannot both consume one answer.
     const contact = await upsertContact(tx, account, event, profile, now)
-    const job = await applyRoute(tx, { account, contact, route, candidates, event, now, log: deps.log })
-    await tx.insert(messages).values(inboundMessage(account, contact, event, job?.runId ?? null))
+    const waitingRun = await loadWaitingRun(tx, contact.id)
+    const route = decideRoute({ event, contact: toContactState(contact), waitingRun, candidates, mediaPublishedAt, now })
+    if (route.kind === 'ignore') deps.log.debug({ reason: route.reason, eventRowId }, 'inbound event not routed')
+
+    const job = await applyRoute(tx, { account, contact, route, candidates, event, eventRowId, now, log: deps.log })
+    await tx.insert(messages).values(inboundMessage(account, contact, event, job?.data.runId ?? null))
+    const staged = job ? await stageJobs(tx, [{ kind: 'flow', ...job }]) : []
     await markProcessed(tx)
-    return job
+    return { route, started: job !== null, staged }
   })
-  if (job && route.kind === 'start' && event.type === 'story_reply') {
+  const { route } = outcome
+  if (outcome.started && route.kind === 'start' && event.type === 'story_reply') {
     await reactToStoryReply(deps, adapter, creds, candidates, route.automationId, event)
   }
-  return job
+  return outcome.staged
 }
 
 /** The ❤️ is a nicety: if Meta refuses it, the DM still goes out. */
@@ -135,7 +134,7 @@ export async function loadCandidates(db: Db, accountId: string): Promise<Candida
   }))
 }
 
-async function loadWaitingRun(db: Db, contactId: string): Promise<WaitingRun | null> {
+async function loadWaitingRun(db: Db | Tx, contactId: string): Promise<WaitingRun | null> {
   const [row] = await db
     .select({ run: flowRuns, definition: automationVersions.definition })
     .from(flowRuns)
@@ -218,20 +217,28 @@ interface ApplyContext {
   route: Route
   candidates: readonly Candidate[]
   event: NormalizedEvent
+  eventRowId: string
   now: Date
   log: Logger
 }
 
-async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<FlowJobData | null> {
+type RoutedJob = { jobId: string; data: FlowJobData }
+
+async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<RoutedJob | null> {
   const { route, contact, account, now, event } = ctx
   if (route.kind === 'ignore') return null
 
   if (route.kind === 'resume') {
     const [run] = await tx
-      .select({ id: flowRuns.id, contactId: flowRuns.contactId })
+      .select({ id: flowRuns.id, contactId: flowRuns.contactId, stateVersion: flowRuns.stateVersion })
       .from(flowRuns)
       .where(eq(flowRuns.id, route.runId))
-    return run && run.contactId === contact.id ? { runId: run.id, event: route.event } : null
+    if (!run || run.contactId !== contact.id) return null
+    // One job per event, pinned to the state it answers: a redelivery or a run that moved on makes it a no-op.
+    return {
+      jobId: `resume-${ctx.eventRowId}`,
+      data: { runId: run.id, event: route.event, expectedVersion: run.stateVersion },
+    }
   }
 
   const candidate = ctx.candidates.find((c) => c.automationId === route.automationId)
@@ -296,7 +303,10 @@ async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<FlowJobData | null
       commentId: route.trigger.kind === 'comment' ? route.trigger.commentId : null,
     })
     .returning({ id: flowRuns.id })
-  return { runId: run!.id, event: { type: 'start', trigger: route.trigger }, expectedVersion: 0 }
+  return {
+    jobId: `start-${run!.id}`,
+    data: { runId: run!.id, event: { type: 'start', trigger: route.trigger }, expectedVersion: 0 },
+  }
 }
 
 function inboundMessage(account: AccountRow, contact: ContactRow, event: NormalizedEvent, runId: string | null) {

@@ -209,7 +209,10 @@ describe('handleFollowCheck', () => {
     await handleFollowCheck(deps, { runId: run.id, expectedVersion: 1 })
     expect(adapters.instagram.sent('isFollower')[0]?.args).toEqual([refs.contact.platformUserId])
     expect(jobs.flows).toEqual([
-      { data: { runId: run.id, event: { type: 'follow_result', following: true }, expectedVersion: 1 } },
+      {
+        data: { runId: run.id, event: { type: 'follow_result', following: true }, expectedVersion: 1 },
+        opts: { jobId: `follow-result-${run.id}-1` },
+      },
     ])
   })
 

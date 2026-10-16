@@ -25,7 +25,8 @@ export interface OutboundJobData {
 export interface Jobs {
   inbound(webhookEventId: string): Promise<void>
   flow(data: FlowJobData, opts?: { at?: Date; jobId?: string }): Promise<void>
-  followCheck(data: FollowCheckJobData): Promise<void>
+  followCheck(data: FollowCheckJobData, opts?: { jobId?: string }): Promise<void>
+  /** Job id is `out-${messageIds[0]}`, so a re-enqueue of the same batch is deduplicated. */
   outbound(data: OutboundJobData): Promise<void>
   backfill(runId: string): Promise<void>
 }
