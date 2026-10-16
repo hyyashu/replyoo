@@ -1,5 +1,5 @@
 import 'server-only'
-import { connectedAccounts, type Db, encryptToken } from '@replyooo/db'
+import { connectedAccounts, type Db, encryptToken, type Tx } from '@replyooo/db'
 import {
   exchangeFacebookCode,
   exchangeInstagramCode,
@@ -8,10 +8,10 @@ import {
   MetaError,
   type OAuthApp,
 } from '@replyooo/meta'
-import { PLAN_LIMITS, type Platform } from '@replyooo/shared'
+import type { Platform } from '@replyooo/shared'
 import { and, eq, ne } from 'drizzle-orm'
 import { restoreLiveIceBreakersFor } from './data/ice-breakers'
-import { workspacePlan } from './data/limits'
+import { hasAccountSlot } from './data/limits'
 import { env } from './env'
 import { adapterFor, tokenKey } from './meta'
 
@@ -65,7 +65,7 @@ interface AccountInput {
   metaUserId: string | null
 }
 
-async function ownedElsewhere(db: Db, workspaceId: string, platform: Platform, externalId: string): Promise<boolean> {
+async function ownedElsewhere(db: Db | Tx, workspaceId: string, platform: Platform, externalId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: connectedAccounts.id })
     .from(connectedAccounts)
@@ -79,22 +79,12 @@ async function ownedElsewhere(db: Db, workspaceId: string, platform: Platform, e
   return Boolean(row)
 }
 
-/** Spec §3.6 connected-account limit. Reconnecting an account this workspace already has never needs a new slot. */
-async function hasSlot(db: Db, workspaceId: string, platform: Platform, externalId: string): Promise<boolean> {
-  const rows = await db
-    .select({ platform: connectedAccounts.platform, externalId: connectedAccounts.externalId })
-    .from(connectedAccounts)
-    .where(and(eq(connectedAccounts.workspaceId, workspaceId), ne(connectedAccounts.status, 'disconnected')))
-  if (rows.some((row) => row.platform === platform && row.externalId === externalId)) return true
-  return rows.length < PLAN_LIMITS[await workspacePlan(db, workspaceId, new Date())].connectedAccounts
-}
-
 /**
  * Inserts the account or refreshes it in place. An account owned by another workspace is never
  * moved (the worker matches automations by account ID), so the upsert only updates our own row.
  * Returns null when the account belongs to someone else.
  */
-export async function saveConnectedAccount(db: Db, workspaceId: string, userId: string, input: AccountInput): Promise<string | null> {
+export async function saveConnectedAccount(db: Db | Tx, workspaceId: string, userId: string, input: AccountInput): Promise<string | null> {
   const profile = {
     username: input.username,
     displayName: input.displayName,
@@ -118,16 +108,32 @@ export async function saveConnectedAccount(db: Db, workspaceId: string, userId: 
   return row?.id ?? null
 }
 
+/**
+ * Checks ownership and the plan's account limit, subscribes webhooks and saves the account in one transaction
+ * holding the workspace's limit lock, so parallel callbacks (or several Pages) can't overshoot the limit.
+ * The webhook subscription runs inside it so a failed subscribe saves nothing, as before.
+ */
+async function connectOne(
+  db: Db,
+  workspaceId: string,
+  userId: string,
+  input: AccountInput,
+): Promise<string | 'owned_elsewhere' | 'plan_limit'> {
+  return db.transaction(async (tx) => {
+    if (await ownedElsewhere(tx, workspaceId, input.platform, input.externalId)) return 'owned_elsewhere'
+    if (!(await hasAccountSlot(tx, workspaceId, input.platform, input.externalId, new Date()))) return 'plan_limit'
+    await adapterFor(input.platform).subscribeWebhooks({ externalId: input.externalId, accessToken: input.accessToken })
+    return (await saveConnectedAccount(tx, workspaceId, userId, input)) ?? 'owned_elsewhere'
+  })
+}
+
 async function connectInstagram(db: Db, workspaceId: string, userId: string, code: string): Promise<ConnectResult> {
   const connection = await exchangeInstagramCode(oauthApp('instagram'), code)
   if (!connection.accountType || !PROFESSIONAL.has(connection.accountType)) return { ok: false, error: 'personal_account' }
-  if (await ownedElsewhere(db, workspaceId, 'instagram', connection.externalId)) return { ok: false, error: 'owned_elsewhere' }
-  if (!(await hasSlot(db, workspaceId, 'instagram', connection.externalId))) return { ok: false, error: 'plan_limit' }
-
-  await adapterFor('instagram').subscribeWebhooks({ externalId: connection.externalId, accessToken: connection.accessToken })
-  const id = await saveConnectedAccount(db, workspaceId, userId, { platform: 'instagram', ...connection })
-  if (id) await restoreLiveIceBreakersFor(workspaceId, [id])
-  return id ? { ok: true, accountIds: [id], limited: false } : { ok: false, error: 'owned_elsewhere' }
+  const outcome = await connectOne(db, workspaceId, userId, { platform: 'instagram', ...connection })
+  if (outcome === 'owned_elsewhere' || outcome === 'plan_limit') return { ok: false, error: outcome }
+  await restoreLiveIceBreakersFor(workspaceId, [outcome])
+  return { ok: true, accountIds: [outcome], limited: false }
 }
 
 async function connectFacebook(db: Db, workspaceId: string, userId: string, code: string): Promise<ConnectResult> {
@@ -137,14 +143,9 @@ async function connectFacebook(db: Db, workspaceId: string, userId: string, code
   const accountIds: string[] = []
   let limited = false
   for (const page of pages) {
-    if (await ownedElsewhere(db, workspaceId, 'facebook', page.externalId)) continue
-    if (!(await hasSlot(db, workspaceId, 'facebook', page.externalId))) {
-      limited = true
-      continue
-    }
-    await adapterFor('facebook').subscribeWebhooks({ externalId: page.externalId, accessToken: page.accessToken })
-    const id = await saveConnectedAccount(db, workspaceId, userId, { platform: 'facebook', ...page, metaUserId, expiresAt: null })
-    if (id) accountIds.push(id)
+    const outcome = await connectOne(db, workspaceId, userId, { platform: 'facebook', ...page, metaUserId, expiresAt: null })
+    if (outcome === 'plan_limit') limited = true
+    else if (outcome !== 'owned_elsewhere') accountIds.push(outcome)
   }
   await restoreLiveIceBreakersFor(workspaceId, accountIds)
   if (accountIds.length > 0) return { ok: true, accountIds, limited }

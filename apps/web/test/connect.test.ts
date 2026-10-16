@@ -1,4 +1,5 @@
 import { automationVersions, automations, connectedAccounts, decryptToken, subscriptions } from '@replyooo/db'
+import { PLAN_LIMITS } from '@replyooo/shared'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { http, HttpResponse } from 'msw'
@@ -336,6 +337,21 @@ describe('connecting Facebook Pages', () => {
     expect(started.sort()).toEqual(pages.map((id) => `Bearer TOKEN_${id}`).sort())
     release()
   }, 15_000)
+
+  it('never connects more accounts than the plan allows, even from parallel callbacks', async () => {
+    const { workspaceId, user } = await createWorkspace('Parallel')
+    facebook([])
+    let n = 0
+    // Each callback is granted a different pair of Pages.
+    server.use(
+      http.get('https://graph.facebook.com/v24.0/me/accounts', () =>
+        HttpResponse.json({ data: [0, 1].map(() => ({ id: `page_${randomUUID()}`, name: `Page ${n++}`, access_token: `P${n}` })) }),
+      ),
+    )
+    const results = await Promise.all([1, 2, 3, 4].map(() => completeConnect(db(), 'facebook', workspaceId, user.id, 'FBCODE')))
+    expect(results.filter((r) => r.ok)).toHaveLength(1)
+    expect(await accountsFor(workspaceId)).toHaveLength(PLAN_LIMITS.free.connectedAccounts)
+  })
 
   it('reports plan_limit when no Page fits', async () => {
     const { workspaceId, user } = await createWorkspace('NoRoom')

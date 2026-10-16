@@ -421,6 +421,13 @@ export const subscriptions = pgTable(
   ],
 )
 
+/** Dodo `webhook-id`s already handled; a redelivery of one is acknowledged without being applied again. */
+export const billingWebhookEvents = pgTable('billing_webhook_events', {
+  webhookId: text('webhook_id').primaryKey(),
+  type: text('type').notNull(),
+  receivedAt: tz('received_at').notNull().defaultNow(),
+})
+
 export const usageCounters = pgTable(
   'usage_counters',
   {

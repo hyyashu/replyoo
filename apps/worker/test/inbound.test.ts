@@ -1,6 +1,6 @@
 import type { NormalizedEvent } from '@replyooo/meta'
 import { MetaError } from '@replyooo/meta'
-import { automationEntries, automations, connectedAccounts, contacts, flowRuns, messages, webhookEvents } from '@replyooo/db'
+import { automationEntries, automations, connectedAccounts, contacts, flowRuns, messages, usageCounters, webhookEvents } from '@replyooo/db'
 import type { FlowDefinition } from '@replyooo/shared'
 import { encodePostback, PLAN_LIMITS, usagePeriod } from '@replyooo/shared'
 import { and, eq } from 'drizzle-orm'
@@ -316,6 +316,31 @@ describe('plan limits', () => {
 
     await handleInbound(deps, await insertEvent(db, dm(account, 'u-hold', 'price please')))
     expect(jobs.flows).toEqual([])
+  })
+
+  it('lets concurrent new contacts start no more runs than the month has room for', async () => {
+    const { db, deps, jobs, account } = await setup()
+    await publishAutomation(db, account, keywordFlow)
+    await seedUsage(db, account.workspaceId, FREE_LIMIT - 2)
+
+    const ids = await Promise.all(Array.from({ length: 6 }, (_, i) => insertEvent(db, dm(account, `u-rush-${i}`, 'price please'))))
+    await Promise.all(ids.map((id) => handleInbound(deps, id)))
+    expect(jobs.flows).toHaveLength(2)
+    const [usage] = await db.select().from(usageCounters).where(eq(usageCounters.workspaceId, account.workspaceId))
+    expect(usage?.contactsReached).toBe(FREE_LIMIT)
+    const counted = await db.select().from(contacts).where(eq(contacts.lastCountedPeriod, usagePeriod(NOW)))
+    expect(counted.filter((c) => c.connectedAccountId === account.id)).toHaveLength(2)
+  })
+
+  it('counts a contact once when it starts several runs in a month', async () => {
+    const { db, deps, account } = await setup()
+    await publishAutomation(db, account, keywordFlow)
+    await publishAutomation(db, account, anyDmFlow)
+    await seedUsage(db, account.workspaceId, 0)
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-twice', 'price please')))
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-twice', 'hello again')))
+    const [usage] = await db.select().from(usageCounters).where(eq(usageCounters.workspaceId, account.workspaceId))
+    expect(usage?.contactsReached).toBe(1)
   })
 
   it('lets a waiting run finish at the limit', async () => {

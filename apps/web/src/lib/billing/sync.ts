@@ -1,7 +1,7 @@
 import 'server-only'
-import { type Db, subscriptions, workspaces } from '@replyooo/db'
+import { billingWebhookEvents, type Db, subscriptions, type Tx, workspaces } from '@replyooo/db'
 import { PAID_STATUSES } from '@replyooo/shared'
-import { and, eq, isNull, lte, or } from 'drizzle-orm'
+import { and, eq, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { isUuid } from '../data/ids'
 import { planForProduct, type ProductTable } from './dodo'
@@ -21,10 +21,22 @@ const SubscriptionEvent = z.object({
 })
 type SubscriptionData = z.infer<typeof SubscriptionEvent>['data']
 
-export type SyncResult = 'updated' | 'stale' | 'ignored' | 'unknown_product' | 'unknown_workspace'
+export type SyncResult = 'updated' | 'stale' | 'duplicate' | 'ignored' | 'unknown_product' | 'unknown_workspace'
+
+/**
+ * Tie-breaker for two events with the same `timestamp`: the one further along the subscription
+ * lifecycle wins, whichever arrives last. Equal rank (or an unknown status, ranked lowest) keeps the
+ * stored row, so a tie never flips back and forth.
+ */
+export const STATUS_PRECEDENCE: readonly string[] = ['pending', 'active', 'past_due', 'on_hold', 'failed', 'cancelled', 'expired']
+
+function statusRank(status: string | SQL): SQL {
+  const cases = STATUS_PRECEDENCE.map((s, i) => sql`when ${s} then ${i}`)
+  return sql`(case ${status} ${sql.join(cases, sql` `)} else -1 end)`
+}
 
 /** Checkout metadata first, then the subscription or customer we already stored. */
-async function findWorkspace(db: Db, data: SubscriptionData): Promise<string | null> {
+async function findWorkspace(db: Db | Tx, data: SubscriptionData): Promise<string | null> {
   const fromMetadata = data.metadata?.workspace_id
   if (typeof fromMetadata === 'string' && isUuid(fromMetadata)) {
     const [row] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, fromMetadata))
@@ -47,37 +59,53 @@ async function findWorkspace(db: Db, data: SubscriptionData): Promise<string | n
 /**
  * Spec §5.3: Dodo `subscription.*` webhooks upsert the workspace's `subscriptions` row. Webhooks can
  * arrive out of order, so an event older than the last one applied is ignored, and a non-paying
- * event about a different subscription never replaces the one on file.
+ * event about a different subscription never replaces the one on file. Only a strictly newer event, or one
+ * with the same timestamp and a later status (STATUS_PRECEDENCE), is applied. A `webhookId` already
+ * handled is a redelivery and is skipped; it is recorded in the same transaction that applies the event.
  */
-export async function applyDodoEvent(db: Db, products: ProductTable, payload: unknown): Promise<SyncResult> {
+export async function applyDodoEvent(db: Db, products: ProductTable, payload: unknown, webhookId?: string | null): Promise<SyncResult> {
   const parsed = SubscriptionEvent.safeParse(payload)
   if (!parsed.success) return 'ignored'
   const { data, timestamp } = parsed.data
   const choice = planForProduct(products, data.product_id)
   if (!choice) return 'unknown_product'
-  const workspaceId = await findWorkspace(db, data)
-  if (!workspaceId) return 'unknown_workspace'
+  return db.transaction(async (tx) => {
+    if (webhookId) {
+      const first = await tx
+        .insert(billingWebhookEvents)
+        .values({ webhookId, type: parsed.data.type })
+        .onConflictDoNothing()
+        .returning({ webhookId: billingWebhookEvents.webhookId })
+      if (first.length === 0) return 'duplicate'
+    }
+    const workspaceId = await findWorkspace(tx, data)
+    if (!workspaceId) return 'unknown_workspace'
 
-  const eventAt = new Date(timestamp)
-  const values = {
-    plan: choice.plan,
-    billingInterval: choice.interval,
-    status: data.status,
-    dodoCustomerId: data.customer.customer_id,
-    dodoSubscriptionId: data.subscription_id,
-    currentPeriodEnd: data.next_billing_date ? new Date(data.next_billing_date) : null,
-    dodoEventAt: eventAt,
-  }
-  const fresh = or(isNull(subscriptions.dodoEventAt), lte(subscriptions.dodoEventAt, eventAt))
-  const sameSubscription = or(isNull(subscriptions.dodoSubscriptionId), eq(subscriptions.dodoSubscriptionId, data.subscription_id))
-  const rows = await db
-    .insert(subscriptions)
-    .values({ workspaceId, ...values })
-    .onConflictDoUpdate({
-      target: subscriptions.workspaceId,
-      set: values,
-      setWhere: PAID_STATUSES.includes(data.status) ? fresh : and(fresh, sameSubscription),
-    })
-    .returning({ id: subscriptions.id })
-  return rows.length > 0 ? 'updated' : 'stale'
+    const eventAt = new Date(timestamp)
+    const values = {
+      plan: choice.plan,
+      billingInterval: choice.interval,
+      status: data.status,
+      dodoCustomerId: data.customer.customer_id,
+      dodoSubscriptionId: data.subscription_id,
+      currentPeriodEnd: data.next_billing_date ? new Date(data.next_billing_date) : null,
+      dodoEventAt: eventAt,
+    }
+    const fresh = or(
+      isNull(subscriptions.dodoEventAt),
+      lt(subscriptions.dodoEventAt, eventAt),
+      and(eq(subscriptions.dodoEventAt, eventAt), sql`${statusRank(data.status)} > ${statusRank(sql`${subscriptions.status}`)}`),
+    )
+    const sameSubscription = or(isNull(subscriptions.dodoSubscriptionId), eq(subscriptions.dodoSubscriptionId, data.subscription_id))
+    const rows = await tx
+      .insert(subscriptions)
+      .values({ workspaceId, ...values })
+      .onConflictDoUpdate({
+        target: subscriptions.workspaceId,
+        set: values,
+        setWhere: PAID_STATUSES.includes(data.status) ? fresh : and(fresh, sameSubscription),
+      })
+      .returning({ id: subscriptions.id })
+    return rows.length > 0 ? 'updated' : 'stale'
+  })
 }

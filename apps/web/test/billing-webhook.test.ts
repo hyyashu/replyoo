@@ -117,18 +117,42 @@ describe('applyDodoEvent', () => {
     expect(await row(workspaceId)).toMatchObject({ status: 'active' })
   })
 
-  it('re-applies a duplicate delivery idempotently and lets an equal-timestamp event through, but not an older one', async () => {
+  it('leaves the row alone for a duplicate delivery and an older event', async () => {
     const { workspaceId } = await createWorkspace('Duplicate')
     const sub = `sub_${workspaceId}`
     const renewed = event('subscription.renewed', '2026-10-06T10:00:00.000Z', { workspace_id: workspaceId, subscription_id: sub })
     expect(await applyDodoEvent(db(), PRODUCTS, renewed)).toBe('updated')
     const { updatedAt: _first, ...first } = (await row(workspaceId))!
-    expect(await applyDodoEvent(db(), PRODUCTS, renewed)).toBe('updated')
+    expect(await applyDodoEvent(db(), PRODUCTS, renewed)).toBe('stale')
     expect(await row(workspaceId)).toMatchObject(first)
     expect(
       await applyDodoEvent(db(), PRODUCTS, event('subscription.on_hold', '2026-10-06T09:59:59.999Z', { subscription_id: sub, status: 'on_hold' })),
     ).toBe('stale')
     expect(await row(workspaceId)).toMatchObject({ status: 'active', dodoEventAt: new Date('2026-10-06T10:00:00.000Z') })
+  })
+
+  it('applies a webhook-id once', async () => {
+    const { workspaceId } = await createWorkspace('Replay')
+    const sub = `sub_${workspaceId}`
+    const id = `msg_${randomUUID()}`
+    const active = event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: workspaceId, subscription_id: sub })
+    const results = await Promise.all([1, 2, 3].map(() => applyDodoEvent(db(), PRODUCTS, active, id)))
+    expect(results.sort()).toEqual(['duplicate', 'duplicate', 'updated'])
+    // A replay of that id is skipped even once a newer event would otherwise let it through again.
+    await db().update(subscriptions).set({ dodoEventAt: new Date('2026-10-01T00:00:00.000Z'), status: 'on_hold' }).where(eq(subscriptions.workspaceId, workspaceId))
+    expect(await applyDodoEvent(db(), PRODUCTS, active, id)).toBe('duplicate')
+    expect(await row(workspaceId)).toMatchObject({ status: 'on_hold' })
+  })
+
+  it('resolves events with the same timestamp by status precedence, whatever the arrival order', async () => {
+    for (const order of [['active', 'cancelled'], ['cancelled', 'active']] as const) {
+      const { workspaceId } = await createWorkspace('Tie')
+      const sub = `sub_${workspaceId}`
+      for (const status of order) {
+        await applyDodoEvent(db(), PRODUCTS, event(`subscription.${status}`, '2026-10-06T10:00:00.000Z', { workspace_id: workspaceId, subscription_id: sub, status }), `msg_${randomUUID()}`)
+      }
+      expect(await row(workspaceId)).toMatchObject({ status: 'cancelled' })
+    }
   })
 
   it('doesn’t guess between workspaces that share a Dodo customer', async () => {
@@ -194,6 +218,17 @@ describe('POST /api/webhooks/dodo', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ received: true, result: 'updated' })
     expect(await row(workspaceId)).toMatchObject({ plan: 'pro' })
+  })
+
+  it('acknowledges a redelivered webhook-id without applying it again', async () => {
+    const { workspaceId } = await createWorkspace('Redelivery')
+    const body = JSON.stringify(event('subscription.active', new Date().toISOString(), { workspace_id: workspaceId, subscription_id: `sub_${workspaceId}` }))
+    const headers = sign(body)
+    const post = () => POST(new Request('http://localhost:3000/api/webhooks/dodo', { method: 'POST', body, headers }))
+    expect(await (await post()).json()).toEqual({ received: true, result: 'updated' })
+    const again = await post()
+    expect(again.status).toBe(200)
+    expect(await again.json()).toEqual({ received: true, result: 'duplicate' })
   })
 
   it('answers malformed signed payloads without crashing', async () => {
