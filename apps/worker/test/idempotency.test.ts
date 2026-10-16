@@ -201,7 +201,8 @@ describe('job outbox', () => {
     down = false
     await db.update(jobOutbox).set({ createdAt: ago(60_000) }).where(eq(jobOutbox.id, pending!.id))
     await sweep(deps)
-    expect(jobs.flows).toEqual([
+    // The sweep can also replay pending rows left by other tests sharing the database.
+    expect(jobs.flows.filter((j) => j.opts?.jobId === `resume-${eventId}`)).toEqual([
       { data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' }, expectedVersion: 1 }, opts: { jobId: `resume-${eventId}` } },
     ])
     const [replayed] = await db.select().from(jobOutbox).where(eq(jobOutbox.id, pending!.id))
