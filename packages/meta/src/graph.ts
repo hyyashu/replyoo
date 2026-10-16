@@ -29,8 +29,9 @@ export async function graphRequest<T>(req: GraphRequest): Promise<T> {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
   } catch (cause) {
+    const ambiguous = (cause as Error).name === 'TimeoutError' && (req.method ?? 'GET') === 'POST'
     throw new MetaError('retryable', `Graph API request failed: ${(cause as Error).message}`, {
-      reason: 'network',
+      reason: ambiguous ? 'timeout_ambiguous' : 'network',
     })
   }
 

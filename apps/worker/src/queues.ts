@@ -42,7 +42,8 @@ export async function addOrRevive(queue: Queue, name: string, data: unknown, opt
   if (existing) {
     const state = await existing.getState()
     if (state === 'failed') {
-      await existing.retry('failed')
+      // Fresh attempts: a revived job that fails once must not be final straight away. It may race a cleanup.
+      await existing.retry('failed', { resetAttemptsMade: true, resetAttemptsStarted: true }).catch(() => undefined)
       return
     }
     if (state !== 'completed') return
@@ -91,9 +92,16 @@ export function startWorkers(
     new Worker('inbound', async (job: Job<{ webhookEventId: string }>) => handleInbound(deps, job.data.webhookEventId), base),
     new Worker(
       'flow',
-      async (job: Job<FlowJobData | FollowCheckJobData>) => {
-        if (job.name === 'follow_check') await handleFollowCheck(deps, job.data as FollowCheckJobData)
-        else await handleFlowJob(deps, job.data as FlowJobData)
+      async (job: Job<FlowJobData | FollowCheckJobData>, token?: string) => {
+        if (job.name === 'follow_check') {
+          await handleFollowCheck(deps, job.data as FollowCheckJobData)
+          return
+        }
+        const result = await handleFlowJob(deps, job.data as FlowJobData)
+        if (result.status === 'early') {
+          await job.moveToDelayed(Math.max(result.retryAt.getTime(), Date.now() + 1000), token)
+          throw new DelayedError()
+        }
       },
       base,
     ),
@@ -102,7 +110,7 @@ export function startWorkers(
       async (job: Job<OutboundJobData>, token?: string) => {
         const isFinal = job.attemptsMade + 1 >= (job.opts.attempts ?? 1)
         const result = await handleOutbound(deps, job.data, { isFinal })
-        if (result.status === 'rate_limited') {
+        if (result.status !== 'done') {
           await job.moveToDelayed(Date.now() + result.retryInMs, token)
           throw new DelayedError()
         }

@@ -34,7 +34,7 @@ export async function handleInbound(deps: Deps, webhookEventId: string): Promise
   } catch (error) {
     await deps.db
       .update(webhookEvents)
-      .set({ error: error instanceof Error ? error.message : String(error) })
+      .set({ error: error instanceof Error ? error.message : String(error), attempts: sql`${webhookEvents.attempts} + 1` })
       .where(eq(webhookEvents.id, row.id))
     throw error
   }

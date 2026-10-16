@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { graphRequest, MetaError } from '../src'
 
 const server = setupServer()
@@ -53,6 +53,23 @@ describe('graphRequest', () => {
     expect(error).toBeInstanceOf(MetaError)
     expect((error as MetaError).kind).toBe('retryable')
     expect((error as MetaError).details.reason).toBe('network')
+  })
+
+  it('marks a timed-out POST as ambiguous and a timed-out GET as a network failure', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.reject(new DOMException('The operation timed out.', 'TimeoutError')))
+    try {
+      const post = await graphRequest({ baseUrl: base, path: '123/messages', token: 'tok', method: 'POST', body: {} }).catch(
+        (e: unknown) => e,
+      )
+      expect((post as MetaError).details.reason).toBe('timeout_ambiguous')
+      const get = await graphRequest({ baseUrl: base, path: 'me', token: 'tok' }).catch((e: unknown) => e)
+      expect((get as MetaError).kind).toBe('retryable')
+      expect((get as MetaError).details.reason).toBe('network')
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 
   it('returns an empty object for empty success bodies', async () => {

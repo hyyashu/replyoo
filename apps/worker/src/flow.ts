@@ -49,8 +49,12 @@ export function outboundRows(
   return rows
 }
 
-export async function handleFlowJob(deps: Deps, job: FlowJobData): Promise<void> {
+/** `early`: a timeout job ran before its run's deadline (clock skew, an early sweep); retry it at `retryAt`. */
+export type FlowJobResult = { status: 'done' } | { status: 'early'; retryAt: Date }
+
+export async function handleFlowJob(deps: Deps, job: FlowJobData): Promise<FlowJobResult> {
   const now = deps.now()
+  let early: Date | null = null
   const staged = await deps.db.transaction(async (tx) => {
     // Lock the contact before the run, the same order inbound uses, so the two never deadlock.
     const [peek] = await tx.select({ contactId: flowRuns.contactId }).from(flowRuns).where(eq(flowRuns.id, job.runId))
@@ -75,8 +79,15 @@ export async function handleFlowJob(deps: Deps, job: FlowJobData): Promise<void>
       now,
     })
     if (result.ignored) {
-      // A current timeout the run cannot take would be re-enqueued by the sweep forever.
-      if (job.event.type === 'timeout' && row.status === 'waiting') await endRun(tx, row.id, 'failed', 'timeout_ignored', now)
+      if (job.event.type === 'timeout' && row.status === 'waiting') {
+        // Too early: the same job is delayed, since a restaged one would collide with its outbox row.
+        if (row.waitUntil && now < row.waitUntil) {
+          early = new Date(row.waitUntil.getTime() + 1000)
+          return []
+        }
+        // A current timeout the run cannot take would be re-enqueued by the sweep forever.
+        await endRun(tx, row.id, 'failed', 'timeout_ignored', now)
+      }
       return []
     }
 
@@ -136,6 +147,7 @@ export async function handleFlowJob(deps: Deps, job: FlowJobData): Promise<void>
     return stageJobs(tx, jobs)
   })
   await flushOutbox(deps, staged)
+  return early ? { status: 'early', retryAt: early } : { status: 'done' }
 }
 
 /**

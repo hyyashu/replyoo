@@ -3,7 +3,7 @@ import { connectedAccounts, contacts, createTrackedLinks, flowRuns, messages, us
 import type { AccountCredentials, PlatformAdapter, SendableButton, SendableMessage, SendResult } from '@replyooo/meta'
 import { MetaError } from '@replyooo/meta'
 import { encodePostback } from '@replyooo/shared'
-import { and, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { flagReauth } from './alerts'
 import { scheduleClickFollowUp } from './click-follow-ups'
 import type { Deps, OutboundJobData } from './deps'
@@ -16,23 +16,25 @@ export const DM_WINDOW_MS = 24 * 60 * 60 * 1000
 export const SEND_LEASE_MS = 10 * 60 * 1000
 /** Claims per message across all jobs and sweeps; the last one fails the message whatever the error. */
 export const MAX_SEND_ATTEMPTS = 5
+/** Slack after a live claim's lease before a waiting job looks again, so the lease has surely lapsed. */
+export const CLAIM_GRACE_MS = 5_000
 
-export type OutboundResult = { status: 'done' } | { status: 'rate_limited'; retryInMs: number }
+export type OutboundResult =
+  | { status: 'done' }
+  | { status: 'rate_limited'; retryInMs: number }
+  | { status: 'wait_for_claim'; retryInMs: number }
 
 type MessageRow = typeof messages.$inferSelect
 
-/** A message another sender may take: queued, or claimed so long ago that the claim has lapsed. */
-export function claimable(now: Date) {
-  return or(
-    eq(messages.status, 'queued'),
-    and(eq(messages.status, 'sending'), lt(messages.claimedAt, new Date(now.getTime() - SEND_LEASE_MS))),
-  )!
+/** A message a sender may take. A claim is never retaken: once lapsed, nobody knows whether Meta got it. */
+export function claimable() {
+  return eq(messages.status, 'queued')
 }
 
 /**
- * Sends each message at most once per lease: a message is claimed (`sending`) right before its Graph call and only
- * a lapsed claim can be taken again. A crash or DB error after Meta accepted therefore leaves the message claimed,
- * and the retry skips it instead of sending it twice.
+ * Sends each message at most once: a message is claimed (`sending`) right before its Graph call and a claim is
+ * never taken again. A crash or DB error after Meta accepted therefore leaves the message claimed; a retry waits
+ * for the claim's lease and, if it lapses unresolved, fails the message `send_unknown` instead of resending it.
  */
 export async function handleOutbound(
   deps: Deps,
@@ -51,14 +53,25 @@ export async function handleOutbound(
     const { contact, account } = row
     const now = deps.now()
     if (row.message.status !== 'queued' && row.message.status !== 'sending') continue
-    // Someone else holds this message; later ones must wait for it to keep the order.
-    if (row.message.status === 'sending' && !leaseLapsed(row.message.claimedAt, now)) return { status: 'done' }
 
     const stop = async (reason: string, runStatus: 'failed' | 'expired'): Promise<OutboundResult> => {
       await failMessages(db, [id], reason, ['queued', 'sending'])
       await failMessages(db, job.messageIds.slice(index + 1), 'skipped')
-      if (row.message.flowRunId) await endRun(db, row.message.flowRunId, runStatus, reason, now)
+      if (row.message.flowRunId) {
+        await skipQueuedInRun(db, row.message.flowRunId)
+        await endRun(db, row.message.flowRunId, runStatus, reason, now)
+      }
       return { status: 'done' }
+    }
+
+    if (row.message.status === 'sending') {
+      const { claimedAt } = row.message
+      // Someone else holds this message; later ones wait for it to keep the order.
+      if (claimedAt && !leaseLapsed(claimedAt, now)) {
+        return { status: 'wait_for_claim', retryInMs: claimedAt.getTime() + SEND_LEASE_MS - now.getTime() + CLAIM_GRACE_MS }
+      }
+      // The claim lapsed unresolved: Meta may have the message, so it is never sent again.
+      return stop('send_unknown', 'failed')
     }
 
     if (account.status !== 'active') return stop('account_inactive', 'failed')
@@ -70,7 +83,7 @@ export async function handleOutbound(
     const [message] = await db
       .update(messages)
       .set({ status: 'sending', claimedAt: now, attempts: sql`${messages.attempts} + 1` })
-      .where(and(eq(messages.id, id), claimable(now)))
+      .where(and(eq(messages.id, id), claimable()))
       .returning()
     if (!message) return { status: 'done' }
 
@@ -79,9 +92,14 @@ export async function handleOutbound(
       result = await send(deps.adapters[account.platform], credentials(account, deps.tokenKey), contact, await withTrackedLinks(deps, message))
     } catch (error) {
       const meta = error instanceof MetaError ? error : null
+      // The request may have reached Meta; resending could deliver it twice.
+      if (meta?.details.reason === 'timeout_ambiguous') {
+        deps.log.warn({ messageId: id, kind: message.kind, metaMessage: meta.message }, 'outbound send timed out; delivery unknown')
+        return stop('delivery_unknown', 'failed')
+      }
       const last = attempt.isFinal || message.attempts >= MAX_SEND_ATTEMPTS
       if (!last && (!meta || meta.kind === 'retryable')) {
-        // Nothing went out (or we cannot tell, e.g. a timeout); hand the message back for the job's retry.
+        // Nothing went out; hand the message back for the job's retry.
         await release(db, id)
         throw error
       }
@@ -108,8 +126,16 @@ export async function handleOutbound(
   return { status: 'done' }
 }
 
-function leaseLapsed(claimedAt: Date | null, now: Date): boolean {
-  return claimedAt === null || now.getTime() - claimedAt.getTime() > SEND_LEASE_MS
+function leaseLapsed(claimedAt: Date, now: Date): boolean {
+  return now.getTime() - claimedAt.getTime() > SEND_LEASE_MS
+}
+
+/** A run that stopped sending must not send its later messages, whichever job holds them. */
+export async function skipQueuedInRun(db: Db, runId: string): Promise<void> {
+  await db
+    .update(messages)
+    .set({ status: 'failed', error: 'skipped', claimedAt: null })
+    .where(and(eq(messages.flowRunId, runId), eq(messages.status, 'queued')))
 }
 
 async function release(db: Db, id: string): Promise<void> {

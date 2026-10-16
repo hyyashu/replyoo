@@ -326,6 +326,8 @@ export const webhookEvents = pgTable(
     receivedAt: tz('received_at').notNull().defaultNow(),
     processedAt: tz('processed_at'),
     error: text('error'),
+    /** Failed processing attempts; the sweep stops replaying an event after MAX_INBOUND_ATTEMPTS. */
+    attempts: integer('attempts').notNull().default(0),
   },
   (t) => [
     uniqueIndex('webhook_events_dedup_key_uq').on(t.dedupKey),

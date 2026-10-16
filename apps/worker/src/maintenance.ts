@@ -10,15 +10,17 @@ import {
 } from '@replyooo/db'
 import type { StartTrigger } from '@replyooo/engine'
 import { MetaError } from '@replyooo/meta'
-import { and, asc, eq, gt, isNotNull, isNull, lt, or } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
 import { flagReauth } from './alerts'
 import { sendDueClickFollowUps } from './click-follow-ups'
 import type { Deps } from './deps'
-import { failMessages, MAX_SEND_ATTEMPTS, SEND_LEASE_MS } from './outbound'
+import { failMessages, MAX_SEND_ATTEMPTS, SEND_LEASE_MS, skipQueuedInRun } from './outbound'
 import { replayOutbox } from './outbox'
 import { credentials, endRun } from './records'
 
 export const SWEEP_BATCH = 500
+/** Processing attempts after which the sweep stops replaying a webhook event. */
+export const MAX_INBOUND_ATTEMPTS = 15
 const SECOND = 1000
 const MINUTE = 60 * SECOND
 const DAY = 24 * 60 * MINUTE
@@ -53,19 +55,21 @@ export async function sweep(deps: Deps) {
     starts++
   }
 
-  // Queued for a while, or claimed by a sender whose lease ran out (it crashed). A live claim is left alone.
+  // A claim whose lease ran out unresolved (its sender crashed mid-send) may have reached Meta: never resend it.
+  const lapsed = await db
+    .update(messages)
+    .set({ status: 'failed', error: 'send_unknown', claimedAt: null })
+    .where(and(eq(messages.direction, 'out'), eq(messages.status, 'sending'), lt(messages.claimedAt, ago(SEND_LEASE_MS))))
+    .returning({ flowRunId: messages.flowRunId })
+  for (const runId of new Set(lapsed.flatMap(({ flowRunId }) => (flowRunId ? [flowRunId] : [])))) {
+    await skipQueuedInRun(db, runId)
+    await endRun(db, runId, 'failed', 'send_unknown', deps.now())
+  }
+
   const stuck = await db
     .select({ id: messages.id, flowRunId: messages.flowRunId, attempts: messages.attempts })
     .from(messages)
-    .where(
-      and(
-        eq(messages.direction, 'out'),
-        or(
-          and(eq(messages.status, 'queued'), lt(messages.createdAt, ago(5 * MINUTE))),
-          and(eq(messages.status, 'sending'), lt(messages.claimedAt, ago(SEND_LEASE_MS))),
-        ),
-      ),
-    )
+    .where(and(eq(messages.direction, 'out'), eq(messages.status, 'queued'), lt(messages.createdAt, ago(5 * MINUTE))))
     .orderBy(asc(messages.createdAt), asc(messages.id))
     .limit(SWEEP_BATCH)
   const groups = new Map<string, string[]>()
@@ -81,6 +85,22 @@ export async function sweep(deps: Deps) {
     const key = message.flowRunId ?? message.id
     groups.set(key, [...(groups.get(key) ?? []), message.id])
   }
+  // A run whose earlier message is still claimed must not have its later messages sent ahead of it; the claim's
+  // own job sends them once it resolves.
+  const held =
+    groups.size === 0
+      ? []
+      : await db
+          .selectDistinct({ flowRunId: messages.flowRunId })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.status, 'sending'),
+              gte(messages.claimedAt, ago(SEND_LEASE_MS)),
+              inArray(messages.flowRunId, [...groups.keys()]),
+            ),
+          )
+  for (const { flowRunId } of held) if (flowRunId) groups.delete(flowRunId)
   for (const messageIds of groups.values()) await jobs.outbound({ messageIds })
 
   const outbox = await replayOutbox(deps, ago(30 * SECOND), SWEEP_BATCH)
@@ -91,6 +111,7 @@ export async function sweep(deps: Deps) {
     .where(
       and(
         isNull(webhookEvents.processedAt),
+        lt(webhookEvents.attempts, MAX_INBOUND_ATTEMPTS),
         lt(webhookEvents.receivedAt, ago(2 * MINUTE)),
         gt(webhookEvents.receivedAt, ago(DAY)),
       ),
@@ -108,6 +129,7 @@ export async function sweep(deps: Deps) {
     starts,
     messages: stuck.length - exhausted,
     exhausted,
+    lapsed: lapsed.length,
     outbox,
     events: events.length,
     followUps,

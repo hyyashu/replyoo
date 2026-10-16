@@ -9,6 +9,8 @@ export type MetaFailureReason =
   | 'invalid_request'
   | 'server'
   | 'network'
+  /** A POST timed out: Meta may or may not have acted on it, so it must not be retried. */
+  | 'timeout_ambiguous'
 
 export interface MetaErrorDetails {
   status?: number
