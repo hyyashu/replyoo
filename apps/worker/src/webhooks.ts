@@ -30,6 +30,6 @@ export async function ingestWebhook(deps: Deps, body: unknown): Promise<{ stored
     .values(events.map((event) => ({ platform, dedupKey: event.dedupKey, payload: event })))
     .onConflictDoNothing({ target: webhookEvents.dedupKey })
     .returning({ id: webhookEvents.id })
-  for (const row of rows) await deps.jobs.inbound(row.id)
+  await deps.jobs.inboundMany(rows.map((row) => row.id))
   return { stored: rows.length, duplicates: events.length - rows.length }
 }

@@ -84,7 +84,7 @@ async function execute(deps: Deps, run: { id: string; automationId: string; wind
   }
   const buckets = classifyComments(others, candidate, handled, now)
 
-  let enqueued = 0
+  const stored: string[] = []
   for (const comment of buckets.eligible) {
     const event: NormalizedEvent = {
       type: 'comment_created',
@@ -100,20 +100,20 @@ async function execute(deps: Deps, run: { id: string; automationId: string; wind
       senderName: comment.authorName,
       restrictToAutomationId: row.automation.id,
     }
-    const [stored] = await db
+    const [inserted] = await db
       .insert(webhookEvents)
       .values({ platform: account.platform, dedupKey: event.dedupKey, payload: event })
       .onConflictDoNothing({ target: webhookEvents.dedupKey })
       .returning({ id: webhookEvents.id })
-    if (!stored) continue
-    await deps.jobs.inbound(stored.id)
-    enqueued++
+    if (inserted) stored.push(inserted.id)
   }
+  // A crash before this line leaves stored events unqueued; the maintenance sweep re-enqueues them.
+  await deps.jobs.inboundMany(stored)
   return {
     found: others.length,
     skippedHandled: buckets.handled.length,
     skippedNoMatch: buckets.no_match.length + buckets.too_old.length,
-    enqueued,
+    enqueued: stored.length,
     capped: gathered.capped,
   }
 }

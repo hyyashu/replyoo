@@ -1,17 +1,16 @@
 import type { Db } from '@replyooo/db'
-import { connectedAccounts, contacts, createTrackedLinks, flowRuns, messages, usageCounters } from '@replyooo/db'
+import { connectedAccounts, contacts, createTrackedLinks, messages, usageCounters } from '@replyooo/db'
 import type { AccountCredentials, PlatformAdapter, SendableButton, SendableMessage, SendResult } from '@replyooo/meta'
 import { MetaError } from '@replyooo/meta'
-import { encodePostback } from '@replyooo/shared'
+import { encodePostback, usagePeriod } from '@replyooo/shared'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { flagReauth } from './alerts'
 import { scheduleClickFollowUp } from './click-follow-ups'
 import type { Deps, OutboundJobData } from './deps'
 import type { OutboundBody } from './flow'
 import type { ContactRow } from './records'
-import { credentials, endRun } from './records'
+import { automationIdForRun, credentials, endRun, withinDmWindow } from './records'
 
-export const DM_WINDOW_MS = 24 * 60 * 60 * 1000
 
 export type OutboundResult = { status: 'done' } | { status: 'rate_limited'; retryInMs: number }
 
@@ -42,7 +41,7 @@ export async function handleOutbound(
     }
 
     if (account.status !== 'active') return stop('account_inactive', 'failed')
-    if (message.kind === 'dm' && !withinWindow(contact.lastInboundAt, now)) return stop('window_closed', 'expired')
+    if (message.kind === 'dm' && !withinDmWindow(contact.lastInboundAt, now)) return stop('window_closed', 'expired')
 
     const waitMs = await deps.rateLimiter.take(account.id)
     if (waitMs > 0) return { status: 'rate_limited', retryInMs: waitMs }
@@ -73,10 +72,6 @@ export async function handleOutbound(
   return { status: 'done' }
 }
 
-function withinWindow(lastInboundAt: Date | null, now: Date): boolean {
-  return lastInboundAt !== null && now.getTime() - lastInboundAt.getTime() <= DM_WINDOW_MS
-}
-
 /**
  * Swaps each url button of a DM for a short tracked link (`${APP_URL}/l/<code>`). A retried message finds its
  * existing links, so codes stay stable. Tracking must never stop a DM: on any error the original message is sent.
@@ -98,9 +93,9 @@ export async function withTrackedLinks(
   ]
   if (links.length === 0) return message
   try {
-    const [run] = await deps.db.select({ automationId: flowRuns.automationId }).from(flowRuns).where(eq(flowRuns.id, message.flowRunId))
-    if (!run) return message
-    const codes = await create(deps.db, { messageId: message.id, contactId: message.contactId, automationId: run.automationId, links })
+    const automationId = await automationIdForRun(deps.db, message.flowRunId)
+    if (!automationId) return message
+    const codes = await create(deps.db, { messageId: message.id, contactId: message.contactId, automationId, links })
     const origin = deps.appUrl.replace(/\/+$/, '')
     const tracked = buttons.map((button, position) => {
       const code = codes.get(position)
@@ -172,7 +167,7 @@ function requireCommentId(message: MessageRow): string {
 
 /** Counts a contact once per UTC month, on its first successful outbound message. */
 export async function countUsage(db: Db, workspaceId: string, contactId: string, now: Date): Promise<void> {
-  const period = now.toISOString().slice(0, 7)
+  const period = usagePeriod(now)
   await db.transaction(async (tx) => {
     const claimed = await tx
       .update(contacts)

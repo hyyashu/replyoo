@@ -2,11 +2,12 @@ import { automationVersions, connectedAccounts, contacts, flowRuns, messages } f
 import type { Effect, OutboundMessage, Wait } from '@replyooo/engine'
 import { advance } from '@replyooo/engine'
 import { MetaError } from '@replyooo/meta'
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { flagReauth } from './alerts'
 import type { Deps, FlowJobData, FollowCheckJobData } from './deps'
 import {
   applyContactEffects,
+  cancelWaitingRuns,
   credentials,
   endRun,
   runColumns,
@@ -72,16 +73,7 @@ export async function handleFlowJob(deps: Deps, job: FlowJobData): Promise<void>
     if (result.ignored) return null
 
     if (result.run.status === 'waiting') {
-      await tx
-        .update(flowRuns)
-        .set({
-          status: 'cancelled',
-          wait: null,
-          waitUntil: null,
-          completedAt: now,
-          stateVersion: sql`${flowRuns.stateVersion} + 1`,
-        })
-        .where(and(eq(flowRuns.contactId, row.contactId), eq(flowRuns.status, 'waiting'), ne(flowRuns.id, row.id)))
+      await cancelWaitingRuns(tx, row.contactId, now, row.id)
     }
     await tx.update(flowRuns).set(runColumns(result.run, now)).where(eq(flowRuns.id, row.id))
 

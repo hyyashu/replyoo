@@ -9,6 +9,7 @@ import { useRef, useState, useTransition } from 'react'
 import { createBioBlock, moveBioBlock, removeBioBlock, saveBioBlock, saveBioDetails, setBioBlockHidden } from '@/app/bio-actions'
 import { BioPageView, type BioViewBlock } from '@/components/bio-page-view'
 import { Button, Card, PageHeader, cx } from '@/components/ui'
+import { useCopy } from '@/components/use-copy'
 import { BlockInsights, PageStats } from './stats'
 import { BIO_MAX, BIO_THEMES, LABEL_MAX, NAME_MAX, THEME_IDS } from '@/lib/bio'
 
@@ -51,7 +52,7 @@ export function BioEditor({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [notice, setNotice] = useState<string | null>(null)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const { copied, copy: copyText } = useCopy(1800)
   const [editingDetails, setEditingDetails] = useState(false)
   const [insightsFor, setInsightsFor] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -68,13 +69,7 @@ export function BioEditor({
   const preview = { ...details, avatarUrl, showBadge, blocks: [...blocks, ...drafts] }
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(publicUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch {
-      setNotice('Copy failed. Select the address and copy it manually.')
-    }
+    if (!(await copyText(publicUrl))) setNotice('Copy failed. Select the address and copy it manually.')
   }
 
   const saveDetails = () =>

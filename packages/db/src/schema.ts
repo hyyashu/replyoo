@@ -1,4 +1,4 @@
-import { BILLING_INTERVALS, type FlowDefinition } from '@replyooo/shared'
+import { BILLING_INTERVALS, type FlowDefinition, PLAN_KEYS, PLATFORMS } from '@replyooo/shared'
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -24,7 +24,7 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 }
 
-export const platformEnum = pgEnum('platform', ['instagram', 'facebook'])
+export const platformEnum = pgEnum('platform', PLATFORMS)
 export const memberRoleEnum = pgEnum('member_role', ['owner', 'admin', 'member'])
 export const accountStatusEnum = pgEnum('account_status', ['active', 'reauth_required', 'disconnected'])
 export const automationStatusEnum = pgEnum('automation_status', ['draft', 'active', 'paused'])
@@ -47,7 +47,7 @@ export const messageKindEnum = pgEnum('message_kind', [
   'comment',
 ])
 export const messageStatusEnum = pgEnum('message_status', ['queued', 'sent', 'failed', 'received'])
-export const planEnum = pgEnum('plan', ['free', 'pro', 'business'])
+export const planEnum = pgEnum('plan', PLAN_KEYS)
 export const billingIntervalEnum = pgEnum('billing_interval', BILLING_INTERVALS)
 
 // ---------- auth (Better Auth core schema; the adapter maps by property name) ----------

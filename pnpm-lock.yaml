@@ -182,6 +182,9 @@ importers:
 
   packages/email:
     dependencies:
+      '@replyooo/shared':
+        specifier: workspace:*
+        version: link:../shared
       nodemailer:
         specifier: ^10.0.15
         version: 10.0.15

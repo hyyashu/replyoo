@@ -1,3 +1,5 @@
+import type { Platform } from '@replyooo/shared'
+
 export interface RenderedEmail {
   subject: string
   html: string
@@ -89,7 +91,7 @@ export function reauthEmail({
   url,
 }: {
   username: string
-  platform: 'instagram' | 'facebook'
+  platform: Platform
   workspaceName: string
   url: string
 }): RenderedEmail {

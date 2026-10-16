@@ -8,8 +8,12 @@ export function csvCell(value: string): string {
   return `"${safe.replace(/"/g, '""')}"`
 }
 
+export function csvRow(row: string[]): string {
+  return row.map(csvCell).join(',')
+}
+
 export function toCsv(header: readonly string[], rows: string[][]): string {
-  return [header.join(','), ...rows.map((row) => row.map(csvCell).join(','))].join('\r\n')
+  return [header.join(','), ...rows.map(csvRow)].join('\r\n')
 }
 
 /** Header-safe `[A-Za-z0-9._-]` slug; anything else (quotes, non-Latin-1 text) becomes `-`. */

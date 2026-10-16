@@ -36,6 +36,12 @@ export function createBullJobs(queues: Queues): Jobs {
     async inbound(webhookEventId) {
       await queues.inbound.add('inbound', { webhookEventId }, { jobId: `inbound-${webhookEventId}` })
     },
+    async inboundMany(webhookEventIds) {
+      if (webhookEventIds.length === 0) return
+      await queues.inbound.addBulk(
+        webhookEventIds.map((webhookEventId) => ({ name: 'inbound', data: { webhookEventId }, opts: { jobId: `inbound-${webhookEventId}` } })),
+      )
+    },
     async flow(data, opts) {
       await queues.flow.add('advance', data, {
         ...(opts?.at ? { delay: Math.max(0, opts.at.getTime() - Date.now()) } : {}),

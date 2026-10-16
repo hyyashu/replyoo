@@ -103,7 +103,7 @@ export async function listContacts(
     .select(columns)
     .from(contacts)
     .where(scope(workspaceId, accountId, filters))
-    .orderBy(sql`${contacts.lastInboundAt} desc nulls last`, desc(contacts.firstSeenAt))
+    .orderBy(sql`${contacts.lastInboundAt} desc nulls last`, desc(contacts.firstSeenAt), desc(contacts.id))
     .$dynamic()
   const rows = options.limit ? await query.limit(options.limit).offset(options.offset ?? 0) : await query
   return rows.map(toContact)

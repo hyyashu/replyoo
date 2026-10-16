@@ -71,6 +71,9 @@ export class RecordingJobs implements Jobs {
   async inbound(webhookEventId: string) {
     this.inbounds.push(webhookEventId)
   }
+  async inboundMany(webhookEventIds: readonly string[]) {
+    this.inbounds.push(...webhookEventIds)
+  }
   async flow(data: FlowJobData, opts?: { at?: Date; jobId?: string }) {
     this.flows.push(opts ? { data, opts } : { data })
   }

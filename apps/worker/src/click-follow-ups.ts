@@ -1,9 +1,9 @@
 import type { Db } from '@replyooo/db'
-import { automations, clickFollowUps, connectedAccounts, contacts, flowRuns, linkClicks, messages, trackedLinks } from '@replyooo/db'
+import { automations, clickFollowUps, connectedAccounts, contacts, linkClicks, messages, trackedLinks } from '@replyooo/db'
 import { and, asc, eq, lte } from 'drizzle-orm'
 import type { Deps } from './deps'
 import type { OutboundBody } from './flow'
-import { DM_WINDOW_MS } from './outbound'
+import { automationIdForRun, hasWaitingRun, withinDmWindow } from './records'
 
 type MessageRow = typeof messages.$inferSelect
 
@@ -17,11 +17,7 @@ export async function scheduleClickFollowUp(db: Db, message: MessageRow, now: Da
   const body = message.body as unknown as OutboundBody
   if (body.type !== 'message' || !body.message.followUp) return
   const { afterMinutes, text } = body.message.followUp
-  let automationId: string | null = null
-  if (message.flowRunId) {
-    const [run] = await db.select({ automationId: flowRuns.automationId }).from(flowRuns).where(eq(flowRuns.id, message.flowRunId))
-    automationId = run?.automationId ?? null
-  }
+  const automationId = message.flowRunId ? await automationIdForRun(db, message.flowRunId) : null
   await db
     .insert(clickFollowUps)
     .values({
@@ -81,16 +77,10 @@ export async function sendDueClickFollowUps(deps: Deps): Promise<number> {
       if (automation?.status !== 'active') return finish('skipped', 'automation_inactive')
 
       const [contact] = await tx.select({ lastInboundAt: contacts.lastInboundAt }).from(contacts).where(eq(contacts.id, row.contactId))
-      const lastInbound = contact?.lastInboundAt
-      if (!lastInbound || now.getTime() - lastInbound.getTime() > DM_WINDOW_MS) return finish('skipped', 'window_closed')
+      if (!withinDmWindow(contact?.lastInboundAt, now)) return finish('skipped', 'window_closed')
 
       // A reminder must never land in the middle of another conversation.
-      const [waiting] = await tx
-        .select({ id: flowRuns.id })
-        .from(flowRuns)
-        .where(and(eq(flowRuns.contactId, row.contactId), eq(flowRuns.status, 'waiting')))
-        .limit(1)
-      if (waiting) return finish('skipped', 'in_conversation')
+      if (await hasWaitingRun(tx, row.contactId)) return finish('skipped', 'in_conversation')
 
       const [original] = await tx.select({ body: messages.body }).from(messages).where(eq(messages.id, row.messageId))
       const bodies = original ? followUpBodies(original.body as unknown as OutboundBody, row.text) : []

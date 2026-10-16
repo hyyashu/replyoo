@@ -2,8 +2,7 @@ import { and, asc, desc, eq, inArray, lt, or } from 'drizzle-orm'
 import type { Db } from './client'
 import { automationEntries, backfillRuns, contacts, flowRuns, messages } from './schema'
 
-/** Meta only allows a private reply within 7 days of the comment. */
-export const BACKFILL_WINDOWS_HOURS = [24, 72, 168] as const
+export { BACKFILL_WINDOWS_HOURS } from '@replyooo/shared'
 export const BACKFILL_MAX_COMMENTS = 500
 const STUCK_AFTER_MS = 30 * 60_000
 

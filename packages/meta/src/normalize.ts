@@ -1,4 +1,4 @@
-import type { Platform } from '@replyooo/shared'
+import { hasWordCharacters, type Platform } from '@replyooo/shared'
 import { z } from 'zod'
 import type { NormalizedEvent } from './types'
 
@@ -59,8 +59,6 @@ function toIso(time: number | undefined): string {
   // An out-of-range timestamp makes toISOString() throw, which would drop the whole batch; use now instead.
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString()
 }
-
-const hasWordCharacters = (text: string) => /[\p{L}\p{N}]/u.test(text)
 
 function normalize(
   platform: Platform,

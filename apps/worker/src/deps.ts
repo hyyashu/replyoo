@@ -24,6 +24,8 @@ export interface OutboundJobData {
 
 export interface Jobs {
   inbound(webhookEventId: string): Promise<void>
+  /** Same as `inbound` for each id, in one round trip. */
+  inboundMany(webhookEventIds: readonly string[]): Promise<void>
   flow(data: FlowJobData, opts?: { at?: Date; jobId?: string }): Promise<void>
   followCheck(data: FollowCheckJobData): Promise<void>
   outbound(data: OutboundJobData): Promise<void>
