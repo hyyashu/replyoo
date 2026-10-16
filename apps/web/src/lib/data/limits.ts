@@ -1,7 +1,8 @@
 import 'server-only'
 import { automations, connectedAccounts, type Db, subscriptions, type Tx, workspaceInvitations, workspaceMembers } from '@replyooo/db'
 import { effectivePlan, MAX_TEAM_SEATS, PLAN_LIMITS, PLAN_NAMES, type Platform, type PlanKey } from '@replyooo/shared'
-import { and, count, eq, ne, not, sql } from 'drizzle-orm'
+import { and, count, eq, ne, not } from 'drizzle-orm'
+import { lockWorkspaceLimits } from '../locks'
 
 /**
  * Plan-limit checks. Every `*Block`/`has*` function here must run inside a transaction and takes the
@@ -14,7 +15,7 @@ export async function workspacePlan(executor: Db | Tx, workspaceId: string, now:
   // Not every workspace has a subscriptions row to lock (one is only guaranteed for personal workspaces,
   // and webhooks may create it later), so the lock is a transaction-scoped advisory lock on the workspace
   // id; the row itself is locked too so a plan change can't land mid-check.
-  if (lock) await executor.execute(sql`select pg_advisory_xact_lock(hashtext(${workspaceId}))`)
+  if (lock) await lockWorkspaceLimits(executor, workspaceId)
   const query = executor
     .select({ plan: subscriptions.plan, status: subscriptions.status, currentPeriodEnd: subscriptions.currentPeriodEnd })
     .from(subscriptions)

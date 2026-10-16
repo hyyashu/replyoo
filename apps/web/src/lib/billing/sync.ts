@@ -25,8 +25,9 @@ export type SyncResult = 'updated' | 'stale' | 'duplicate' | 'ignored' | 'unknow
 
 /**
  * Tie-breaker for two events with the same `timestamp`: the one further along the subscription
- * lifecycle wins, whichever arrives last. Equal rank (or an unknown status, ranked lowest) keeps the
- * stored row, so a tie never flips back and forth.
+ * lifecycle wins, whichever arrives last. At equal rank (or two unknown statuses, ranked lowest) the
+ * later-arriving event wins only if it changes the plan, interval, period end or Dodo ids (e.g. a plan
+ * change emitted in the same second); an identical payload is stale, so redeliveries never churn the row.
  */
 export const STATUS_PRECEDENCE: readonly string[] = ['pending', 'active', 'past_due', 'on_hold', 'failed', 'cancelled', 'expired']
 
@@ -70,6 +71,10 @@ export async function applyDodoEvent(db: Db, products: ProductTable, payload: un
   const choice = planForProduct(products, data.product_id)
   if (!choice) return 'unknown_product'
   return db.transaction(async (tx) => {
+    // Resolve the workspace before recording the webhook id: an event we can't place yet must stay
+    // retryable (Dodo redelivers it), not be marked handled.
+    const workspaceId = await findWorkspace(tx, data)
+    if (!workspaceId) return 'unknown_workspace'
     if (webhookId) {
       const first = await tx
         .insert(billingWebhookEvents)
@@ -78,8 +83,6 @@ export async function applyDodoEvent(db: Db, products: ProductTable, payload: un
         .returning({ webhookId: billingWebhookEvents.webhookId })
       if (first.length === 0) return 'duplicate'
     }
-    const workspaceId = await findWorkspace(tx, data)
-    if (!workspaceId) return 'unknown_workspace'
 
     const eventAt = new Date(timestamp)
     const values = {
@@ -94,7 +97,17 @@ export async function applyDodoEvent(db: Db, products: ProductTable, payload: un
     const fresh = or(
       isNull(subscriptions.dodoEventAt),
       lt(subscriptions.dodoEventAt, eventAt),
-      and(eq(subscriptions.dodoEventAt, eventAt), sql`${statusRank(data.status)} > ${statusRank(sql`${subscriptions.status}`)}`),
+      and(
+        eq(subscriptions.dodoEventAt, eventAt),
+        or(
+          sql`${statusRank(data.status)} > ${statusRank(sql`${subscriptions.status}`)}`,
+          and(
+            sql`${statusRank(data.status)} = ${statusRank(sql`${subscriptions.status}`)}`,
+            sql`(${subscriptions.plan}, ${subscriptions.billingInterval}, ${subscriptions.currentPeriodEnd}, ${subscriptions.dodoSubscriptionId}, ${subscriptions.dodoCustomerId})
+              is distinct from (excluded.plan, excluded.billing_interval, excluded.current_period_end, excluded.dodo_subscription_id, excluded.dodo_customer_id)`,
+          ),
+        ),
+      ),
     )
     const sameSubscription = or(isNull(subscriptions.dodoSubscriptionId), eq(subscriptions.dodoSubscriptionId, data.subscription_id))
     const rows = await tx

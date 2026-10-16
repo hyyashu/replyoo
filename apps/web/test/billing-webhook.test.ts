@@ -1,4 +1,4 @@
-import { subscriptions } from '@replyooo/db'
+import { billingWebhookEvents, subscriptions } from '@replyooo/db'
 import { eq } from 'drizzle-orm'
 import { createHmac, randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
@@ -153,6 +153,33 @@ describe('applyDodoEvent', () => {
       }
       expect(await row(workspaceId)).toMatchObject({ status: 'cancelled' })
     }
+  })
+
+  it('doesn’t record a webhook-id it couldn’t place, so the redelivery applies', async () => {
+    const id = `msg_${randomUUID()}`
+    const sub = `sub_${randomUUID()}`
+    const customer = `cus_${randomUUID()}`
+    expect(await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { subscription_id: sub, customer_id: customer }), id)).toBe('unknown_workspace')
+    expect(await db().select().from(billingWebhookEvents).where(eq(billingWebhookEvents.webhookId, id))).toHaveLength(0)
+    const { workspaceId } = await createWorkspace('Late')
+    expect(
+      await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: workspaceId, subscription_id: sub, customer_id: customer }), id),
+    ).toBe('updated')
+    expect(await row(workspaceId)).toMatchObject({ status: 'active', dodoSubscriptionId: sub })
+  })
+
+  it('applies a same-timestamp, same-status event that changes the plan, but not an identical one', async () => {
+    const { workspaceId } = await createWorkspace('Same second')
+    const sub = `sub_${workspaceId}`
+    const at = '2026-10-06T10:00:00.000Z'
+    await applyDodoEvent(db(), PRODUCTS, event('subscription.active', at, { workspace_id: workspaceId, subscription_id: sub }), `msg_${randomUUID()}`)
+    expect(
+      await applyDodoEvent(db(), PRODUCTS, event('subscription.plan_changed', at, { workspace_id: workspaceId, subscription_id: sub, product_id: PRODUCTS.business.month }), `msg_${randomUUID()}`),
+    ).toBe('updated')
+    expect(await row(workspaceId)).toMatchObject({ plan: 'business', status: 'active' })
+    expect(
+      await applyDodoEvent(db(), PRODUCTS, event('subscription.active', at, { workspace_id: workspaceId, subscription_id: sub, product_id: PRODUCTS.business.month }), `msg_${randomUUID()}`),
+    ).toBe('stale')
   })
 
   it('doesn’t guess between workspaces that share a Dodo customer', async () => {

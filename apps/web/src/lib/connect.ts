@@ -12,6 +12,7 @@ import type { Platform } from '@replyooo/shared'
 import { and, eq, ne } from 'drizzle-orm'
 import { restoreLiveIceBreakersFor } from './data/ice-breakers'
 import { hasAccountSlot } from './data/limits'
+import { lockWorkspaceLimits } from './locks'
 import { env } from './env'
 import { adapterFor, tokenKey } from './meta'
 
@@ -120,6 +121,7 @@ async function connectOne(
   input: AccountInput,
 ): Promise<string | 'owned_elsewhere' | 'plan_limit'> {
   return db.transaction(async (tx) => {
+    await lockWorkspaceLimits(tx, workspaceId)
     if (await ownedElsewhere(tx, workspaceId, input.platform, input.externalId)) return 'owned_elsewhere'
     if (!(await hasAccountSlot(tx, workspaceId, input.platform, input.externalId, new Date()))) return 'plan_limit'
     await adapterFor(input.platform).subscribeWebhooks({ externalId: input.externalId, accessToken: input.accessToken })

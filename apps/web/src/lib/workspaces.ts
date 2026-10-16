@@ -6,7 +6,8 @@ import {
   workspaceMembers,
   workspaces,
 } from '@replyooo/db'
-import { desc, eq, sql } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
+import { advisoryXactLock, LOCK_NS } from './locks'
 
 export type Role = 'owner' | 'admin' | 'member'
 
@@ -55,7 +56,7 @@ export async function resolveWorkspace(
   preferredId?: string | null,
 ): Promise<WorkspaceContext> {
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.id}))`)
+    await advisoryXactLock(tx, LOCK_NS.userWorkspaces, user.id)
     if (user.emailVerified) await acceptInvitations(tx, user)
 
     let memberships = await listWorkspaces(tx, user.id)

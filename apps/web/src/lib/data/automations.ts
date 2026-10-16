@@ -24,6 +24,7 @@ import { db } from '../db'
 import { DEFAULT_RECIPE, compileRecipe } from '../recipe'
 import { clearIceBreakersQuietly, iceBreakerError, iceBreakerItems, pushIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
+import { lockWorkspaceLimits } from '../locks'
 import { liveAutomationBlock } from './limits'
 import type { Automation, AutomationStats, AutomationStatus, PublishResult, StatusResult } from './types'
 
@@ -312,6 +313,8 @@ export async function publishAutomation(workspaceId: string, id: string): Promis
   const state: { account?: AccountRow } = {}
   try {
     return await db().transaction(async (tx): Promise<PublishResult> => {
+      // Limit lock before the row locks: same order as every other limit-checking transaction.
+      await lockWorkspaceLimits(tx, workspaceId)
       const [current] = await tx
         .select({ automation: automations, account: connectedAccounts, live: automationVersions.definition })
         .from(automations)
@@ -377,6 +380,7 @@ export async function setAutomationStatus(
   const state: { account?: AccountRow; clearAfter: boolean } = { clearAfter: false }
   try {
     const result = await db().transaction(async (tx): Promise<StatusResult> => {
+      await lockWorkspaceLimits(tx, workspaceId)
       const [row] = await tx
         .select({ automation: automations, account: connectedAccounts, live: automationVersions.definition })
         .from(automations)

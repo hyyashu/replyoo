@@ -8,6 +8,7 @@ import { deliver } from '../email'
 import { appUrl } from '../env'
 import { clearLiveIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
+import { lockWorkspaceLimits } from '../locks'
 import { hasTeamSeat } from './limits'
 import type { Invitation, Member, Subscription } from './types'
 
@@ -62,6 +63,7 @@ export async function inviteMember(
   if (existing) return 'member'
   const full = await db().transaction(async (tx) => {
     // Checked and inserted under the workspace's limit lock so parallel invites can't overshoot MAX_TEAM_SEATS.
+    await lockWorkspaceLimits(tx, workspaceId)
     const [invited] = await tx
       .select({ id: workspaceInvitations.id })
       .from(workspaceInvitations)
