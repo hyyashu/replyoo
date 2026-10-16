@@ -105,6 +105,9 @@ export class FakeAdapter implements PlatformAdapter {
   profile: Profile = { name: 'Priya Sharma', username: 'priya', avatarUrl: null }
   accountProfile: AccountProfile = { displayName: 'Acme Co', avatarUrl: 'https://cdn.example/new.jpg', followersCount: 321 }
   mediaPublishedAt: Date | null = null
+  /** Thrown by the next getProfile / getMediaPublishedAt call. */
+  profileError: Error | null = null
+  mediaError: Error | null = null
   /** Comments by post id, served newest first in one page. */
   comments: Record<string, CommentItem[]> = {}
   media: MediaItem[] = []
@@ -134,6 +137,9 @@ export class FakeAdapter implements PlatformAdapter {
   }
   async getProfile(_: AccountCredentials, userId: string) {
     this.calls.push({ method: 'getProfile', args: [userId] })
+    const error = this.profileError
+    this.profileError = null
+    if (error) throw error
     return this.profile
   }
   async getAccountProfile(_: AccountCredentials) {
@@ -144,6 +150,9 @@ export class FakeAdapter implements PlatformAdapter {
   }
   async getMediaPublishedAt(_: AccountCredentials, mediaId: string) {
     this.calls.push({ method: 'getMediaPublishedAt', args: [mediaId] })
+    const error = this.mediaError
+    this.mediaError = null
+    if (error) throw error
     return this.mediaPublishedAt
   }
   async listMedia() {
@@ -178,7 +187,7 @@ export class FakeAdapter implements PlatformAdapter {
   }
 }
 
-export const allowAll: RateLimiter = { take: async () => 0 }
+export const allowAll: RateLimiter = { take: async () => 0, pause: async () => undefined }
 
 export interface TestContext {
   deps: Deps

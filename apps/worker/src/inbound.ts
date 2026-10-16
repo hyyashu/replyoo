@@ -11,7 +11,9 @@ import {
 } from '@replyooo/db'
 import type { TriggerCandidate } from '@replyooo/engine'
 import type { AccountCredentials, NormalizedEvent, PlatformAdapter, Profile } from '@replyooo/meta'
+import { MetaError } from '@replyooo/meta'
 import { and, eq, isNull, lt, sql } from 'drizzle-orm'
+import { flagReauth } from './alerts'
 import type { Deps, FlowJobData } from './deps'
 import { mayStartRun } from './limits'
 import { flushOutbox, stageJobs } from './outbox'
@@ -22,6 +24,8 @@ import type { Route, WaitingRun } from './route'
 import { decideRoute } from './route'
 
 export const REENTRY_COOLDOWN_MS = 24 * 60 * 60 * 1000
+/** How long a contact's Instagram profile and follow state are trusted before the next event refreshes them. */
+export const PROFILE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 export type Candidate = TriggerCandidate & { versionId: string }
 
@@ -62,7 +66,7 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
     .select()
     .from(contacts)
     .where(and(eq(contacts.connectedAccountId, account.id), eq(contacts.platformUserId, event.senderId)))
-  const profile = existing ? null : await fetchProfile(deps, adapter, creds, event.senderId)
+  const profile = needsProfile(account, existing, now) ? await fetchProfile(deps, account, adapter, creds, event.senderId) : null
   const allCandidates = await loadCandidates(db, account.id)
   // A re-run comment may only be answered by the automation that asked for it.
   const candidates =
@@ -71,7 +75,7 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
       : allCandidates
   const mediaPublishedAt =
     event.type === 'comment_created' && needsMediaTime(candidates)
-      ? await adapter.getMediaPublishedAt(creds, event.mediaId).catch(() => null)
+      ? await fetchMediaPublishedAt(deps, account, adapter, creds, event.mediaId)
       : null
 
   const outcome = await db.transaction(async (tx) => {
@@ -150,8 +154,18 @@ function needsMediaTime(candidates: readonly Candidate[]): boolean {
   )
 }
 
+/** New contacts, and Instagram contacts whose profile (and follow state) is older than PROFILE_TTL_MS. */
+function needsProfile(account: AccountRow, existing: ContactRow | undefined, now: Date): boolean {
+  if (!existing) return true
+  // Facebook profiles carry no follow state and rarely change; they are fetched once.
+  if (account.platform !== 'instagram') return false
+  return existing.followCheckedAt === null || now.getTime() - existing.followCheckedAt.getTime() > PROFILE_TTL_MS
+}
+
+/** The profile is a nicety: the event is handled without it, but a dead token still flags the account. */
 async function fetchProfile(
   deps: Deps,
+  account: AccountRow,
   adapter: PlatformAdapter,
   creds: AccountCredentials,
   userId: string,
@@ -159,7 +173,29 @@ async function fetchProfile(
   try {
     return await adapter.getProfile(creds, userId)
   } catch (error) {
+    if (error instanceof MetaError && error.kind === 'reauth') await flagReauth(deps, account.id)
     deps.log.warn({ err: error, userId }, 'profile lookup failed')
+    return null
+  }
+}
+
+/**
+ * Routing for "next post" automations needs the post's time, so a transient failure retries the job rather than
+ * routing without it. A post Meta will not return (deleted, not ours) routes as unknown.
+ */
+async function fetchMediaPublishedAt(
+  deps: Deps,
+  account: AccountRow,
+  adapter: PlatformAdapter,
+  creds: AccountCredentials,
+  mediaId: string,
+): Promise<Date | null> {
+  try {
+    return await adapter.getMediaPublishedAt(creds, mediaId)
+  } catch (error) {
+    if (!(error instanceof MetaError) || error.kind === 'retryable') throw error
+    if (error.kind === 'reauth') await flagReauth(deps, account.id)
+    deps.log.warn({ err: error, mediaId, reason: error.details.reason }, 'media lookup failed')
     return null
   }
 }
@@ -195,7 +231,8 @@ async function upsertContact(
       avatarUrl: profile?.avatarUrl ?? null,
       followsYou: profile?.followsYou ?? null,
       youFollow: profile?.youFollow ?? null,
-      followCheckedAt: profile?.followsYou != null || profile?.youFollow != null ? now : null,
+      // Stamped whenever Instagram answered, so the next refresh waits PROFILE_TTL_MS even if it sent no follow state.
+      followCheckedAt: profile && account.platform === 'instagram' ? now : null,
       lastInboundAt: messaging ? new Date(event.occurredAt) : null,
     })
     .onConflictDoUpdate({
@@ -203,6 +240,15 @@ async function upsertContact(
       set: {
         username: sql`coalesce(excluded.username, ${contacts.username})`,
         name: sql`coalesce(${contacts.name}, excluded.name)`,
+        // A refreshed profile (stale Instagram contact) replaces the picture and follow state.
+        ...(profile
+          ? {
+              avatarUrl: sql`coalesce(excluded.avatar_url, ${contacts.avatarUrl})`,
+              followsYou: sql`coalesce(excluded.follows_you, ${contacts.followsYou})`,
+              youFollow: sql`coalesce(excluded.you_follow, ${contacts.youFollow})`,
+              followCheckedAt: sql`coalesce(excluded.follow_checked_at, ${contacts.followCheckedAt})`,
+            }
+          : {}),
         ...(messaging ? { lastInboundAt: sql`greatest(${contacts.lastInboundAt}, excluded.last_inbound_at)` } : {}),
         updatedAt: now,
       },

@@ -1,10 +1,11 @@
 import type { NormalizedEvent } from '@replyooo/meta'
+import { MetaError } from '@replyooo/meta'
 import { automationEntries, automations, connectedAccounts, contacts, flowRuns, messages, webhookEvents } from '@replyooo/db'
 import type { FlowDefinition } from '@replyooo/shared'
 import { encodePostback, PLAN_LIMITS, usagePeriod } from '@replyooo/shared'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { handleInbound } from '../src/inbound'
+import { handleInbound, PROFILE_TTL_MS } from '../src/inbound'
 import {
   comment,
   createTestContext,
@@ -336,5 +337,66 @@ describe('plan limits', () => {
         opts: { jobId: expect.stringMatching(/^resume-/) },
       },
     ])
+  })
+})
+
+describe('inbound Graph lookups', () => {
+  const nextPost = async () => {
+    const ctx = await setup()
+    await publishAutomation(ctx.db, ctx.account, commentFlow({ mode: 'next' }), { publishedAt: new Date(NOW.getTime() - 3_600_000) })
+    return ctx
+  }
+  const accountStatus = async (db: Awaited<ReturnType<typeof setup>>['db'], id: string) =>
+    (await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, id)))[0]?.status
+
+  it('retries the event when the post time lookup fails transiently', async () => {
+    const { db, deps, jobs, adapters, account } = await nextPost()
+    adapters.instagram.mediaError = new MetaError('retryable', 'graph down', { reason: 'server' })
+    const id = await insertEvent(db, comment(account, 'u3', 'guide', { mediaId: 'new-post' }))
+    await expect(handleInbound(deps, id)).rejects.toThrow('graph down')
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
+    expect(event).toMatchObject({ processedAt: null, error: 'graph down' })
+    expect(jobs.flows).toEqual([])
+  })
+
+  it('routes without the post time when Meta will not return the post', async () => {
+    const { db, deps, adapters, account } = await nextPost()
+    adapters.instagram.mediaError = new MetaError('permanent', 'not found', { reason: 'invalid_request' })
+    const id = await insertEvent(db, comment(account, 'u3', 'guide', { mediaId: 'gone' }))
+    await handleInbound(deps, id)
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
+    expect(event?.processedAt).toEqual(NOW)
+    expect(await accountStatus(db, account.id)).toBe('active')
+  })
+
+  it('flags the account when the post or profile lookup says the token is dead', async () => {
+    const media = await nextPost()
+    media.adapters.instagram.mediaError = new MetaError('reauth', 'expired', { reason: 'token_invalid' })
+    await handleInbound(media.deps, await insertEvent(media.db, comment(media.account, 'u3', 'guide', { mediaId: 'p' })))
+    expect(await accountStatus(media.db, media.account.id)).toBe('reauth_required')
+
+    const profile = await setup()
+    profile.adapters.instagram.profileError = new MetaError('reauth', 'expired', { reason: 'token_invalid' })
+    const id = await insertEvent(profile.db, dm(profile.account, 'u1', 'hi'))
+    await handleInbound(profile.deps, id)
+    expect(await accountStatus(profile.db, profile.account.id)).toBe('reauth_required')
+    const [contact] = await profile.db.select().from(contacts).where(eq(contacts.connectedAccountId, profile.account.id))
+    expect(contact).toMatchObject({ platformUserId: 'u1', name: null })
+  })
+
+  it('refreshes a stale Instagram profile and follow state, and leaves a fresh one alone', async () => {
+    const { db, deps, adapters, account } = await setup()
+    const checked = new Date(NOW.getTime() - PROFILE_TTL_MS - 60_000)
+    const stale = await seedContact(db, account, { platformUserId: 'u-stale', followsYou: false, followCheckedAt: checked })
+    const fresh = await seedContact(db, account, { platformUserId: 'u-fresh', followsYou: false, followCheckedAt: NOW })
+    adapters.instagram.profile = { name: 'Priya Sharma', username: 'priya', avatarUrl: 'https://cdn.example/p.jpg', followsYou: true, youFollow: false }
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-stale', 'hi')))
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-fresh', 'hi')))
+    expect(adapters.instagram.sent('getProfile').map((c) => c.args[0])).toEqual(['u-stale'])
+
+    const rows = await db.select().from(contacts).where(eq(contacts.connectedAccountId, account.id))
+    expect(rows.find((r) => r.id === stale.id)).toMatchObject({ followsYou: true, youFollow: false, followCheckedAt: NOW, avatarUrl: 'https://cdn.example/p.jpg' })
+    expect(rows.find((r) => r.id === fresh.id)).toMatchObject({ followsYou: false, followCheckedAt: NOW })
   })
 })

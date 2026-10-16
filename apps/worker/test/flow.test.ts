@@ -237,6 +237,17 @@ describe('handleFollowCheck', () => {
     const [account] = await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, refs.account.id))
     expect(account?.status).toBe('reauth_required')
   })
+
+  it('fails the run when the platform cannot check follows instead of assuming not following', async () => {
+    const { db, deps, jobs, refs } = await setup(followGate)
+    const run = await insertRun(db, refs, waitingCheck)
+    const adapter = deps.adapters[refs.account.platform]
+    deps.adapters = { ...deps.adapters, [refs.account.platform]: Object.assign(Object.create(adapter), { isFollower: undefined }) }
+    await handleFollowCheck(deps, { runId: run.id, expectedVersion: 1 })
+    const [after] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
+    expect(after).toMatchObject({ status: 'failed', error: 'follow_check_unsupported' })
+    expect(jobs.flows).toEqual([])
+  })
 })
 
 describe('outboundRows: carousel', () => {

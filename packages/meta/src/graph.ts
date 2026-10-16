@@ -1,4 +1,4 @@
-import { classifyGraphError, MetaError } from './errors'
+import { classifyGraphError, MetaError, retryAfterFromHeaders } from './errors'
 
 export const GRAPH_API_VERSION = 'v24.0'
 const TIMEOUT_MS = 15_000
@@ -10,6 +10,7 @@ export interface GraphRequest {
   method?: 'GET' | 'POST' | 'DELETE'
   query?: Record<string, string>
   body?: unknown
+  timeoutMs?: number
 }
 
 export async function graphRequest<T>(req: GraphRequest): Promise<T> {
@@ -26,7 +27,7 @@ export async function graphRequest<T>(req: GraphRequest): Promise<T> {
       method: req.method ?? 'GET',
       headers,
       body: req.body === undefined ? undefined : JSON.stringify(req.body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(req.timeoutMs ?? TIMEOUT_MS),
     })
   } catch (cause) {
     const ambiguous = (cause as Error).name === 'TimeoutError' && (req.method ?? 'GET') === 'POST'
@@ -45,7 +46,7 @@ export async function graphRequest<T>(req: GraphRequest): Promise<T> {
     }
   }
   if (!response.ok || (body !== null && typeof body === 'object' && 'error' in body)) {
-    throw classifyGraphError(response.status, body)
+    throw classifyGraphError(response.status, body, { retryAfterMs: retryAfterFromHeaders(response.headers) })
   }
   return body as T
 }

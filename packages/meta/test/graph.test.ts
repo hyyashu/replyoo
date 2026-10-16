@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { graphRequest, MetaError } from '../src'
 
 const server = setupServer()
@@ -55,21 +55,36 @@ describe('graphRequest', () => {
     expect((error as MetaError).details.reason).toBe('network')
   })
 
-  it('marks a timed-out POST as ambiguous and a timed-out GET as a network failure', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockImplementation(() => Promise.reject(new DOMException('The operation timed out.', 'TimeoutError')))
-    try {
-      const post = await graphRequest({ baseUrl: base, path: '123/messages', token: 'tok', method: 'POST', body: {} }).catch(
-        (e: unknown) => e,
-      )
-      expect((post as MetaError).details.reason).toBe('timeout_ambiguous')
-      const get = await graphRequest({ baseUrl: base, path: 'me', token: 'tok' }).catch((e: unknown) => e)
-      expect((get as MetaError).kind).toBe('retryable')
-      expect((get as MetaError).details.reason).toBe('network')
-    } finally {
-      fetchSpy.mockRestore()
+  it('reports a timed-out POST as ambiguous and a timed-out GET as a network error', async () => {
+    const slow = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      return HttpResponse.json({ ok: true })
     }
+    server.use(http.post(`${base}/123/messages`, slow), http.get(`${base}/me`, slow))
+    const post = await graphRequest({ baseUrl: base, path: '123/messages', token: 't', method: 'POST', body: {}, timeoutMs: 20 }).catch(
+      (e: unknown) => e as MetaError,
+    )
+    expect(post).toMatchObject({ kind: 'retryable', details: { reason: 'timeout_ambiguous' } })
+    const get = await graphRequest({ baseUrl: base, path: 'me', token: 't', timeoutMs: 20 }).catch((e: unknown) => e as MetaError)
+    expect(get).toMatchObject({ kind: 'retryable', details: { reason: 'network' } })
+  })
+
+  it('passes the back-off Meta asks for on rate limits', async () => {
+    server.use(
+      http.post(`${base}/123/messages`, () =>
+        HttpResponse.json(
+          { error: { message: 'Too many calls', code: 80002 } },
+          {
+            status: 400,
+            headers: { 'x-business-use-case-usage': JSON.stringify({ '123': [{ type: 'instagram', estimated_time_to_regain_access: 7 }] }) },
+          },
+        ),
+      ),
+    )
+    const error = await graphRequest({ baseUrl: base, path: '123/messages', token: 't', method: 'POST', body: {} }).catch(
+      (e: unknown) => e as MetaError,
+    )
+    expect(error).toMatchObject({ kind: 'retryable', details: { reason: 'rate_limited', retryAfterMs: 7 * 60_000 } })
   })
 
   it('returns an empty object for empty success bodies', async () => {

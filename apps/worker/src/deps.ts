@@ -34,6 +34,8 @@ export interface Jobs {
 export interface RateLimiter {
   /** Returns 0 when the call may go now, otherwise how many ms to wait. */
   take(key: string): Promise<number>
+  /** Makes every `take` for the key wait at least `ms`, e.g. after Meta rate-limited the account. */
+  pause(key: string, ms: number): Promise<void>
 }
 
 export interface Deps {

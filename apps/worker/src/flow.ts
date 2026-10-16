@@ -171,20 +171,22 @@ export async function handleFollowCheck(deps: Deps, job: FollowCheckJobData): Pr
   if (run.stateVersion !== job.expectedVersion || run.status !== 'waiting' || wait?.kind !== 'follow_check') return
 
   const adapter = deps.adapters[account.platform]
-  let following = false
-  if (adapter.isFollower) {
-    try {
-      following = await adapter.isFollower(credentials(account, deps.tokenKey), contact.platformUserId)
-    } catch (error) {
-      if (!(error instanceof MetaError) || error.kind === 'retryable') throw error
-      if (error.kind === 'reauth') await flagReauth(deps, account.id)
-      await endRun(deps.db, run.id, 'failed', error.details.reason ?? error.kind, deps.now())
-      return
-    }
+  // Publishing rejects follow checks where the platform cannot answer them (Facebook); a run that still gets here
+  // (published before that check) fails openly instead of treating everyone as not following.
+  if (!adapter.isFollower) {
+    await endRun(deps.db, run.id, 'failed', 'follow_check_unsupported', deps.now())
+    return
   }
-  if (adapter.isFollower) {
-    await deps.db.update(contacts).set({ followsYou: following, followCheckedAt: deps.now() }).where(eq(contacts.id, contact.id))
+  let following: boolean
+  try {
+    following = await adapter.isFollower(credentials(account, deps.tokenKey), contact.platformUserId)
+  } catch (error) {
+    if (!(error instanceof MetaError) || error.kind === 'retryable') throw error
+    if (error.kind === 'reauth') await flagReauth(deps, account.id)
+    await endRun(deps.db, run.id, 'failed', error.details.reason ?? error.kind, deps.now())
+    return
   }
+  await deps.db.update(contacts).set({ followsYou: following, followCheckedAt: deps.now() }).where(eq(contacts.id, contact.id))
   await deps.jobs.flow(
     { runId: run.id, event: { type: 'follow_result', following }, expectedVersion: job.expectedVersion },
     { jobId: `follow-result-${run.id}-${job.expectedVersion}` },

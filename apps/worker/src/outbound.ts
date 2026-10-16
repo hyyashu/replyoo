@@ -19,6 +19,14 @@ export const MAX_SEND_ATTEMPTS = 5
 /** Slack after a live claim's lease before a waiting job looks again, so the lease has surely lapsed. */
 export const CLAIM_GRACE_MS = 5_000
 
+/** Back-off after Meta rate-limits an account and does not say for how long; never wait longer than the cap. */
+export const META_RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000
+export const MAX_META_RATE_LIMIT_BACKOFF_MS = 60 * 60 * 1000
+
+/**
+ * `rate_limited`: retry the whole job later without spending a job attempt (the worker moves it to delayed).
+ * `wait_for_claim`: an earlier message of the job is claimed by a live send; look again once its lease lapses.
+ */
 export type OutboundResult =
   | { status: 'done' }
   | { status: 'rate_limited'; retryInMs: number }
@@ -92,6 +100,16 @@ export async function handleOutbound(
       result = await send(deps.adapters[account.platform], credentials(account, deps.tokenKey), contact, await withTrackedLinks(deps, message))
     } catch (error) {
       const meta = error instanceof MetaError ? error : null
+      if (meta?.details.reason === 'rate_limited') {
+        // Meta throttled the account: nothing went out. Hand the message back without spending the attempt, and
+        // pause the account so its other jobs wait too instead of hammering Graph. The sweep only re-enqueues
+        // this job's id, which stays delayed; any other job for the account hits the pause in take().
+        const retryInMs = Math.min(meta.details.retryAfterMs ?? META_RATE_LIMIT_BACKOFF_MS, MAX_META_RATE_LIMIT_BACKOFF_MS)
+        await deps.rateLimiter.pause(account.id, retryInMs)
+        await release(db, id, { refundAttempt: true })
+        deps.log.warn({ messageId: id, accountId: account.id, retryInMs, code: meta.details.code }, 'meta rate limited the account')
+        return { status: 'rate_limited', retryInMs }
+      }
       // The request may have reached Meta; resending could deliver it twice.
       if (meta?.details.reason === 'timeout_ambiguous') {
         deps.log.warn({ messageId: id, kind: message.kind, metaMessage: meta.message }, 'outbound send timed out; delivery unknown')
@@ -138,10 +156,14 @@ export async function skipQueuedInRun(db: Db, runId: string): Promise<void> {
     .where(and(eq(messages.flowRunId, runId), eq(messages.status, 'queued')))
 }
 
-async function release(db: Db, id: string): Promise<void> {
+async function release(db: Db, id: string, opts: { refundAttempt?: boolean } = {}): Promise<void> {
   await db
     .update(messages)
-    .set({ status: 'queued', claimedAt: null })
+    .set({
+      status: 'queued',
+      claimedAt: null,
+      ...(opts.refundAttempt ? { attempts: sql`greatest(${messages.attempts} - 1, 0)` } : {}),
+    })
     .where(and(eq(messages.id, id), eq(messages.status, 'sending')))
 }
 
