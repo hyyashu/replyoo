@@ -36,18 +36,21 @@ function statusRank(status: string | SQL): SQL {
   return sql`(case ${status} ${sql.join(cases, sql` `)} else -1 end)`
 }
 
-/** Checkout metadata first, then the subscription or customer we already stored. */
+/**
+ * The workspace that already holds this subscription id wins (the id is unique across workspaces), then
+ * checkout metadata, then an unambiguous customer id.
+ */
 async function findWorkspace(db: Db | Tx, data: SubscriptionData): Promise<string | null> {
-  const fromMetadata = data.metadata?.workspace_id
-  if (typeof fromMetadata === 'string' && isUuid(fromMetadata)) {
-    const [row] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, fromMetadata))
-    if (row) return row.id
-  }
   const [bySubscription] = await db
     .select({ workspaceId: subscriptions.workspaceId })
     .from(subscriptions)
     .where(eq(subscriptions.dodoSubscriptionId, data.subscription_id))
   if (bySubscription) return bySubscription.workspaceId
+  const fromMetadata = data.metadata?.workspace_id
+  if (typeof fromMetadata === 'string' && isUuid(fromMetadata)) {
+    const [row] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, fromMetadata))
+    if (row) return row.id
+  }
   // One Dodo customer can pay for several workspaces; only trust the customer id when it is unambiguous.
   const byCustomer = await db
     .select({ workspaceId: subscriptions.workspaceId })
@@ -67,9 +70,35 @@ async function findWorkspace(db: Db | Tx, data: SubscriptionData): Promise<strin
 export async function applyDodoEvent(db: Db, products: ProductTable, payload: unknown, webhookId?: string | null): Promise<SyncResult> {
   const parsed = SubscriptionEvent.safeParse(payload)
   if (!parsed.success) return 'ignored'
-  const { data, timestamp } = parsed.data
+  const { data } = parsed.data
   const choice = planForProduct(products, data.product_id)
   if (!choice) return 'unknown_product'
+  try {
+    return await applyInTransaction(db, choice, parsed.data, webhookId)
+  } catch (error) {
+    // Two first events for one new subscription id raced onto different workspaces; the other one won.
+    if (!isUniqueViolation(error, 'subscriptions_dodo_subscription_uq')) throw error
+    console.warn('dodo subscription id already claimed by another workspace', { subscriptionId: data.subscription_id, webhookId })
+    return 'unknown_workspace'
+  }
+}
+
+/** Postgres unique violation on `constraint`, whether thrown directly by postgres-js or wrapped by drizzle. */
+function isUniqueViolation(error: unknown, constraint: string): boolean {
+  for (let e: unknown = error, depth = 0; e && typeof e === 'object' && depth < 5; e = (e as { cause?: unknown }).cause, depth++) {
+    const pg = e as { code?: unknown; constraint_name?: unknown }
+    if (pg.code === '23505' && pg.constraint_name === constraint) return true
+  }
+  return false
+}
+
+async function applyInTransaction(
+  db: Db,
+  choice: NonNullable<ReturnType<typeof planForProduct>>,
+  event: z.infer<typeof SubscriptionEvent>,
+  webhookId: string | null | undefined,
+): Promise<SyncResult> {
+  const { data, timestamp } = event
   return db.transaction(async (tx) => {
     // Resolve the workspace before recording the webhook id: an event we can't place yet must stay
     // retryable (Dodo redelivers it), not be marked handled.
@@ -78,7 +107,7 @@ export async function applyDodoEvent(db: Db, products: ProductTable, payload: un
     if (webhookId) {
       const first = await tx
         .insert(billingWebhookEvents)
-        .values({ webhookId, type: parsed.data.type })
+        .values({ webhookId, type: event.type })
         .onConflictDoNothing()
         .returning({ webhookId: billingWebhookEvents.webhookId })
       if (first.length === 0) return 'duplicate'

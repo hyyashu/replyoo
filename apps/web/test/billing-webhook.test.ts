@@ -182,6 +182,37 @@ describe('applyDodoEvent', () => {
     ).toBe('stale')
   })
 
+  it('keeps a subscription id on the workspace that holds it, whatever the metadata says', async () => {
+    const a = await createWorkspace('Holder')
+    const b = await createWorkspace('Other')
+    const sub = `sub_${randomUUID()}`
+    const customer = `cus_${randomUUID()}`
+    await applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: a.workspaceId, subscription_id: sub, customer_id: customer }))
+    expect(
+      await applyDodoEvent(
+        db(),
+        PRODUCTS,
+        event('subscription.plan_changed', '2026-10-07T10:00:00.000Z', { workspace_id: b.workspaceId, subscription_id: sub, customer_id: customer, product_id: PRODUCTS.business.month }),
+      ),
+    ).toBe('updated')
+    expect(await row(a.workspaceId)).toMatchObject({ plan: 'business', dodoSubscriptionId: sub })
+    expect(await row(b.workspaceId)).toBeUndefined()
+  })
+
+  it('lets one of two racing first events for a new subscription id win without throwing', async () => {
+    const a = await createWorkspace('Race A')
+    const b = await createWorkspace('Race B')
+    const sub = `sub_${randomUUID()}`
+    const results = await Promise.all(
+      [a, b].map((w) =>
+        applyDodoEvent(db(), PRODUCTS, event('subscription.active', '2026-10-06T10:00:00.000Z', { workspace_id: w.workspaceId, subscription_id: sub, customer_id: `cus_${randomUUID()}` }), `msg_${randomUUID()}`),
+      ),
+    )
+    expect(results.filter((r) => r === 'updated')).toHaveLength(1)
+    expect(results.every((r) => r === 'updated' || r === 'unknown_workspace')).toBe(true)
+    expect(await db().select().from(subscriptions).where(eq(subscriptions.dodoSubscriptionId, sub))).toHaveLength(1)
+  })
+
   it('doesn’t guess between workspaces that share a Dodo customer', async () => {
     const customer = `cus_${randomUUID()}`
     const a = await createWorkspace('Shared A')

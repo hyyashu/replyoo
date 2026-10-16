@@ -31,7 +31,7 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"]
     environment:
       # Lets the healthcheck authenticate without putting the password on redis-cli's command line.
-      REDISCLI_AUTH: ${REDIS_PASSWORD}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
     volumes:
       - redisdata:/data
     healthcheck:
