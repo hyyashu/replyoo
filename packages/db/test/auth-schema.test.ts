@@ -40,15 +40,26 @@ describe('auth and invitation tables', () => {
   })
 
   it('removes memberships when the user is deleted', async () => {
+    await db.insert(authUsers).values({ id: 'u_stays', name: 'Stays', email: 'stays@example.com' })
     await db.insert(authUsers).values({ id: 'u_gone', name: 'Gone', email: 'gone@example.com' })
-    const workspace = one(await db.insert(workspaces).values({ name: 'W', ownerUserId: 'u_gone' }).returning())
+    const workspace = one(await db.insert(workspaces).values({ name: 'W', ownerUserId: 'u_stays' }).returning())
     await db.insert(workspaceMembers).values({ workspaceId: workspace.id, userId: 'u_gone', role: 'owner' })
     await db.delete(authUsers).where(eq(authUsers.id, 'u_gone'))
     expect(await db.select().from(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspace.id))).toEqual([])
   })
 
+  it('requires a workspace owner to exist and refuses to delete a user who owns a workspace', async () => {
+    await expect(db.insert(workspaces).values({ name: 'Orphan', ownerUserId: 'u_missing' })).rejects.toThrow()
+    await db.insert(authUsers).values({ id: 'u_owner', name: 'Owner', email: 'owner@example.com' })
+    const workspace = one(await db.insert(workspaces).values({ name: 'Owned', ownerUserId: 'u_owner' }).returning())
+    await expect(db.delete(authUsers).where(eq(authUsers.id, 'u_owner'))).rejects.toThrow()
+    await db.delete(workspaces).where(eq(workspaces.id, workspace.id))
+    await db.delete(authUsers).where(eq(authUsers.id, 'u_owner'))
+  })
+
   it('allows one pending invitation per email per workspace', async () => {
-    const workspace = one(await db.insert(workspaces).values({ name: 'Invites', ownerUserId: 'nobody' }).returning())
+    await db.insert(authUsers).values({ id: 'u_inviter', name: 'Inviter', email: 'inviter@example.com' })
+    const workspace = one(await db.insert(workspaces).values({ name: 'Invites', ownerUserId: 'u_inviter' }).returning())
     await db.insert(workspaceInvitations).values({ workspaceId: workspace.id, email: 'sam@example.com' })
     await expect(
       db.insert(workspaceInvitations).values({ workspaceId: workspace.id, email: 'sam@example.com' }),

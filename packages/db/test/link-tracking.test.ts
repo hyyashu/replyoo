@@ -9,6 +9,7 @@ import type { Db } from '../src'
 import {
   automationLinkDaily,
   automationLinkInsights,
+  authUsers,
   automations,
   connectedAccounts,
   contacts,
@@ -54,6 +55,7 @@ const flow: FlowDefinition = {
 
 async function seed() {
   const tag = randomUUID().slice(0, 8)
+  await db.insert(authUsers).values({ id: 'x', name: 'Owner', email: 'x@example.com' }).onConflictDoNothing()
   const [workspace] = await db.insert(workspaces).values({ name: 'Acme', ownerUserId: 'x' }).returning()
   const [account] = await db
     .insert(connectedAccounts)
@@ -220,6 +222,19 @@ describe('automationLinkDaily', () => {
     expect(days.map((d) => d.day)).toEqual([...days.map((d) => d.day)].sort())
     expect(days.at(-1)?.clicks).toBe(2)
     expect(days.slice(0, -1).every((d) => d.clicks === 0)).toBe(true)
+  })
+
+  it('ignores clicks on links in messages that were not sent', async () => {
+    const { automationId, contact, link } = await seed()
+    const a = await contact(1)
+    const sent = await link(a.id, 'https://a.example/guide')
+    const failed = await link(a.id, 'https://a.example/guide', 'failed')
+    await recordLinkClick(db, sent.id)
+    await recordLinkClick(db, failed.id)
+    await recordLinkClick(db, failed.id)
+
+    const days = await automationLinkDaily(db, automationId, 'https://a.example/guide')
+    expect(days.at(-1)?.clicks).toBe(1)
   })
 })
 

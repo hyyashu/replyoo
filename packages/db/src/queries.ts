@@ -308,7 +308,10 @@ export async function automationLinkInsights(db: Db | Tx, automationId: string, 
     .orderBy(desc(sql`count(${linkClicks.id})`), desc(sql`count(distinct ${trackedLinks.contactId})`), asc(trackedLinks.url))
 }
 
-/** Clicks per day on one destination of an automation over the last `days` days, oldest first (UTC days, zeros included). */
+/**
+ * Clicks per day on one destination of an automation over the last `days` days, oldest first (UTC days, zeros included).
+ * Like linkStatsByAutomation, only links in messages that were actually sent count.
+ */
 export async function automationLinkDaily(
   db: Db | Tx,
   automationId: string,
@@ -326,7 +329,8 @@ export async function automationLinkDaily(
       select lc.id, lc.created_at
       from ${linkClicks} lc
       join ${trackedLinks} tl on tl.id = lc.link_id
-      where tl.automation_id = ${automationId} and tl.url = ${url}
+      join ${messages} m on m.id = tl.message_id
+      where tl.automation_id = ${automationId} and tl.url = ${url} and m.status = 'sent'
     ) c on (c.created_at at time zone 'utc')::date = d.day::date
     group by d.day
     order by d.day

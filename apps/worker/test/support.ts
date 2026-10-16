@@ -220,6 +220,7 @@ export function createTestContext(overrides: Partial<Deps> = {}): TestContext {
 // ---------- seeding ----------
 
 export async function seedAccount(db: Db, opts: { platform?: Platform; tokenExpiresAt?: Date | null } = {}) {
+  await db.insert(authUsers).values({ id: 'user_1', name: 'Owner', email: 'user_1@example.com' }).onConflictDoNothing()
   const [workspace] = await db.insert(workspaces).values({ name: 'Acme', ownerUserId: 'user_1' }).returning()
   const platform = opts.platform ?? 'instagram'
   const [account] = await db

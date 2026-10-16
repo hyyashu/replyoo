@@ -37,6 +37,7 @@ Edit `.env`. Generate the secrets on the server:
 
 ```bash
 openssl rand -hex 24      # POSTGRES_PASSWORD
+openssl rand -hex 24      # REDIS_PASSWORD
 openssl rand -hex 32      # BETTER_AUTH_SECRET
 openssl rand -base64 32   # TOKEN_ENCRYPTION_KEY (must be exactly 32 bytes, base64)
 openssl rand -hex 16      # META_WEBHOOK_VERIFY_TOKEN
@@ -48,6 +49,10 @@ openssl rand -hex 16      # META_WEBHOOK_VERIFY_TOKEN
 - Set a real `EMAIL_PROVIDER` (`resend` or `smtp`), `EMAIL_FROM`, and the matching credentials (`RESEND_API_KEY`
   or `SMTP_HOST` and friends). The worker refuses to start with `EMAIL_PROVIDER=log` in production, because it
   only prints emails and never delivers them.
+- `REDIS_PASSWORD` is required. Redis is started with `--requirepass` and the worker connects with it, so a
+  container that reaches the Compose network still can't read or inject queued jobs. Use hex: it goes into a URL.
+- Optional: `DATABASE_POOL_MAX` (default 10) is the Postgres pool size per process; `web` and `worker` each open
+  their own pool, so keep 2 × the value under Postgres's `max_connections` (100 by default).
 - **Back up `.env`**, especially `TOKEN_ENCRYPTION_KEY`. Without it, stored Meta tokens can't be decrypted and every
   account has to reconnect.
 
@@ -64,11 +69,14 @@ certificate. Check:
 
 ```bash
 curl -I https://app.example.com/login                       # 200
+curl https://app.example.com/api/health                     # {"ok":true}; 503 when Postgres is unreachable
 curl "https://app.example.com/webhooks/meta?hub.mode=subscribe&hub.verify_token=<your token>&hub.challenge=ok"   # prints: ok
 docker compose -f docker-compose.prod.yml logs -f worker web
 ```
 
-The worker's `/health` route is deliberately not exposed publicly; Docker checks it internally.
+The worker's `/health` route is deliberately not exposed publicly; Docker checks it internally. Docker checks the web
+app through `/api/health`, which runs `select 1` against Postgres. Both apps also refuse to start when
+`TOKEN_ENCRYPTION_KEY` is not exactly 32 bytes of base64.
 
 ## 4. Configure the Meta app
 
@@ -174,7 +182,10 @@ holds only queued jobs and rate-limit counters, so it isn't part of the backup.
   `docker compose ... logs caddy`.
 - **Meta can't verify the webhook:** the verify token in the dashboard must match `.env` exactly. Run the `curl`
   check above first.
-- **`migrate` fails:** `docker compose ... logs migrate`. The web app and worker won't start until it succeeds.
+- **`migrate` fails:** `docker compose ... logs migrate`. The web app and worker won't start until it succeeds. A
+  migration that finds data it can't safely convert (for example a workspace whose owner user no longer exists, or two
+  workspaces sharing one Dodo subscription id) stops with a message naming the query that lists the rows; fix them
+  and run `up` again.
 - **The opener goes out but the follow-up DM never arrives:** search the worker log for `outbound message failed`. It
   carries Meta's own `metaMessage`, `code` and `subcode`; the message row in the database only keeps a short reason such
   as `invalid_request`. Code 100 / subcode 2534037 (“not the thread owner”) means another app or the Instagram inbox

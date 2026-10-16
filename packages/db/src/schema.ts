@@ -116,7 +116,10 @@ export const authVerifications = pgTable(
 export const workspaces = pgTable('workspaces', {
   id: id(),
   name: text('name').notNull(),
-  ownerUserId: text('owner_user_id').notNull(),
+  // restrict: there is no account-deletion flow; a user who owns a workspace must hand it over (or it must be deleted) first.
+  ownerUserId: text('owner_user_id')
+    .notNull()
+    .references(() => authUsers.id, { onDelete: 'restrict' }),
   ...timestamps,
 })
 
@@ -313,6 +316,8 @@ export const flowRuns = pgTable(
       .where(sql`${t.status} = 'waiting'`),
     index('flow_runs_status_wait_until_idx').on(t.status, t.waitUntil),
     index('flow_runs_automation_created_idx').on(t.automationId, t.createdAt),
+    index('flow_runs_contact_idx').on(t.contactId),
+    index('flow_runs_account_comment_idx').on(t.connectedAccountId, t.commentId),
   ],
 )
 
@@ -369,6 +374,8 @@ export const messages = pgTable(
       .where(sql`${t.kind} = 'comment_reply'`),
     index('messages_contact_created_idx').on(t.contactId, t.createdAt),
     index('messages_status_created_idx').on(t.status, t.createdAt),
+    index('messages_account_comment_idx').on(t.connectedAccountId, t.commentId),
+    index('messages_flow_run_idx').on(t.flowRunId),
   ],
 )
 
@@ -416,7 +423,10 @@ export const subscriptions = pgTable(
   },
   (t) => [
     uniqueIndex('subscriptions_workspace_uq').on(t.workspaceId),
-    index('subscriptions_dodo_subscription_idx').on(t.dodoSubscriptionId),
+    uniqueIndex('subscriptions_dodo_subscription_uq')
+      .on(t.dodoSubscriptionId)
+      .where(sql`${t.dodoSubscriptionId} is not null`),
+    // Not unique: one Dodo customer (same email) can pay for several workspaces; see findWorkspace in billing/sync.ts.
     index('subscriptions_dodo_customer_idx').on(t.dodoCustomerId),
   ],
 )
@@ -629,5 +639,7 @@ export const clickFollowUps = pgTable(
   (t) => [
     uniqueIndex('click_follow_ups_message_uq').on(t.messageId),
     index('click_follow_ups_due_idx').on(t.status, t.dueAt),
+    index('click_follow_ups_flow_run_idx').on(t.flowRunId),
+    index('click_follow_ups_automation_idx').on(t.automationId),
   ],
 )

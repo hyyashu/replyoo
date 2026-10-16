@@ -28,11 +28,15 @@ services:
     <<: *restart
     image: redis:7-alpine
     # BullMQ needs noeviction, or Redis may silently drop queued jobs under memory pressure.
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"]
+    environment:
+      # Lets the healthcheck authenticate without putting the password on redis-cli's command line.
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # Without auth, ping answers NOAUTH and still exits 0, so check for PONG.
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -55,6 +59,7 @@ services:
     image: replyooo-web
     environment:
       DATABASE_URL: postgres://replyooo:${POSTGRES_PASSWORD}@postgres:5432/replyooo
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-}
       APP_URL: https://${DOMAIN:?set DOMAIN in .env}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?set TOKEN_ENCRYPTION_KEY in .env}
@@ -84,7 +89,7 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -96,17 +101,18 @@ services:
     image: replyooo-worker
     environment:
       DATABASE_URL: postgres://replyooo:${POSTGRES_PASSWORD}@postgres:5432/replyooo
-      REDIS_URL: redis://redis:6379
-      APP_URL: https://${DOMAIN}
-      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
-      META_APP_SECRET: ${META_APP_SECRET}
-      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}@redis:6379
+      APP_URL: https://${DOMAIN:?set DOMAIN in .env}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?set TOKEN_ENCRYPTION_KEY in .env}
+      META_APP_SECRET: ${META_APP_SECRET:?set META_APP_SECRET in .env}
+      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET:?set INSTAGRAM_APP_SECRET in .env}
       META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:?set META_WEBHOOK_VERIFY_TOKEN in .env}
       META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v24.0}
       OUTBOUND_RATE_PER_SECOND: ${OUTBOUND_RATE_PER_SECOND:-10}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: "3001"
-      EMAIL_PROVIDER: ${EMAIL_PROVIDER}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:?set EMAIL_PROVIDER (resend or smtp) in .env}
       EMAIL_FROM: ${EMAIL_FROM:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
