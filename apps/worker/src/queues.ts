@@ -89,7 +89,17 @@ export function startWorkers(
   }
 
   const workers = [
-    new Worker('inbound', async (job: Job<{ webhookEventId: string }>) => handleInbound(deps, job.data.webhookEventId), base),
+    new Worker(
+      'inbound',
+      async (job: Job<{ webhookEventId: string }>, token?: string) => {
+        const result = await handleInbound(deps, job.data.webhookEventId)
+        if (result.status === 'deferred') {
+          await job.moveToDelayed(Date.now() + result.retryInMs, token)
+          throw new DelayedError()
+        }
+      },
+      base,
+    ),
     new Worker(
       'flow',
       async (job: Job<FlowJobData | FollowCheckJobData>, token?: string) => {

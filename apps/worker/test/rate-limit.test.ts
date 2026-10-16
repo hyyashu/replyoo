@@ -20,6 +20,16 @@ describe('createRedisRateLimiter', () => {
     expect(await limiter.take(randomUUID())).toBe(0)
   })
 
+  it('reports how long a key stays paused', async () => {
+    const limiter = createRedisRateLimiter(redis, 100)
+    const key = randomUUID()
+    expect(await limiter.pausedMs(key)).toBe(0)
+    await limiter.pause(key, 30_000)
+    const left = await limiter.pausedMs(key)
+    expect(left).toBeGreaterThan(29_000)
+    expect(left).toBeLessThanOrEqual(30_000)
+  })
+
   it('frees a slot once the oldest call leaves the window', async () => {
     const limiter = createRedisRateLimiter(redis, 1)
     const key = randomUUID()

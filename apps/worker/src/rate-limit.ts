@@ -1,6 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import type { Redis } from 'ioredis'
-import type { RateLimiter } from './deps'
+import type { MetaError } from '@replyooo/meta'
+import type { Deps, RateLimiter } from './deps'
+
+/** Back-off after Meta rate-limits an account and does not say for how long; never wait longer than the cap. */
+export const META_RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000
+export const MAX_META_RATE_LIMIT_BACKOFF_MS = 60 * 60 * 1000
+
+/** Pauses every Graph call for the account for as long as Meta asked (capped); returns the pause in ms. */
+export async function pauseForMetaRateLimit(deps: Pick<Deps, 'rateLimiter'>, accountId: string, error: MetaError): Promise<number> {
+  const ms = Math.min(error.details.retryAfterMs ?? META_RATE_LIMIT_BACKOFF_MS, MAX_META_RATE_LIMIT_BACKOFF_MS)
+  await deps.rateLimiter.pause(accountId, ms)
+  return ms
+}
 
 const WINDOW_MS = 1000
 
@@ -41,6 +53,10 @@ export function createRedisRateLimiter(redis: Redis, perSecond: number): RateLim
     },
     async pause(key, ms) {
       await redis.eval(PAUSE, 1, `ratelimit-pause:${key}`, Math.max(1, Math.ceil(ms)))
+    },
+    async pausedMs(key) {
+      const ttl = await redis.pttl(`ratelimit-pause:${key}`)
+      return ttl > 0 ? ttl : 0
     },
   }
 }

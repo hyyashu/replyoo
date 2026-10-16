@@ -187,7 +187,7 @@ export class FakeAdapter implements PlatformAdapter {
   }
 }
 
-export const allowAll: RateLimiter = { take: async () => 0, pause: async () => undefined }
+export const allowAll: RateLimiter = { take: async () => 0, pause: async () => undefined, pausedMs: async () => 0 }
 
 export interface TestContext {
   deps: Deps

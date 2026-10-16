@@ -9,6 +9,7 @@ import { scheduleClickFollowUp } from './click-follow-ups'
 import type { Deps, OutboundJobData } from './deps'
 import type { OutboundBody } from './flow'
 import type { ContactRow } from './records'
+import { pauseForMetaRateLimit } from './rate-limit'
 import { credentials, endRun } from './records'
 
 export const DM_WINDOW_MS = 24 * 60 * 60 * 1000
@@ -107,8 +108,7 @@ export async function handleOutbound(
         // Meta throttled the account: nothing went out. Hand the message back without spending the attempt, and
         // pause the account so its other jobs wait too instead of hammering Graph. The sweep only re-enqueues
         // this job's id, which stays delayed; any other job for the account hits the pause in take().
-        const retryInMs = Math.min(meta.details.retryAfterMs ?? META_RATE_LIMIT_BACKOFF_MS, MAX_META_RATE_LIMIT_BACKOFF_MS)
-        await deps.rateLimiter.pause(account.id, retryInMs)
+        const retryInMs = await pauseForMetaRateLimit(deps, account.id, meta)
         await release(db, id, { refundAttempt: true })
         deps.log.warn({ messageId: id, accountId: account.id, retryInMs, code: meta.details.code }, 'meta rate limited the account')
         return { status: 'rate_limited', retryInMs }

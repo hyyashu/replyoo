@@ -48,8 +48,19 @@ const isBusinessRateLimit = (code: number) => code >= 80000 && code <= 80014
  * about one recipient or feature (their privacy settings, a thread the feature is not enabled for). Graph's codes
  * do not tell them apart, its message does: only these wordings ask for a reconnect.
  */
-const ACCOUNT_PERMISSION_MESSAGE =
-  /((does not have|requires?|missing)\b[^.]*\bpermissions?|permissions? (has|have) not been granted|not authori[sz]ed (the )?app|has not authori[sz]ed|deauthori[sz]ed|app (was|has been) removed)/i
+const ACCOUNT_PERMISSION_MESSAGE = new RegExp(
+  [
+    // The app (not the user or recipient) lacks a permission.
+    String.raw`\b(app|application)\b[^.]*\b(does not have|doesn't have|lacks|is missing)\b[^.]*\bpermissions?`,
+    // Names a permission scope, e.g. "Requires pages_messaging permission".
+    String.raw`\brequires?\s+(the\s+)?[a-z0-9]+(_[a-z0-9]+)+\s+permissions?`,
+    String.raw`\bpermissions?\s+(has|have)\s+not\s+been\s+granted\b[^.]*\b(app|application)\b`,
+    String.raw`\b(has not|hasn't)\s+authori[sz]ed\s+(the\s+)?(app|application)`,
+    String.raw`\bdeauthori[sz]ed\b`,
+    String.raw`\b(app|application)\s+(was|has been)\s+removed`,
+  ].join('|'),
+  'i',
+)
 
 export function classifyGraphError(status: number, body: unknown, opts: { retryAfterMs?: number } = {}): MetaError {
   const error =

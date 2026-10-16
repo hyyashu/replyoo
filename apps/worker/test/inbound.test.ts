@@ -5,8 +5,9 @@ import type { FlowDefinition } from '@replyooo/shared'
 import { encodePostback, PLAN_LIMITS, usagePeriod } from '@replyooo/shared'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { handleInbound, PROFILE_TTL_MS } from '../src/inbound'
+import { handleInbound, PROFILE_RETRY_MS, PROFILE_TTL_MS } from '../src/inbound'
 import {
+  allowAll,
   comment,
   createTestContext,
   dm,
@@ -398,5 +399,65 @@ describe('inbound Graph lookups', () => {
     const rows = await db.select().from(contacts).where(eq(contacts.connectedAccountId, account.id))
     expect(rows.find((r) => r.id === stale.id)).toMatchObject({ followsYou: true, youFollow: false, followCheckedAt: NOW, avatarUrl: 'https://cdn.example/p.jpg' })
     expect(rows.find((r) => r.id === fresh.id)).toMatchObject({ followsYou: false, followCheckedAt: NOW })
+  })
+
+  it('retries a failed profile lookup an hour later, not on every event', async () => {
+    const { db, deps, adapters, account, clock } = await setup()
+    const profileCalls = () => adapters.instagram.sent('getProfile').length
+    adapters.instagram.profileError = new MetaError('retryable', 'graph down', { reason: 'server' })
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u1', 'hi')))
+    expect(profileCalls()).toBe(1)
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u1', 'again')))
+    expect(profileCalls()).toBe(1)
+
+    clock.now = new Date(NOW.getTime() + PROFILE_RETRY_MS + 60_000)
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u1', 'later')))
+    expect(profileCalls()).toBe(2)
+    const [contact] = await db.select().from(contacts).where(eq(contacts.connectedAccountId, account.id))
+    expect(contact).toMatchObject({ name: 'Priya Sharma', followCheckedAt: clock.now })
+  })
+
+  it('skips the profile lookup while the account is paused, stamping nothing', async () => {
+    const { db, deps, adapters, account } = await setup()
+    deps.rateLimiter = { ...allowAll, pausedMs: async () => 30_000 }
+    const id = await insertEvent(db, dm(account, 'u1', 'hi'))
+    expect(await handleInbound(deps, id)).toEqual({ status: 'done' })
+    expect(adapters.instagram.sent('getProfile')).toEqual([])
+    const [contact] = await db.select().from(contacts).where(eq(contacts.connectedAccountId, account.id))
+    expect(contact).toMatchObject({ platformUserId: 'u1', followCheckedAt: null })
+  })
+
+  it('pauses the account when the profile lookup is rate limited', async () => {
+    const { db, deps, adapters, account } = await setup()
+    const pauses: [string, number][] = []
+    deps.rateLimiter = { ...allowAll, pause: async (key, ms) => void pauses.push([key, ms]) }
+    adapters.instagram.profileError = new MetaError('retryable', 'slow down', { reason: 'rate_limited', retryAfterMs: 90_000 })
+    const id = await insertEvent(db, dm(account, 'u1', 'hi'))
+    expect(await handleInbound(deps, id)).toEqual({ status: 'done' })
+    expect(pauses).toEqual([[account.id, 90_000]])
+  })
+
+  it('defers the event without an error or attempt when the post time lookup is rate limited', async () => {
+    const { db, deps, jobs, adapters, account } = await nextPost()
+    const pauses: [string, number][] = []
+    deps.rateLimiter = { ...allowAll, pause: async (key, ms) => void pauses.push([key, ms]) }
+    adapters.instagram.mediaError = new MetaError('retryable', 'slow down', { reason: 'rate_limited', retryAfterMs: 60_000 })
+    const id = await insertEvent(db, comment(account, 'u3', 'guide', { mediaId: 'new-post' }))
+    expect(await handleInbound(deps, id)).toEqual({ status: 'deferred', retryInMs: 60_000 })
+    expect(pauses).toEqual([[account.id, 60_000]])
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
+    expect(event).toMatchObject({ processedAt: null, error: null, attempts: 0 })
+    expect(jobs.flows).toEqual([])
+  })
+
+  it('defers the event without calling Graph while the account is paused', async () => {
+    const { db, deps, adapters, account } = await nextPost()
+    deps.rateLimiter = { ...allowAll, pausedMs: async () => 45_000 }
+    const id = await insertEvent(db, comment(account, 'u3', 'guide', { mediaId: 'new-post' }))
+    expect(await handleInbound(deps, id)).toEqual({ status: 'deferred', retryInMs: 45_000 })
+    expect(adapters.instagram.sent('getMediaPublishedAt')).toEqual([])
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
+    expect(event).toMatchObject({ processedAt: null, error: null, attempts: 0 })
   })
 })

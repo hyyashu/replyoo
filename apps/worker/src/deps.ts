@@ -36,6 +36,8 @@ export interface RateLimiter {
   take(key: string): Promise<number>
   /** Makes every `take` for the key wait at least `ms`, e.g. after Meta rate-limited the account. */
   pause(key: string, ms: number): Promise<void>
+  /** How long the key stays paused, 0 when it is not. */
+  pausedMs(key: string): Promise<number>
 }
 
 export interface Deps {
