@@ -22,6 +22,8 @@ export const CLAIM_GRACE_MS = 5_000
 /** Back-off after Meta rate-limits an account and does not say for how long; never wait longer than the cap. */
 export const META_RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000
 export const MAX_META_RATE_LIMIT_BACKOFF_MS = 60 * 60 * 1000
+/** Rate-limit back-off spends no attempt, so a message still throttled this long after it was queued is failed. */
+export const MAX_RATE_LIMITED_AGE_MS = 24 * 60 * 60 * 1000
 
 /**
  * `rate_limited`: retry the whole job later without spending a job attempt (the worker moves it to delayed).
@@ -101,6 +103,7 @@ export async function handleOutbound(
     } catch (error) {
       const meta = error instanceof MetaError ? error : null
       if (meta?.details.reason === 'rate_limited') {
+        if (now.getTime() - message.createdAt.getTime() >= MAX_RATE_LIMITED_AGE_MS) return stop('rate_limited_too_long', 'failed')
         // Meta throttled the account: nothing went out. Hand the message back without spending the attempt, and
         // pause the account so its other jobs wait too instead of hammering Graph. The sweep only re-enqueues
         // this job's id, which stays delayed; any other job for the account hits the pause in take().

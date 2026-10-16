@@ -5,7 +5,7 @@ import { decodePostback } from '@replyooo/shared'
 import { and, eq, inArray } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { OutboundBody } from '../src/flow'
-import { handleOutbound, withTrackedLinks } from '../src/outbound'
+import { handleOutbound, MAX_RATE_LIMITED_AGE_MS, withTrackedLinks } from '../src/outbound'
 import { createTestContext, insertRun, NOW, publishAutomation, seedAccount, seedContact, seedMember } from './support'
 
 const flow: FlowDefinition = {
@@ -159,6 +159,20 @@ describe('handleOutbound', () => {
     expect(await statuses(ids)).toEqual([[ids[0], 'failed', 'server']])
     const [after] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
     expect(after?.status).toBe('failed')
+  })
+
+  it('fails a message still rate-limited a day after it was queued', async () => {
+    const { db, deps, adapters, queue, statuses } = await setup()
+    const ids = await queue({ kind: 'dm', body: text('hi') }, { kind: 'dm', body: text('there') })
+    deps.rateLimiter = { take: async () => 0, pause: async () => {} }
+    await db.update(messages).set({ createdAt: new Date(NOW.getTime() - MAX_RATE_LIMITED_AGE_MS) }).where(eq(messages.id, ids[0]!))
+
+    adapters.instagram.errors.push(new MetaError('retryable', 'slow down', { reason: 'rate_limited' }))
+    expect(await handleOutbound(deps, { messageIds: ids })).toEqual({ status: 'done' })
+    expect(await statuses(ids)).toEqual([
+      [ids[0], 'failed', 'rate_limited_too_long'],
+      [ids[1], 'failed', 'skipped'],
+    ])
   })
 
   it('backs off when Meta rate-limits the account, without spending an attempt', async () => {
