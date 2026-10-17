@@ -17,7 +17,7 @@ const EnvSchema = z.object({
   META_LOGIN_CONFIG_ID: optional,
   INSTAGRAM_APP_ID: required,
   INSTAGRAM_APP_SECRET: required,
-  META_GRAPH_VERSION: z.preprocess(blank, z.string().default('v24.0')),
+  META_GRAPH_VERSION: z.preprocess(blank, z.string().default('v26.0')),
   GOOGLE_CLIENT_ID: optional,
   GOOGLE_CLIENT_SECRET: optional,
   /** Dodo Payments. Billing is disabled until the key and all four product IDs are set. */

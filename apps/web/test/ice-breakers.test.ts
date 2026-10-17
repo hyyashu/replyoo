@@ -13,7 +13,7 @@ const server = mockFetch()
 beforeEach(() => server.reset())
 afterAll(() => server.restore())
 
-const IG = 'https://graph.instagram.com/v24.0'
+const IG = 'https://graph.instagram.com/v26.0'
 
 function messengerProfile(externalId: string, response: { status?: number; body?: unknown } = {}) {
   const calls: { method: string; body: unknown }[] = []

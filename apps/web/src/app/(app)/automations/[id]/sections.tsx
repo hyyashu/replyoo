@@ -12,6 +12,7 @@ import {
   MAX_CARDS,
   MAX_LINKS,
   DEFAULT_CLICK_FOLLOW_UP,
+  DEFAULT_RECIPE,
   MAX_NUDGE_HOURS,
   clickFollowUpApplies,
   changeTriggerType,
@@ -711,10 +712,17 @@ export function BoostersSection({
         <Booster
           icon={<UserPlus className="size-4" />}
           title={tr('follow_gate')}
-          body={platform === 'instagram' ? tr('ask_for_a_follow_first') : tr('instagram_only')}
+          body={platform === 'instagram' ? tr('ask_for_a_follow_first') : tr('ask_for_a_follow_on_trust')}
           checked={recipe.followGate.enabled}
-          disabled={platform !== 'instagram'}
-          onChange={(v) => update((d) => void (d.followGate.enabled = v))}
+          onChange={(v) =>
+            update((d) => {
+              d.followGate.enabled = v
+              // The default copy claims we checked; Facebook can't, so it gets wording that doesn't.
+              if (v && platform === 'facebook' && d.followGate.text === DEFAULT_RECIPE.followGate.text) {
+                d.followGate.text = tr('facebook_follow_gate_text')
+              }
+            })
+          }
         />
         <Booster
           icon={<AtSign className="size-4" />}
@@ -734,7 +742,13 @@ export function BoostersSection({
 
       {recipe.followGate.enabled && (
         <div>
-          <Label hint={tr('sent_when_they_aren_t_following_yet')}>{tr('follow_gate_message')}</Label>
+          <Label
+            hint={
+              platform === 'instagram' ? tr('sent_when_they_aren_t_following_yet') : tr('sent_to_everyone_tapping_lets_them_through')
+            }
+          >
+            {tr('follow_gate_message')}
+          </Label>
           <MessageInput
             label={tr('follow_gate_message')}
             value={recipe.followGate.text}
@@ -751,16 +765,19 @@ export function BoostersSection({
               />
             }
           />
-          <div className="mt-3">
-            <Label hint={tr('sent_if_they_tap_the_button_but_still_aren_t_following')}>{tr('follow_reminder')}</Label>
-            <MessageInput
-              label={tr('follow_reminder')}
-              value={recipe.followGate.reminderText}
-              maxLength={640}
-              rows={2}
-              onChange={(text) => update((d) => void (d.followGate.reminderText = text))}
-            />
-          </div>
+          {/* Facebook lets them through on the tap, so the reminder is never sent there. */}
+          {platform === 'instagram' && (
+            <div className="mt-3">
+              <Label hint={tr('sent_if_they_tap_the_button_but_still_aren_t_following')}>{tr('follow_reminder')}</Label>
+              <MessageInput
+                label={tr('follow_reminder')}
+                value={recipe.followGate.reminderText}
+                maxLength={640}
+                rows={2}
+                onChange={(text) => update((d) => void (d.followGate.reminderText = text))}
+              />
+            </div>
+          )}
         </div>
       )}
 

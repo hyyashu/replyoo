@@ -238,15 +238,24 @@ describe('handleFollowCheck', () => {
     expect(account?.status).toBe('reauth_required')
   })
 
-  it('fails the run when the platform cannot check follows instead of assuming not following', async () => {
+  it('runs on trust where the platform cannot check follows: asks first, then lets them through', async () => {
     const { db, deps, jobs, refs } = await setup(followGate)
-    const run = await insertRun(db, refs, waitingCheck)
     const adapter = deps.adapters[refs.account.platform]
     deps.adapters = { ...deps.adapters, [refs.account.platform]: Object.assign(Object.create(adapter), { isFollower: undefined }) }
+    // A check from an earlier run does not count as having been asked in this one.
+    await db.update(contacts).set({ followCheckedAt: new Date('2000-01-01T00:00:00Z') }).where(eq(contacts.id, refs.contact.id))
+    const run = await insertRun(db, refs, waitingCheck)
+
     await handleFollowCheck(deps, { runId: run.id, expectedVersion: 1 })
-    const [after] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
-    expect(after).toMatchObject({ status: 'failed', error: 'follow_check_unsupported' })
-    expect(jobs.flows).toEqual([])
+    await db.update(flowRuns).set({ stateVersion: 2 }).where(eq(flowRuns.id, run.id))
+    await handleFollowCheck(deps, { runId: run.id, expectedVersion: 2 })
+
+    expect(jobs.flows.map((j) => j.data)).toEqual([
+      { runId: run.id, event: { type: 'follow_result', following: false }, expectedVersion: 1 },
+      { runId: run.id, event: { type: 'follow_result', following: true }, expectedVersion: 2 },
+    ])
+    const [contact] = await db.select().from(contacts).where(eq(contacts.id, refs.contact.id))
+    expect(contact?.followsYou).toBeNull()
   })
 })
 

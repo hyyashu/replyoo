@@ -79,7 +79,6 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
   const issues: ValidationIssue[] = []
   const { steps, trigger } = flow
   const entries = entryStepIds(flow)
-  let followCheckReported = false
   let carouselReported = false
 
   for (const entry of entries) {
@@ -178,14 +177,6 @@ export function validateFlow(flow: FlowDefinition, platform: Platform): Validati
         code: 'carousel_unsupported',
         stepId,
         message: 'Product cards are only available on Instagram',
-      })
-    }
-    if (step.type === 'check_follow' && platform === 'facebook' && !followCheckReported) {
-      followCheckReported = true
-      issues.push({
-        code: 'platform_unsupported',
-        stepId,
-        message: 'Follow checks are only available on Instagram',
       })
     }
   }

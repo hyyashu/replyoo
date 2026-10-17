@@ -36,7 +36,7 @@ async function account(id: string) {
 function messengerProfile(externalId: string, status = 200) {
   const calls: string[] = []
   server.use(
-    http.all(`https://graph.instagram.com/v24.0/${externalId}/messenger_profile`, ({ request }) => {
+    http.all(`https://graph.instagram.com/v26.0/${externalId}/messenger_profile`, ({ request }) => {
       calls.push(request.method)
       return HttpResponse.json(status === 200 ? { result: 'success' } : { error: { message: 'boom', code: 2 } }, { status })
     }),
@@ -129,7 +129,7 @@ describe('Meta callbacks with a slow Graph API', () => {
       release = resolve
     })
     server.use(
-      http.all(`https://graph.instagram.com/v24.0/${ig.externalId}/messenger_profile`, async () => {
+      http.all(`https://graph.instagram.com/v26.0/${ig.externalId}/messenger_profile`, async () => {
         await hung
         return HttpResponse.json({ result: 'success' })
       }),

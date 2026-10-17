@@ -91,13 +91,13 @@ describe('validateFlow', () => {
     expect(codes(flow)).toContain('comment_needs_reply_button')
   })
 
-  it('rejects check_follow and story_reply on facebook', () => {
+  it('allows check_follow on facebook (the worker runs it on trust) but rejects story_reply', () => {
     const followFlow: FlowDefinition = {
       trigger: { type: 'any_dm' },
       start: 'check',
       steps: { check: { type: 'check_follow' } },
     }
-    expect(codes(followFlow, 'facebook')).toEqual(['platform_unsupported'])
+    expect(codes(followFlow, 'facebook')).toEqual([])
     expect(codes(followFlow, 'instagram')).toEqual([])
 
     const storyFlow: FlowDefinition = {

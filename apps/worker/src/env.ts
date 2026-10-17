@@ -7,7 +7,7 @@ const EnvSchema = z.object({
   META_APP_SECRET: z.string().min(1),
   INSTAGRAM_APP_SECRET: z.string().min(1),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(1),
-  META_GRAPH_VERSION: z.string().default('v24.0'),
+  META_GRAPH_VERSION: z.string().default('v26.0'),
   /** Public web origin, for links in emails (e.g. the reconnect link). */
   APP_URL: z.url(),
   PORT: z.coerce.number().int().positive().default(3001),

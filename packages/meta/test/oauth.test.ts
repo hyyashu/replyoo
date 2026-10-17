@@ -32,7 +32,7 @@ function instagramHappyPath(tokenResponse: unknown) {
       expect(url.searchParams.get('access_token')).toBe('IG_SHORT')
       return HttpResponse.json({ access_token: 'IG_LONG', token_type: 'bearer', expires_in: 5_184_000 })
     }),
-    http.get('https://graph.instagram.com/v24.0/me', ({ request }) => {
+    http.get('https://graph.instagram.com/v26.0/me', ({ request }) => {
       expect(request.headers.get('authorization')).toBe('Bearer IG_LONG')
       return HttpResponse.json({
         id: 'IGSU_1',
@@ -105,7 +105,7 @@ describe('Instagram Login', () => {
 describe('Facebook Login for Business', () => {
   it('uses the configuration id when one is set, scopes otherwise', () => {
     const withConfig = new URL(facebookAuthorizeUrl(fbApp, 'nonce-2', 'cfg-9'))
-    expect(withConfig.origin + withConfig.pathname).toBe('https://www.facebook.com/v24.0/dialog/oauth')
+    expect(withConfig.origin + withConfig.pathname).toBe('https://www.facebook.com/v26.0/dialog/oauth')
     expect(withConfig.searchParams.get('config_id')).toBe('cfg-9')
     expect(withConfig.searchParams.get('scope')).toBeNull()
     expect(withConfig.searchParams.get('state')).toBe('nonce-2')
@@ -118,7 +118,7 @@ describe('Facebook Login for Business', () => {
 
   it('exchanges a code for page tokens of every granted Page', async () => {
     server.use(
-      http.get('https://graph.facebook.com/v24.0/oauth/access_token', ({ request }) => {
+      http.get('https://graph.facebook.com/v26.0/oauth/access_token', ({ request }) => {
         const params = new URL(request.url).searchParams
         if (params.get('grant_type') === 'fb_exchange_token') {
           expect(params.get('fb_exchange_token')).toBe('FB_SHORT')
@@ -132,11 +132,11 @@ describe('Facebook Login for Business', () => {
         })
         return HttpResponse.json({ access_token: 'FB_SHORT', token_type: 'bearer', expires_in: 3600 })
       }),
-      http.get('https://graph.facebook.com/v24.0/me', ({ request }) => {
+      http.get('https://graph.facebook.com/v26.0/me', ({ request }) => {
         expect(request.headers.get('authorization')).toBe('Bearer FB_LONG_USER')
         return HttpResponse.json({ id: 'FBU_1' })
       }),
-      http.get('https://graph.facebook.com/v24.0/me/accounts', ({ request }) => {
+      http.get('https://graph.facebook.com/v26.0/me/accounts', ({ request }) => {
         expect(request.headers.get('authorization')).toBe('Bearer FB_LONG_USER')
         return HttpResponse.json({
           data: [

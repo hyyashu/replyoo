@@ -22,7 +22,6 @@ const codes: Record<string, string> = {
   'Tags must be 1–50 characters': 'tags',
   'Pick at least one story': 'pickStory',
   'Pick at least one post': 'pickPost',
-  'Follow checks are only available on Instagram': 'instagramOnly',
   'Story replies are only available on Instagram': 'instagramOnly',
   'Keywords made only of punctuation can never match': 'punctuation',
   'A message with reply buttons continues from its buttons, not from "next"': 'buttonFlow',

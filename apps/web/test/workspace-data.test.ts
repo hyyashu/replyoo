@@ -208,7 +208,7 @@ describe('getSubscription', () => {
   })
 })
 
-const IG = 'https://graph.instagram.com/v24.0'
+const IG = 'https://graph.instagram.com/v26.0'
 
 function messengerProfile(externalId: string, status = 200) {
   const calls: string[] = []

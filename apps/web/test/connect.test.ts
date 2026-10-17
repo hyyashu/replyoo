@@ -26,7 +26,7 @@ function instagram(profile: Partial<{ account_type: string; followers_count: num
     http.get('https://graph.instagram.com/access_token', () =>
       HttpResponse.json({ access_token: 'IG_LONG', expires_in: 5_184_000 }),
     ),
-    http.get('https://graph.instagram.com/v24.0/me', () =>
+    http.get('https://graph.instagram.com/v26.0/me', () =>
       HttpResponse.json({
         id: `IGSU_${IG_ID}`,
         user_id: IG_ID,
@@ -37,7 +37,7 @@ function instagram(profile: Partial<{ account_type: string; followers_count: num
         ...profile,
       }),
     ),
-    http.post(`https://graph.instagram.com/v24.0/${IG_ID}/subscribed_apps`, ({ request }) => {
+    http.post(`https://graph.instagram.com/v26.0/${IG_ID}/subscribed_apps`, ({ request }) => {
       subscribed.push(new URL(request.url).searchParams.get('subscribed_fields') ?? '')
       return HttpResponse.json({ success: true })
     }),
@@ -93,7 +93,7 @@ describe('connecting Instagram', () => {
     const { workspaceId, user } = await createWorkspace('NoType')
     const subscribed = instagram()
     server.use(
-      http.get('https://graph.instagram.com/v24.0/me', () =>
+      http.get('https://graph.instagram.com/v26.0/me', () =>
         HttpResponse.json({ user_id: IG_ID, username: 'maya.makes', name: 'Maya Makes', account_type: null }),
       ),
     )
@@ -175,7 +175,7 @@ describe('connecting Instagram', () => {
     instagram()
     const pushed: unknown[] = []
     server.use(
-      http.post(`https://graph.instagram.com/v24.0/${IG_ID}/messenger_profile`, async ({ request }) => {
+      http.post(`https://graph.instagram.com/v26.0/${IG_ID}/messenger_profile`, async ({ request }) => {
         pushed.push(await request.json())
         return HttpResponse.json({ result: 'success' })
       }),
@@ -202,7 +202,7 @@ describe('connecting Instagram', () => {
     instagram()
     const pushed: unknown[] = []
     server.use(
-      http.post(`https://graph.instagram.com/v24.0/${IG_ID}/messenger_profile`, async ({ request }) => {
+      http.post(`https://graph.instagram.com/v26.0/${IG_ID}/messenger_profile`, async ({ request }) => {
         if (pushed.length === 0) {
           // A publish of version 2 commits while the restore's push of version 1 is still in flight.
           const [v2] = await db().insert(automationVersions).values({ automationId: automation!.id, version: 2, definition: newer }).returning()
@@ -233,7 +233,7 @@ describe('connecting Instagram', () => {
 
     instagram()
     server.use(
-      http.post(`https://graph.instagram.com/v24.0/${IG_ID}/messenger_profile`, () =>
+      http.post(`https://graph.instagram.com/v26.0/${IG_ID}/messenger_profile`, () =>
         HttpResponse.json({ error: { message: 'Service unavailable', code: 2 } }, { status: 503 }),
       ),
     )
@@ -248,14 +248,14 @@ describe('connecting Facebook Pages', () => {
   function facebook(pages: { id: string; name: string; access_token?: string }[]) {
     const subscribed: string[] = []
     server.use(
-      http.get('https://graph.facebook.com/v24.0/oauth/access_token', ({ request }) =>
+      http.get('https://graph.facebook.com/v26.0/oauth/access_token', ({ request }) =>
         HttpResponse.json({
           access_token: new URL(request.url).searchParams.get('grant_type') === 'fb_exchange_token' ? 'FB_LONG' : 'FB_SHORT',
         }),
       ),
-      http.get('https://graph.facebook.com/v24.0/me', () => HttpResponse.json({ id: 'FBU_42' })),
-      http.get('https://graph.facebook.com/v24.0/me/accounts', () => HttpResponse.json({ data: pages })),
-      http.post('https://graph.facebook.com/v24.0/:pageId/subscribed_apps', ({ params }) => {
+      http.get('https://graph.facebook.com/v26.0/me', () => HttpResponse.json({ id: 'FBU_42' })),
+      http.get('https://graph.facebook.com/v26.0/me/accounts', () => HttpResponse.json({ data: pages })),
+      http.post('https://graph.facebook.com/v26.0/:pageId/subscribed_apps', ({ params }) => {
         subscribed.push(String(params.pageId))
         return HttpResponse.json({ success: true })
       }),
@@ -323,7 +323,7 @@ describe('connecting Facebook Pages', () => {
     })
     const started: string[] = []
     server.use(
-      http.post('https://graph.facebook.com/v24.0/me/messenger_profile', async ({ request }) => {
+      http.post('https://graph.facebook.com/v26.0/me/messenger_profile', async ({ request }) => {
         started.push(request.headers.get('authorization') ?? '')
         await hung
         return HttpResponse.json({ result: 'success' })
@@ -344,7 +344,7 @@ describe('connecting Facebook Pages', () => {
     let n = 0
     // Each callback is granted a different pair of Pages.
     server.use(
-      http.get('https://graph.facebook.com/v24.0/me/accounts', () =>
+      http.get('https://graph.facebook.com/v26.0/me/accounts', () =>
         HttpResponse.json({ data: [0, 1].map(() => ({ id: `page_${randomUUID()}`, name: `Page ${n++}`, access_token: `P${n}` })) }),
       ),
     )
