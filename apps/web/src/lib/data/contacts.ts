@@ -1,5 +1,5 @@
 import 'server-only'
-import { automations, contacts, flowRuns, messages } from '@replyooo/db'
+import { automations, contacts, type Db, flowRuns, messages, type Tx } from '@replyooo/db'
 import { and, arrayContains, desc, eq, gte, ilike, inArray, isNotNull, or, type SQL, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { DM_KINDS, statsSince } from './automations'
@@ -96,14 +96,14 @@ export async function listContacts(
   workspaceId: string,
   accountId: string,
   filters: ContactFilters = {},
-  options: { limit?: number; offset?: number } = {},
+  options: { limit?: number; offset?: number; executor?: Db | Tx } = {},
 ): Promise<Contact[]> {
   if (!isUuid(accountId)) return []
-  const query = db()
+  const query = (options.executor ?? db())
     .select(columns)
     .from(contacts)
     .where(scope(workspaceId, accountId, filters))
-    .orderBy(sql`${contacts.lastInboundAt} desc nulls last`, desc(contacts.firstSeenAt))
+    .orderBy(sql`${contacts.lastInboundAt} desc nulls last`, desc(contacts.firstSeenAt), desc(contacts.id))
     .$dynamic()
   const rows = options.limit ? await query.limit(options.limit).offset(options.offset ?? 0) : await query
   return rows.map(toContact)

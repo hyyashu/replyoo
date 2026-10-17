@@ -1,5 +1,7 @@
-/** Look-back options for "run on existing comments", in hours. Matches `BACKFILL_WINDOWS_HOURS` in the database package. */
-export const RERUN_WINDOWS = [24, 72, 168] as const
+import { BACKFILL_WINDOWS_HOURS } from '@replyooo/shared'
+
+/** Look-back options for "run on existing comments", in hours. */
+export const RERUN_WINDOWS = BACKFILL_WINDOWS_HOURS
 
 const KNOWN_FAILURES = ['token_invalid', 'network', 'timed_out', 'account_inactive', 'automation_not_active', 'not_a_comment_automation'] as const
 

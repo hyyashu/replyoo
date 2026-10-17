@@ -11,7 +11,8 @@ export function normalizeText(input: string): string {
     .trim()
 }
 
-const hasWordCharacters = (value: string) => /[\p{L}\p{N}]/u.test(value)
+/** True when the text has a letter or digit in any script, so it isn't only emoji or punctuation. */
+export const hasWordCharacters = (value: string) => /[\p{L}\p{N}]/u.test(value)
 
 export function matchesKeyword(text: string, keyword: string, match: KeywordMatch): boolean {
   const normalizedText = normalizeText(text)

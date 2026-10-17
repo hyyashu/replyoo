@@ -1,15 +1,12 @@
-import { GRAPH_API_VERSION, graphRequest } from './graph'
+import { graphCaller, nextCursor, privateReplySender } from './adapter-common'
+import { GRAPH_API_VERSION } from './graph'
 import { toGraphMessage } from './messages'
 import { normalizeFacebookWebhook } from './normalize'
-import type { AccountCredentials, PlatformAdapter } from './types'
+import type { PlatformAdapter } from './types'
 
 export function createFacebookAdapter(options: { graphVersion?: string } = {}): PlatformAdapter {
   const baseUrl = `https://graph.facebook.com/${options.graphVersion ?? GRAPH_API_VERSION}`
-  const call = <T>(
-    account: AccountCredentials,
-    path: string,
-    init: { method?: 'GET' | 'POST' | 'DELETE'; query?: Record<string, string>; body?: unknown } = {},
-  ) => graphRequest<T>({ baseUrl, path, token: account.accessToken, ...init })
+  const call = graphCaller(baseUrl)
 
   return {
     platform: 'facebook',
@@ -23,13 +20,7 @@ export function createFacebookAdapter(options: { graphVersion?: string } = {}): 
       return { messageId: res.message_id ?? null }
     },
 
-    async sendPrivateReply(account, commentId, message) {
-      const res = await call<{ message_id?: string }>(account, `${account.externalId}/messages`, {
-        method: 'POST',
-        body: { recipient: { comment_id: commentId }, message: toGraphMessage(message) },
-      })
-      return { messageId: res.message_id ?? null }
-    },
+    sendPrivateReply: privateReplySender(call),
 
     async replyToComment(account, commentId, text) {
       const res = await call<{ id?: string }>(account, `${commentId}/comments`, {
@@ -108,8 +99,7 @@ export function createFacebookAdapter(options: { graphVersion?: string } = {}): 
             ]
           : [],
       )
-      const after = res.paging?.next ? res.paging.cursors?.after : undefined
-      return { items, ...(after ? { next: after } : {}) }
+      return { items, ...nextCursor(res.paging) }
     },
 
     async setIceBreakers(account, items) {

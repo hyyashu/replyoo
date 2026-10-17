@@ -1,4 +1,6 @@
-export type DmPlatform = 'instagram' | 'facebook'
+import type { Platform } from '@replyooo/shared'
+
+export type DmPlatform = Platform
 
 /** Strips what people paste around a handle: spaces, a leading @, or a full profile URL. */
 export function cleanHandle(input: string): string {

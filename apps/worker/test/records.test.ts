@@ -3,7 +3,18 @@ import type { Effect } from '@replyooo/engine'
 import { newRunState } from '@replyooo/engine'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { applyContactEffects, credentials, endRun, runColumns, toRunState } from '../src/records'
+import {
+  applyContactEffects,
+  automationIdForRun,
+  cancelWaitingRuns,
+  credentials,
+  DM_WINDOW_MS,
+  endRun,
+  hasWaitingRun,
+  runColumns,
+  toRunState,
+  withinDmWindow,
+} from '../src/records'
 import { NOW, publishAutomation, seedAccount, seedContact, TOKEN_KEY, useDb } from './support'
 
 describe('record helpers', () => {
@@ -76,5 +87,51 @@ describe('record helpers', () => {
   it('decrypts account credentials', async () => {
     const { account } = await seedAccount(useDb())
     expect(credentials(account, TOKEN_KEY)).toEqual({ externalId: account.externalId, accessToken: 'token-abc' })
+  })
+
+  it('checks the 24 hour DM window, inclusive', () => {
+    expect(withinDmWindow(new Date(NOW.getTime() - DM_WINDOW_MS), NOW)).toBe(true)
+    expect(withinDmWindow(new Date(NOW.getTime() - DM_WINDOW_MS - 1), NOW)).toBe(false)
+    expect(withinDmWindow(null, NOW)).toBe(false)
+    expect(withinDmWindow(undefined, NOW)).toBe(false)
+  })
+
+  it('finds and cancels a waiting run unless it is the one to keep', async () => {
+    const db = useDb()
+    const { account } = await seedAccount(db)
+    const contact = await seedContact(db, account)
+    const { automation, version } = await publishAutomation(db, account, {
+      trigger: { type: 'any_dm' },
+      start: 's1',
+      steps: { s1: { type: 'delay', minutes: 5 } },
+    })
+    const waiting = { ...newRunState(), status: 'waiting' as const, currentStepId: 's1' }
+    const insert = async () => {
+      const [row] = await db
+        .insert(flowRuns)
+        .values({
+          automationId: automation.id,
+          automationVersionId: version.id,
+          contactId: contact.id,
+          connectedAccountId: account.id,
+          ...runColumns(waiting, NOW),
+        })
+        .returning()
+      return row!
+    }
+    expect(await hasWaitingRun(db, contact.id)).toBe(false)
+    const run = await insert()
+    expect(await hasWaitingRun(db, contact.id)).toBe(true)
+    expect(await automationIdForRun(db, run.id)).toBe(automation.id)
+    expect(await automationIdForRun(db, '00000000-0000-7000-8000-000000000000')).toBeNull()
+
+    await cancelWaitingRuns(db, contact.id, NOW, run.id)
+    const [kept] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
+    expect(kept).toMatchObject({ status: 'waiting', stateVersion: run.stateVersion })
+
+    await cancelWaitingRuns(db, contact.id, NOW)
+    const [cancelled] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
+    expect(cancelled).toMatchObject({ status: 'cancelled', wait: null, completedAt: NOW, stateVersion: run.stateVersion + 1 })
+    expect(await hasWaitingRun(db, contact.id)).toBe(false)
   })
 })

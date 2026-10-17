@@ -20,7 +20,7 @@ import { flushOutbox, stageJobs } from './outbox'
 import type { Logger } from './logger'
 import type { AccountRow, ContactRow } from './records'
 import { pauseForMetaRateLimit } from './rate-limit'
-import { credentials, toContactState, toRunState } from './records'
+import { cancelWaitingRuns, credentials, hasWaitingRun, toContactState, toRunState } from './records'
 import type { Route, WaitingRun } from './route'
 import { decideRoute } from './route'
 
@@ -327,12 +327,7 @@ async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<RoutedJob | null> 
   if (!candidate) return null
   if (event.type === 'comment_created' && event.restrictToAutomationId) {
     // A re-run comment is old news; it must not cancel a conversation the person is in the middle of.
-    const [waiting] = await tx
-      .select({ id: flowRuns.id })
-      .from(flowRuns)
-      .where(and(eq(flowRuns.contactId, contact.id), eq(flowRuns.status, 'waiting')))
-      .limit(1)
-    if (waiting) return null
+    if (await hasWaitingRun(tx, contact.id)) return null
   }
   if (!(await mayStartRun(tx, account.workspaceId, contact, now))) {
     ctx.log.info({ workspaceId: account.workspaceId, automationId: candidate.automationId }, 'monthly contact limit reached; run not started')
@@ -350,16 +345,7 @@ async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<RoutedJob | null> 
     .returning({ id: automationEntries.id })
   if (entered.length === 0) return null
 
-  await tx
-    .update(flowRuns)
-    .set({
-      status: 'cancelled',
-      wait: null,
-      waitUntil: null,
-      completedAt: now,
-      stateVersion: sql`${flowRuns.stateVersion} + 1`,
-    })
-    .where(and(eq(flowRuns.contactId, contact.id), eq(flowRuns.status, 'waiting')))
+  await cancelWaitingRuns(tx, contact.id, now)
 
   if (
     event.type === 'comment_created' &&

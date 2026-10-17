@@ -1,4 +1,5 @@
-export type PlanKey = 'free' | 'pro' | 'business'
+export const PLAN_KEYS = ['free', 'pro', 'business'] as const
+export type PlanKey = (typeof PLAN_KEYS)[number]
 
 export interface PlanLimits {
   contactsPerMonth: number

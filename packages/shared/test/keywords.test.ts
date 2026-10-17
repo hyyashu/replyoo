@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchesAnyKeyword, matchesKeyword, normalizeText } from '../src'
+import { hasWordCharacters, matchesAnyKeyword, matchesKeyword, normalizeText } from '../src'
 
 describe('normalizeText', () => {
   it('lowercases, strips punctuation and collapses whitespace', () => {
@@ -62,5 +62,13 @@ describe('capitalisation never matters', () => {
 
   it('still respects word boundaries after lowercasing', () => {
     expect(matchesKeyword('LINKEDIN', 'link', 'contains')).toBe(false)
+  })
+})
+
+describe('hasWordCharacters', () => {
+  it('is true for letters or digits in any script and false for emoji or punctuation only', () => {
+    expect(hasWordCharacters('hi')).toBe(true)
+    expect(hasWordCharacters('३')).toBe(true)
+    expect(hasWordCharacters('🔥🔥 !!')).toBe(false)
   })
 })

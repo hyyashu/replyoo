@@ -57,6 +57,12 @@ export function createBullJobs(queues: Queues): Jobs {
     async inbound(webhookEventId) {
       await addOrRevive(queues.inbound, 'inbound', { webhookEventId }, { jobId: `inbound-${webhookEventId}` })
     },
+    async inboundMany(webhookEventIds) {
+      if (webhookEventIds.length === 0) return
+      await queues.inbound.addBulk(
+        webhookEventIds.map((webhookEventId) => ({ name: 'inbound', data: { webhookEventId }, opts: { jobId: `inbound-${webhookEventId}` } })),
+      )
+    },
     async flow(data, opts) {
       const delay = opts?.at ? { delay: Math.max(0, opts.at.getTime() - Date.now()) } : {}
       if (opts?.jobId) await addOrRevive(queues.flow, 'advance', data, { ...delay, jobId: opts.jobId })

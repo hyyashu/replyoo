@@ -1,8 +1,9 @@
 'use client'
 
 import { Check, Copy } from 'lucide-react'
-import { useId, useState, type ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { Button, cx } from '@/components/ui'
+import { useCopy } from '@/components/use-copy'
 
 export const toolField =
   'h-11 w-full rounded-xl border border-line bg-white px-3.5 text-[14px] outline-none transition-colors placeholder:text-faint focus:border-ink'
@@ -22,12 +23,9 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 
 /** The tool's result with a copy button. Shows `placeholder` until there is something to copy. `text` keeps line breaks, for messages rather than links. */
 export function CopyResult({ label, value, placeholder, text = false }: { label: string; value: string | null; placeholder: string; text?: boolean }) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    if (!value) return
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+  const { copied, copy: copyText } = useCopy()
+  const copy = () => {
+    if (value) void copyText(value)
   }
   return (
     <div className="rounded-2xl bg-sand p-4">

@@ -2,11 +2,14 @@ import type { Db, Tx } from '@replyooo/db'
 import { connectedAccounts, type contacts, decryptToken, flowRuns } from '@replyooo/db'
 import type { ContactState, Effect, FlowRunState, RunStatus, Wait } from '@replyooo/engine'
 import type { AccountCredentials } from '@replyooo/meta'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 
 export type FlowRunRow = typeof flowRuns.$inferSelect
 export type ContactRow = typeof contacts.$inferSelect
 export type AccountRow = typeof connectedAccounts.$inferSelect
+
+/** Meta's standard messaging window: a DM is only allowed within 24 hours of the person's last message. */
+export const DM_WINDOW_MS = 24 * 60 * 60 * 1000
 
 const FINAL: ReadonlySet<RunStatus> = new Set(['completed', 'failed', 'expired', 'cancelled'])
 
@@ -106,4 +109,44 @@ export async function markReauthRequired(db: Db | Tx, accountId: string): Promis
     .where(and(eq(connectedAccounts.id, accountId), eq(connectedAccounts.status, 'active')))
     .returning({ id: connectedAccounts.id })
   return rows.length > 0
+}
+
+export function withinDmWindow(lastInboundAt: Date | null | undefined, now: Date): boolean {
+  return !!lastInboundAt && now.getTime() - lastInboundAt.getTime() <= DM_WINDOW_MS
+}
+
+/** Whether the contact is in the middle of a conversation (has a run waiting for them). */
+export async function hasWaitingRun(db: Db | Tx, contactId: string): Promise<boolean> {
+  const [waiting] = await db
+    .select({ id: flowRuns.id })
+    .from(flowRuns)
+    .where(and(eq(flowRuns.contactId, contactId), eq(flowRuns.status, 'waiting')))
+    .limit(1)
+  return waiting !== undefined
+}
+
+/** Cancels the contact's waiting runs, except `keepRunId`, so a contact only ever waits in one conversation. */
+export async function cancelWaitingRuns(db: Db | Tx, contactId: string, now: Date, keepRunId?: string): Promise<void> {
+  await db
+    .update(flowRuns)
+    .set({
+      status: 'cancelled',
+      wait: null,
+      waitUntil: null,
+      completedAt: now,
+      stateVersion: sql`${flowRuns.stateVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(flowRuns.contactId, contactId),
+        eq(flowRuns.status, 'waiting'),
+        keepRunId === undefined ? undefined : ne(flowRuns.id, keepRunId),
+      ),
+    )
+}
+
+/** The automation a run belongs to, or null when the run is gone. */
+export async function automationIdForRun(db: Db | Tx, flowRunId: string): Promise<string | null> {
+  const [run] = await db.select({ automationId: flowRuns.automationId }).from(flowRuns).where(eq(flowRuns.id, flowRunId))
+  return run?.automationId ?? null
 }

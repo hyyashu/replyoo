@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { csvCell, csvContentDisposition, toCsv } from '@/lib/csv'
+import { csvCell, csvContentDisposition, csvRow, toCsv } from '@/lib/csv'
 
 describe('csvCell', () => {
   it('quotes values and escapes quotes', () => {
@@ -22,6 +22,12 @@ describe('csvCell', () => {
 describe('toCsv', () => {
   it('joins rows with CRLF under an unquoted header', () => {
     expect(toCsv(['a', 'b'], [['1', '2']])).toBe('a,b\r\n"1","2"')
+  })
+})
+
+describe('csvRow', () => {
+  it('quotes and guards each cell like toCsv', () => {
+    expect(csvRow(['=1', 'a"b'])).toBe(`"'=1","a""b"`)
   })
 })
 

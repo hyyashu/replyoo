@@ -1,3 +1,4 @@
+import type { Platform } from '@replyooo/shared'
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import type { Db, Tx } from './client'
 import { generateLinkCode } from './link-codes'
@@ -19,7 +20,7 @@ import {
 
 export interface AccountAlertContext {
   username: string
-  platform: 'instagram' | 'facebook'
+  platform: Platform
   workspaceName: string
   /** Owners' and admins' email addresses, sorted. */
   recipients: string[]

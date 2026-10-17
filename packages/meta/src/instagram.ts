@@ -1,17 +1,18 @@
+import { graphCaller, nextCursor, privateReplySender } from './adapter-common'
 import { GRAPH_API_VERSION, graphRequest } from './graph'
 import { toGraphMessage } from './messages'
 import { normalizeInstagramWebhook } from './normalize'
-import type { AccountCredentials, PlatformAdapter } from './types'
+import type { PlatformAdapter } from './types'
 
 const HOST = 'https://graph.instagram.com'
 
+// Videos expose a still in `thumbnail_url`; for images `media_url` is the picture itself.
+const thumbnailUrl = (m: { media_type?: string; media_url?: string; thumbnail_url?: string }) =>
+  (m.media_type === 'VIDEO' ? m.thumbnail_url : (m.media_url ?? m.thumbnail_url)) ?? null
+
 export function createInstagramAdapter(options: { graphVersion?: string } = {}): PlatformAdapter {
   const baseUrl = `${HOST}/${options.graphVersion ?? GRAPH_API_VERSION}`
-  const call = <T>(
-    account: AccountCredentials,
-    path: string,
-    init: { method?: 'GET' | 'POST' | 'DELETE'; query?: Record<string, string>; body?: unknown } = {},
-  ) => graphRequest<T>({ baseUrl, path, token: account.accessToken, ...init })
+  const call = graphCaller(baseUrl)
 
   return {
     platform: 'instagram',
@@ -25,13 +26,7 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
       return { messageId: res.message_id ?? null }
     },
 
-    async sendPrivateReply(account, commentId, message) {
-      const res = await call<{ message_id?: string }>(account, `${account.externalId}/messages`, {
-        method: 'POST',
-        body: { recipient: { comment_id: commentId }, message: toGraphMessage(message) },
-      })
-      return { messageId: res.message_id ?? null }
-    },
+    sendPrivateReply: privateReplySender(call),
 
     async replyToComment(account, commentId, text) {
       const res = await call<{ id?: string }>(account, `${commentId}/replies`, {
@@ -85,8 +80,7 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
       return (res.data ?? []).map((m) => ({
         id: m.id,
         caption: m.caption ?? null,
-        // Videos expose a still in `thumbnail_url`; for images `media_url` is the picture itself.
-        thumbnailUrl: (m.media_type === 'VIDEO' ? m.thumbnail_url : (m.media_url ?? m.thumbnail_url)) ?? null,
+        thumbnailUrl: thumbnailUrl(m),
         permalink: m.permalink ?? null,
         publishedAt: m.timestamp ? new Date(m.timestamp) : null,
       }))
@@ -118,8 +112,7 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
             ]
           : [],
       )
-      const after = res.paging?.next ? res.paging.cursors?.after : undefined
-      return { items, ...(after ? { next: after } : {}) }
+      return { items, ...nextCursor(res.paging) }
     },
 
     async listStories(account, limit = 24) {
@@ -131,7 +124,7 @@ export function createInstagramAdapter(options: { graphVersion?: string } = {}):
       return (res.data ?? []).map((m) => ({
         id: m.id,
         caption: null,
-        thumbnailUrl: (m.media_type === 'VIDEO' ? m.thumbnail_url : (m.media_url ?? m.thumbnail_url)) ?? null,
+        thumbnailUrl: thumbnailUrl(m),
         permalink: m.permalink ?? null,
         publishedAt: m.timestamp ? new Date(m.timestamp) : null,
       }))
