@@ -9,7 +9,7 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-const base = 'https://graph.instagram.com/v24.0'
+const base = 'https://graph.instagram.com/v26.0'
 const account = { externalId: IG_ACCOUNT, accessToken: 'IGAAT' }
 const adapter = createInstagramAdapter()
 

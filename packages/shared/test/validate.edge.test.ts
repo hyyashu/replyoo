@@ -249,13 +249,13 @@ describe('validateFlow edge', () => {
     expect(codes(flow)).toEqual(['no_posts_selected'])
   })
 
-  it('facebook: story triggers and check_follow are unsupported (check_follow reported once)', () => {
+  it('facebook: story triggers are unsupported; check_follow is allowed', () => {
     const flow: FlowDefinition = {
       trigger: { type: 'story_reply', includeReactions: true },
       start: 's1',
       steps: { s1: { type: 'check_follow', following: 's2', notFollowing: 's2' }, s2: { type: 'check_follow' } },
     }
-    expect(codes(flow, 'facebook')).toEqual(['platform_unsupported', 'platform_unsupported'])
+    expect(codes(flow, 'facebook')).toEqual(['platform_unsupported'])
   })
 
   it('ice breaker entries count as reachable; missing entry steps are reported', () => {

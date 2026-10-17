@@ -48,7 +48,7 @@ async function setup(opts: { posts?: Parameters<typeof flow>[0]; status?: 'activ
 
 function comments(mediaId: string, items: { id: string; text: string; hoursAgo: number; from?: string | null }[]) {
   server.use(
-    http.get(`https://graph.instagram.com/v24.0/${mediaId}/comments`, () =>
+    http.get(`https://graph.instagram.com/v26.0/${mediaId}/comments`, () =>
       HttpResponse.json({
         data: items.map((c) => ({
           id: c.id,
@@ -132,7 +132,7 @@ describe('previewRerun', () => {
   it('turns a revoked token into a reauth error', async () => {
     const s = await setup()
     server.use(
-      http.get('https://graph.instagram.com/v24.0/m1/comments', () =>
+      http.get('https://graph.instagram.com/v26.0/m1/comments', () =>
         HttpResponse.json({ error: { message: 'Invalid OAuth access token', type: 'OAuthException', code: 190 } }, { status: 400 }),
       ),
     )

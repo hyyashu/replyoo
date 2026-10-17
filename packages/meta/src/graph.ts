@@ -1,6 +1,6 @@
 import { classifyGraphError, MetaError, retryAfterFromHeaders } from './errors'
 
-export const GRAPH_API_VERSION = 'v24.0'
+export const GRAPH_API_VERSION = 'v26.0'
 const TIMEOUT_MS = 15_000
 
 export interface GraphRequest {

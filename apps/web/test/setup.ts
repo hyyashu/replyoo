@@ -12,7 +12,7 @@ process.env.META_APP_ID = 'fb-app'
 process.env.META_APP_SECRET = 'fb-secret'
 process.env.INSTAGRAM_APP_ID = 'ig-app'
 process.env.INSTAGRAM_APP_SECRET = 'ig-secret'
-process.env.META_GRAPH_VERSION = 'v24.0'
+process.env.META_GRAPH_VERSION = 'v26.0'
 process.env.EMAIL_PROVIDER = 'log'
 // No test sends real email; files that assert on email install their own RecordingMailer.
 setMailer(new RecordingMailer())

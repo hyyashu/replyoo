@@ -163,10 +163,14 @@ export async function handleFollowCheck(deps: Deps, job: FollowCheckJobData): Pr
   if (run.stateVersion !== job.expectedVersion || run.status !== 'waiting' || wait?.kind !== 'follow_check') return
 
   const adapter = deps.adapters[account.platform]
-  // Publishing rejects follow checks where the platform cannot answer them (Facebook); a run that still gets here
-  // (published before that check) fails openly instead of treating everyone as not following.
+  // Facebook cannot tell whether someone follows a Page, so the gate runs on trust: the run's first check asks
+  // them to follow, and a later check (after they tap "I followed") lets them through. Only followCheckedAt is
+  // recorded, so the contact is never shown as a verified follower.
   if (!adapter.isFollower) {
-    await endRun(deps.db, run.id, 'failed', 'follow_check_unsupported', deps.now())
+    const asked = contact.followCheckedAt !== null && contact.followCheckedAt >= run.createdAt
+    // Database time, like run.createdAt, so clock drift between worker and database cannot hide the first check.
+    await deps.db.update(contacts).set({ followCheckedAt: sql`now()` }).where(eq(contacts.id, contact.id))
+    await reportFollow(deps, run.id, job.expectedVersion, asked)
     return
   }
   let following: boolean
@@ -179,8 +183,12 @@ export async function handleFollowCheck(deps: Deps, job: FollowCheckJobData): Pr
     return
   }
   await deps.db.update(contacts).set({ followsYou: following, followCheckedAt: deps.now() }).where(eq(contacts.id, contact.id))
+  await reportFollow(deps, run.id, job.expectedVersion, following)
+}
+
+async function reportFollow(deps: Deps, runId: string, expectedVersion: number, following: boolean): Promise<void> {
   await deps.jobs.flow(
-    { runId: run.id, event: { type: 'follow_result', following }, expectedVersion: job.expectedVersion },
-    { jobId: `follow-result-${run.id}-${job.expectedVersion}` },
+    { runId, event: { type: 'follow_result', following }, expectedVersion },
+    { jobId: `follow-result-${runId}-${expectedVersion}` },
   )
 }

@@ -14,7 +14,7 @@ const required = {
 describe('loadEnv', () => {
   it('applies defaults', () => {
     expect(loadEnv(required)).toMatchObject({
-      META_GRAPH_VERSION: 'v24.0',
+      META_GRAPH_VERSION: 'v26.0',
       PORT: 3001,
       OUTBOUND_RATE_PER_SECOND: 10,
       LOG_LEVEL: 'info',

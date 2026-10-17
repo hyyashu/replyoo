@@ -53,9 +53,9 @@ describe('compileRecipe', () => {
     expect(flow.steps.deliver).toMatchObject({ next: 'tag' })
   })
 
-  it('follow gate is rejected on Facebook', () => {
+  it('follow gate is allowed on Facebook', () => {
     const { issues } = checkRecipe(recipe({ followGate: { ...DEFAULT_RECIPE.followGate, enabled: true } }), 'facebook')
-    expect(issues).toContainEqual({ section: 'boosters', message: 'Follow checks are only available on Instagram' })
+    expect(issues).toEqual([])
   })
 
   it('adds https:// to a link typed without a scheme, so it passes validation and is saved with it', () => {

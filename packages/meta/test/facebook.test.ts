@@ -9,7 +9,7 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-const base = 'https://graph.facebook.com/v24.0'
+const base = 'https://graph.facebook.com/v26.0'
 const account = { externalId: FB_PAGE, accessToken: 'EAAG' }
 const adapter = createFacebookAdapter()
 

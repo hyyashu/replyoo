@@ -21,7 +21,7 @@ describe('parseEnv', () => {
     const env = parseEnv({ ...base, GOOGLE_CLIENT_ID: '', META_LOGIN_CONFIG_ID: '', META_GRAPH_VERSION: '' })
     expect(env.GOOGLE_CLIENT_ID).toBeUndefined()
     expect(env.META_LOGIN_CONFIG_ID).toBeUndefined()
-    expect(env.META_GRAPH_VERSION).toBe('v24.0')
+    expect(env.META_GRAPH_VERSION).toBe('v26.0')
   })
 
   it('rejects a short auth secret and a missing Meta app', () => {

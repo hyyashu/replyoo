@@ -56,18 +56,14 @@ describe('publishAutomation', () => {
     expect(row?.name).toBe('Renamed')
   })
 
-  it('rejects a follow gate on a Facebook Page and leaves the draft unpublished', async () => {
+  it('publishes a follow gate on a Facebook Page', async () => {
     const { workspaceId, accountId } = await setup('facebook')
     const automation = await created(workspaceId, accountId, null)
     await data.saveDraft(workspaceId, automation.id, {
       name: 'Gate',
       flow: compileRecipe({ ...DEFAULT_RECIPE, followGate: { ...DEFAULT_RECIPE.followGate, enabled: true } }),
     })
-    expect(await data.publishAutomation(workspaceId, automation.id)).toEqual({
-      ok: false,
-      errors: ['Follow checks are only available on Instagram'],
-    })
-    expect(await data.getAutomation(workspaceId, automation.id)).toMatchObject({ status: 'draft', version: 0 })
+    expect((await data.publishAutomation(workspaceId, automation.id)).ok).toBe(true)
   })
 
   it('rejects a comment flow whose first message has no reply button', async () => {

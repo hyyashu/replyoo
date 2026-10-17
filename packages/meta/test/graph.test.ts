@@ -8,7 +8,7 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-const base = 'https://graph.example.test/v24.0'
+const base = 'https://graph.example.test/v26.0'
 
 describe('graphRequest', () => {
   it('sends bearer auth, query and JSON body', async () => {
