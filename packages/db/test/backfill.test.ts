@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Db } from '../src'
 import {
   answeredCommentIds,
+  authUsers,
   automationEntries,
   automations,
   automationVersions,
@@ -56,6 +57,7 @@ const flow: FlowDefinition = {
 
 async function seed() {
   const tag = randomUUID().slice(0, 8)
+  await db.insert(authUsers).values({ id: 'x', name: 'Owner', email: 'x@example.com' }).onConflictDoNothing()
   const [workspace] = await db.insert(workspaces).values({ name: 'Acme', ownerUserId: 'x' }).returning()
   const [account] = await db
     .insert(connectedAccounts)

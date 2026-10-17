@@ -5,8 +5,8 @@ import { decodePostback } from '@replyooo/shared'
 import { and, eq, inArray } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { OutboundBody } from '../src/flow'
-import { handleOutbound, withTrackedLinks } from '../src/outbound'
-import { createTestContext, insertRun, NOW, publishAutomation, seedAccount, seedContact, seedMember } from './support'
+import { handleOutbound, MAX_RATE_LIMITED_AGE_MS, withTrackedLinks } from '../src/outbound'
+import { allowAll, createTestContext, insertRun, NOW, publishAutomation, seedAccount, seedContact, seedMember } from './support'
 
 const flow: FlowDefinition = {
   trigger: { type: 'any_dm' },
@@ -150,21 +150,77 @@ describe('handleOutbound', () => {
   it('rethrows retryable errors until the final attempt', async () => {
     const { db, deps, adapters, run, queue, statuses } = await setup()
     const ids = await queue({ kind: 'dm', body: text('hi') })
-    adapters.instagram.errors.push(new MetaError('retryable', 'rate limited', { reason: 'rate_limited' }))
-    await expect(handleOutbound(deps, { messageIds: ids })).rejects.toThrow('rate limited')
+    adapters.instagram.errors.push(new MetaError('retryable', 'graph down', { reason: 'server' }))
+    await expect(handleOutbound(deps, { messageIds: ids })).rejects.toThrow('graph down')
     expect(await statuses(ids)).toEqual([[ids[0], 'queued', null]])
 
-    adapters.instagram.errors.push(new MetaError('retryable', 'rate limited', { reason: 'rate_limited' }))
+    adapters.instagram.errors.push(new MetaError('retryable', 'graph down', { reason: 'server' }))
     await handleOutbound(deps, { messageIds: ids }, { isFinal: true })
-    expect(await statuses(ids)).toEqual([[ids[0], 'failed', 'rate_limited']])
+    expect(await statuses(ids)).toEqual([[ids[0], 'failed', 'server']])
     const [after] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
     expect(after?.status).toBe('failed')
+  })
+
+  it('fails a message still rate-limited a day after it was queued', async () => {
+    const { db, deps, adapters, queue, statuses } = await setup()
+    const ids = await queue({ kind: 'dm', body: text('hi') }, { kind: 'dm', body: text('there') })
+    deps.rateLimiter = { ...allowAll }
+    await db.update(messages).set({ createdAt: new Date(NOW.getTime() - MAX_RATE_LIMITED_AGE_MS) }).where(eq(messages.id, ids[0]!))
+
+    adapters.instagram.errors.push(new MetaError('retryable', 'slow down', { reason: 'rate_limited' }))
+    expect(await handleOutbound(deps, { messageIds: ids })).toEqual({ status: 'done' })
+    expect(await statuses(ids)).toEqual([
+      [ids[0], 'failed', 'rate_limited_too_long'],
+      [ids[1], 'failed', 'skipped'],
+    ])
+  })
+
+  it('fails a send that timed out after an earlier server error as delivery_unknown, skipping the rest', async () => {
+    const { db, deps, adapters, run, queue, statuses } = await setup()
+    const ids = await queue({ kind: 'dm', body: text('hi') }, { kind: 'dm', body: text('there') })
+    adapters.instagram.errors.push(new MetaError('retryable', 'graph down', { reason: 'server', status: 500 }))
+    await expect(handleOutbound(deps, { messageIds: ids })).rejects.toThrow('graph down')
+    adapters.instagram.errors.push(new MetaError('retryable', 'timed out', { reason: 'timeout_ambiguous' }))
+    expect(await handleOutbound(deps, { messageIds: ids })).toEqual({ status: 'done' })
+    expect(await statuses(ids)).toEqual([
+      [ids[0], 'failed', 'delivery_unknown'],
+      [ids[1], 'failed', 'skipped'],
+    ])
+    expect(adapters.instagram.sent('sendMessage')).toHaveLength(2)
+    const [after] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
+    expect(after).toMatchObject({ status: 'failed', error: 'delivery_unknown' })
+  })
+
+  it('backs off when Meta rate-limits the account, without spending an attempt', async () => {
+    const { db, deps, adapters, account, queue, statuses } = await setup()
+    const ids = await queue({ kind: 'dm', body: text('hi') }, { kind: 'dm', body: text('there') })
+    const pauses: [string, number][] = []
+    deps.rateLimiter = { ...allowAll, pause: async (key, ms) => void pauses.push([key, ms]) }
+
+    adapters.instagram.errors.push(new MetaError('retryable', 'slow down', { reason: 'rate_limited', retryAfterMs: 120_000 }))
+    expect(await handleOutbound(deps, { messageIds: ids })).toEqual({ status: 'rate_limited', retryInMs: 120_000 })
+    expect(pauses).toEqual([[account.id, 120_000]])
+    expect(await statuses(ids)).toEqual([
+      [ids[0], 'queued', null],
+      [ids[1], 'queued', null],
+    ])
+    const [row] = await db.select().from(messages).where(eq(messages.id, ids[0]!))
+    expect(row).toMatchObject({ attempts: 0, claimedAt: null })
+
+    // Without a hint it waits five minutes; a huge hint is capped at an hour. Even the final attempt keeps waiting.
+    adapters.instagram.errors.push(new MetaError('retryable', 'slow down', { reason: 'rate_limited' }))
+    expect(await handleOutbound(deps, { messageIds: ids }, { isFinal: true })).toEqual({ status: 'rate_limited', retryInMs: 5 * 60_000 })
+    adapters.instagram.errors.push(new MetaError('retryable', 'slow down', { reason: 'rate_limited', retryAfterMs: 10 * 3_600_000 }))
+    expect(await handleOutbound(deps, { messageIds: ids })).toEqual({ status: 'rate_limited', retryInMs: 3_600_000 })
+
+    await handleOutbound(deps, { messageIds: ids })
+    expect((await statuses(ids)).map((s) => s[1])).toEqual(['sent', 'sent'])
   })
 
   it('waits when the account is rate limited', async () => {
     const { deps, adapters, queue, statuses } = await setup()
     const ids = await queue({ kind: 'dm', body: text('hi') })
-    deps.rateLimiter = { take: async () => 400 }
+    deps.rateLimiter = { ...allowAll, take: async () => 400 }
     expect(await handleOutbound(deps, { messageIds: ids })).toEqual({ status: 'rate_limited', retryInMs: 400 })
     expect(adapters.instagram.sent()).toEqual([])
     expect(await statuses(ids)).toEqual([[ids[0], 'queued', null]])

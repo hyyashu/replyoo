@@ -8,6 +8,7 @@ import type { Db } from '../src'
 import {
   automationDaily,
   automationFollowUpStats,
+  authUsers,
   automations,
   automationVersions,
   clickFollowUps,
@@ -55,6 +56,7 @@ const lastMonth = () => daysAgo(30)
 
 async function seed() {
   const tag = randomUUID().slice(0, 8)
+  await db.insert(authUsers).values({ id: 'x', name: 'Owner', email: 'x@example.com' }).onConflictDoNothing()
   const [workspace] = await db.insert(workspaces).values({ name: 'Acme', ownerUserId: 'x' }).returning()
   const [account] = await db
     .insert(connectedAccounts)

@@ -209,7 +209,10 @@ describe('handleFollowCheck', () => {
     await handleFollowCheck(deps, { runId: run.id, expectedVersion: 1 })
     expect(adapters.instagram.sent('isFollower')[0]?.args).toEqual([refs.contact.platformUserId])
     expect(jobs.flows).toEqual([
-      { data: { runId: run.id, event: { type: 'follow_result', following: true }, expectedVersion: 1 } },
+      {
+        data: { runId: run.id, event: { type: 'follow_result', following: true }, expectedVersion: 1 },
+        opts: { jobId: `follow-result-${run.id}-1` },
+      },
     ])
   })
 
@@ -233,6 +236,17 @@ describe('handleFollowCheck', () => {
     expect(after).toMatchObject({ status: 'failed', error: 'token_invalid' })
     const [account] = await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, refs.account.id))
     expect(account?.status).toBe('reauth_required')
+  })
+
+  it('fails the run when the platform cannot check follows instead of assuming not following', async () => {
+    const { db, deps, jobs, refs } = await setup(followGate)
+    const run = await insertRun(db, refs, waitingCheck)
+    const adapter = deps.adapters[refs.account.platform]
+    deps.adapters = { ...deps.adapters, [refs.account.platform]: Object.assign(Object.create(adapter), { isFollower: undefined }) }
+    await handleFollowCheck(deps, { runId: run.id, expectedVersion: 1 })
+    const [after] = await db.select().from(flowRuns).where(eq(flowRuns.id, run.id))
+    expect(after).toMatchObject({ status: 'failed', error: 'follow_check_unsupported' })
+    expect(jobs.flows).toEqual([])
   })
 })
 

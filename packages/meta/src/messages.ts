@@ -5,8 +5,21 @@ export const MAX_BUTTON_TEXT_LENGTH = 640
 export const MAX_CAROUSEL_CARDS = 10
 export const MAX_CARD_TEXT_LENGTH = 80
 
-function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`
+const segmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null
+
+/**
+ * Cuts on grapheme boundaries (code points without Intl.Segmenter), so an emoji or accented letter is never split
+ * into a lone surrogate Meta would reject. `max` counts UTF-16 units, the way Meta measures its limits.
+ */
+export function truncate(text: string, max: number): string {
+  if (text.length <= max) return text
+  const parts = segmenter ? Array.from(segmenter.segment(text), (s) => s.segment) : Array.from(text)
+  let out = ''
+  for (const part of parts) {
+    if (out.length + part.length > max - 1) break
+    out += part
+  }
+  return `${out}…`
 }
 
 export function toGraphMessage(message: SendableMessage): Record<string, unknown> {

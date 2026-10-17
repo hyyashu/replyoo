@@ -25,7 +25,8 @@ export interface OutboundJobData {
 export interface Jobs {
   inbound(webhookEventId: string): Promise<void>
   flow(data: FlowJobData, opts?: { at?: Date; jobId?: string }): Promise<void>
-  followCheck(data: FollowCheckJobData): Promise<void>
+  followCheck(data: FollowCheckJobData, opts?: { jobId?: string }): Promise<void>
+  /** Job id is `out-${messageIds[0]}`, so a re-enqueue of the same batch is deduplicated. */
   outbound(data: OutboundJobData): Promise<void>
   backfill(runId: string): Promise<void>
 }
@@ -33,6 +34,10 @@ export interface Jobs {
 export interface RateLimiter {
   /** Returns 0 when the call may go now, otherwise how many ms to wait. */
   take(key: string): Promise<number>
+  /** Makes every `take` for the key wait at least `ms`, e.g. after Meta rate-limited the account. */
+  pause(key: string, ms: number): Promise<void>
+  /** How long the key stays paused, 0 when it is not. */
+  pausedMs(key: string): Promise<number>
 }
 
 export interface Deps {

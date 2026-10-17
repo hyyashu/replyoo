@@ -101,6 +101,15 @@ describe('members and invitations', () => {
     expect(await inviteMember(workspaceId, user, 'late@example.com')).toBe('invited')
   })
 
+  it('never goes past the seat limit when invites race', async () => {
+    const { workspaceId, user } = await createWorkspace('Race')
+    const results = await Promise.all(
+      Array.from({ length: MAX_TEAM_SEATS + 4 }, (_, i) => inviteMember(workspaceId, user, `r${i}@example.com`)),
+    )
+    expect(results.filter((r) => r === 'invited')).toHaveLength(MAX_TEAM_SEATS - 1)
+    expect(await listInvitations(workspaceId)).toHaveLength(MAX_TEAM_SEATS - 1)
+  })
+
   it('changes a member between admin and member, never the owner, and only within the workspace', async () => {
     const { workspaceId } = await createWorkspace('Crew')
     const other = await createWorkspace('Other')

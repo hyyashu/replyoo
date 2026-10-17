@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toGraphMessage } from '../src'
+import { toGraphMessage, truncate } from '../src'
 
 describe('toGraphMessage', () => {
   it('sends plain text', () => {
@@ -98,5 +98,18 @@ describe('toGraphMessage', () => {
     expect(elements[0]!.title).toHaveLength(80)
     expect(elements[0]!.title.endsWith('…')).toBe(true)
     expect(elements[0]!.subtitle).toHaveLength(80)
+  })
+})
+
+describe('truncate', () => {
+  it('leaves short text alone', () => {
+    expect(truncate('hi', 5)).toBe('hi')
+  })
+
+  it('never splits an emoji or a combined grapheme', () => {
+    const cut = truncate(`ab${'👍🏽'.repeat(5)}`, 8)
+    expect(cut).toBe('ab👍🏽…')
+    expect(cut.length).toBeLessThanOrEqual(8)
+    expect(truncate('ééééé', 3)).toBe('éé…')
   })
 })

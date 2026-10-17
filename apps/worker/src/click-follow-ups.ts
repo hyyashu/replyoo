@@ -3,6 +3,7 @@ import { automations, clickFollowUps, connectedAccounts, contacts, flowRuns, lin
 import { and, asc, eq, lte } from 'drizzle-orm'
 import type { Deps } from './deps'
 import type { OutboundBody } from './flow'
+import { inSendOrder } from './flow'
 import { DM_WINDOW_MS } from './outbound'
 
 type MessageRow = typeof messages.$inferSelect
@@ -97,7 +98,7 @@ export async function sendDueClickFollowUps(deps: Deps): Promise<number> {
       if (bodies.length === 0) return finish('skipped', 'no_links')
 
       const ids: string[] = []
-      for (const body of bodies) {
+      for (const [index, body] of bodies.entries()) {
         const [inserted] = await tx
           .insert(messages)
           .values({
@@ -108,6 +109,7 @@ export async function sendDueClickFollowUps(deps: Deps): Promise<number> {
             kind: 'dm',
             body: body as unknown as Record<string, unknown>,
             status: 'queued',
+            createdAt: inSendOrder(index),
           })
           .returning({ id: messages.id })
         ids.push(inserted!.id)

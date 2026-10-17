@@ -46,7 +46,7 @@ export const messageKindEnum = pgEnum('message_kind', [
   'story_reply',
   'comment',
 ])
-export const messageStatusEnum = pgEnum('message_status', ['queued', 'sent', 'failed', 'received'])
+export const messageStatusEnum = pgEnum('message_status', ['queued', 'sending', 'sent', 'failed', 'received'])
 export const planEnum = pgEnum('plan', ['free', 'pro', 'business'])
 export const billingIntervalEnum = pgEnum('billing_interval', BILLING_INTERVALS)
 
@@ -116,7 +116,10 @@ export const authVerifications = pgTable(
 export const workspaces = pgTable('workspaces', {
   id: id(),
   name: text('name').notNull(),
-  ownerUserId: text('owner_user_id').notNull(),
+  // restrict: there is no account-deletion flow; a user who owns a workspace must hand it over (or it must be deleted) first.
+  ownerUserId: text('owner_user_id')
+    .notNull()
+    .references(() => authUsers.id, { onDelete: 'restrict' }),
   ...timestamps,
 })
 
@@ -313,6 +316,8 @@ export const flowRuns = pgTable(
       .where(sql`${t.status} = 'waiting'`),
     index('flow_runs_status_wait_until_idx').on(t.status, t.waitUntil),
     index('flow_runs_automation_created_idx').on(t.automationId, t.createdAt),
+    index('flow_runs_contact_idx').on(t.contactId),
+    index('flow_runs_account_comment_idx').on(t.connectedAccountId, t.commentId),
   ],
 )
 
@@ -326,6 +331,8 @@ export const webhookEvents = pgTable(
     receivedAt: tz('received_at').notNull().defaultNow(),
     processedAt: tz('processed_at'),
     error: text('error'),
+    /** Failed processing attempts; the sweep stops replaying an event after MAX_INBOUND_ATTEMPTS. */
+    attempts: integer('attempts').notNull().default(0),
   },
   (t) => [
     uniqueIndex('webhook_events_dedup_key_uq').on(t.dedupKey),
@@ -351,6 +358,10 @@ export const messages = pgTable(
     commentId: text('comment_id'),
     status: messageStatusEnum('status').notNull(),
     error: text('error'),
+    /** Set when a worker claims an outbound message (status 'sending'); an old claim is a lease that has run out. */
+    claimedAt: tz('claimed_at'),
+    /** Send attempts so far; bounds retries across jobs and sweeps. */
+    attempts: integer('attempts').notNull().default(0),
     sentAt: tz('sent_at'),
     createdAt: tz('created_at').notNull().defaultNow(),
   },
@@ -363,6 +374,31 @@ export const messages = pgTable(
       .where(sql`${t.kind} = 'comment_reply'`),
     index('messages_contact_created_idx').on(t.contactId, t.createdAt),
     index('messages_status_created_idx').on(t.status, t.createdAt),
+    index('messages_account_comment_idx').on(t.connectedAccountId, t.commentId),
+    index('messages_flow_run_idx').on(t.flowRunId),
+  ],
+)
+
+/**
+ * Transactional outbox: jobs written in the same transaction as the state they act on, enqueued after commit.
+ * Rows still unenqueued after a crash are replayed by the sweep; `job_id` is the BullMQ job id, so replays dedupe.
+ */
+export const jobOutbox = pgTable(
+  'job_outbox',
+  {
+    id: id(),
+    queue: text('queue').notNull(),
+    jobId: text('job_id').notNull(),
+    name: text('name').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+    createdAt: tz('created_at').notNull().defaultNow(),
+    enqueuedAt: tz('enqueued_at'),
+  },
+  (t) => [
+    uniqueIndex('job_outbox_job_id_uq').on(t.jobId),
+    index('job_outbox_pending_idx')
+      .on(t.createdAt)
+      .where(sql`${t.enqueuedAt} is null`),
   ],
 )
 
@@ -387,10 +423,20 @@ export const subscriptions = pgTable(
   },
   (t) => [
     uniqueIndex('subscriptions_workspace_uq').on(t.workspaceId),
-    index('subscriptions_dodo_subscription_idx').on(t.dodoSubscriptionId),
+    uniqueIndex('subscriptions_dodo_subscription_uq')
+      .on(t.dodoSubscriptionId)
+      .where(sql`${t.dodoSubscriptionId} is not null`),
+    // Not unique: one Dodo customer (same email) can pay for several workspaces; see findWorkspace in billing/sync.ts.
     index('subscriptions_dodo_customer_idx').on(t.dodoCustomerId),
   ],
 )
+
+/** Dodo `webhook-id`s already handled; a redelivery of one is acknowledged without being applied again. */
+export const billingWebhookEvents = pgTable('billing_webhook_events', {
+  webhookId: text('webhook_id').primaryKey(),
+  type: text('type').notNull(),
+  receivedAt: tz('received_at').notNull().defaultNow(),
+})
 
 export const usageCounters = pgTable(
   'usage_counters',
@@ -593,5 +639,7 @@ export const clickFollowUps = pgTable(
   (t) => [
     uniqueIndex('click_follow_ups_message_uq').on(t.messageId),
     index('click_follow_ups_due_idx').on(t.status, t.dueAt),
+    index('click_follow_ups_flow_run_idx').on(t.flowRunId),
+    index('click_follow_ups_automation_idx').on(t.automationId),
   ],
 )

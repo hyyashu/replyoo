@@ -17,7 +17,8 @@ export async function POST(request: Request) {
   } catch {
     return new Response('Invalid JSON', { status: 400 })
   }
-  const result = await applyDodoEvent(db(), config.products, payload)
+  // A redelivered webhook-id is acknowledged (200) without being applied again.
+  const result = await applyDodoEvent(db(), config.products, payload, request.headers.get('webhook-id'))
   if (result === 'unknown_product' || result === 'unknown_workspace') {
     console.warn('dodo webhook not applied', { result, id: request.headers.get('webhook-id') })
   }

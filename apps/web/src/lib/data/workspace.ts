@@ -1,13 +1,15 @@
 import 'server-only'
 import { authUsers, subscriptions, usageCounters, workspaceInvitations, workspaceMembers, workspaces } from '@replyooo/db'
 import { invitationEmail } from '@replyooo/email'
-import { effectivePlan, MAX_TEAM_SEATS, PLAN_LIMITS, periodEnd, usagePeriod } from '@replyooo/shared'
-import { and, asc, count, eq, ne, sql } from 'drizzle-orm'
+import { effectivePlan, PLAN_LIMITS, periodEnd, usagePeriod } from '@replyooo/shared'
+import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { deliver } from '../email'
 import { appUrl } from '../env'
 import { clearLiveIceBreakers } from './ice-breakers'
 import { isUuid } from './ids'
+import { lockWorkspaceLimits } from '../locks'
+import { hasTeamSeat } from './limits'
 import type { Invitation, Member, Subscription } from './types'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -59,15 +61,21 @@ export async function inviteMember(
     .innerJoin(authUsers, eq(authUsers.id, workspaceMembers.userId))
     .where(and(eq(workspaceMembers.workspaceId, workspaceId), sql`lower(${authUsers.email}) = ${email}`))
   if (existing) return 'member'
-  const [invited] = await db()
-    .select({ id: workspaceInvitations.id })
-    .from(workspaceInvitations)
-    .where(and(eq(workspaceInvitations.workspaceId, workspaceId), eq(workspaceInvitations.email, email)))
-  if (!invited && (await seatsUsed(workspaceId)) >= MAX_TEAM_SEATS) return 'full'
-  await db()
-    .insert(workspaceInvitations)
-    .values({ workspaceId, email, role, invitedByUserId: inviter.id })
-    .onConflictDoUpdate({ target: [workspaceInvitations.workspaceId, workspaceInvitations.email], set: { role } })
+  const full = await db().transaction(async (tx) => {
+    // Checked and inserted under the workspace's limit lock so parallel invites can't overshoot MAX_TEAM_SEATS.
+    await lockWorkspaceLimits(tx, workspaceId)
+    const [invited] = await tx
+      .select({ id: workspaceInvitations.id })
+      .from(workspaceInvitations)
+      .where(and(eq(workspaceInvitations.workspaceId, workspaceId), eq(workspaceInvitations.email, email)))
+    if (!invited && !(await hasTeamSeat(tx, workspaceId, new Date()))) return true
+    await tx
+      .insert(workspaceInvitations)
+      .values({ workspaceId, email, role, invitedByUserId: inviter.id })
+      .onConflictDoUpdate({ target: [workspaceInvitations.workspaceId, workspaceInvitations.email], set: { role } })
+    return false
+  })
+  if (full) return 'full'
   const [workspace] = await db().select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, workspaceId))
   // Re-inviting an address re-sends the email.
   deliver({
@@ -79,14 +87,6 @@ export async function inviteMember(
     }),
   })
   return 'invited'
-}
-
-async function seatsUsed(workspaceId: string): Promise<number> {
-  const [[members], [invitations]] = await Promise.all([
-    db().select({ n: count() }).from(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspaceId)),
-    db().select({ n: count() }).from(workspaceInvitations).where(eq(workspaceInvitations.workspaceId, workspaceId)),
-  ])
-  return (members?.n ?? 0) + (invitations?.n ?? 0)
 }
 
 export async function revokeInvitation(workspaceId: string, id: string): Promise<void> {

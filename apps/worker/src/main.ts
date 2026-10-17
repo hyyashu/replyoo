@@ -11,6 +11,8 @@ import { createRedisRateLimiter } from './rate-limit'
 import { createServer } from './server'
 
 const env = loadEnv()
+// Before any connection is opened, so a bad key stops the worker at once.
+const tokenKey = parseEncryptionKey(env.TOKEN_ENCRYPTION_KEY)
 const log = createLogger(env.LOG_LEVEL)
 const mailer = createMailer(parseEmailConfig(process.env), { print: (line) => log.info(line) })
 const { db, close: closeDb } = createDb(env.DATABASE_URL)
@@ -25,7 +27,7 @@ const deps: Deps = {
     facebook: createFacebookAdapter({ graphVersion: env.META_GRAPH_VERSION }),
   },
   rateLimiter: createRedisRateLimiter(redis, env.OUTBOUND_RATE_PER_SECOND),
-  tokenKey: parseEncryptionKey(env.TOKEN_ENCRYPTION_KEY),
+  tokenKey,
   log,
   now: () => new Date(),
   mailer,

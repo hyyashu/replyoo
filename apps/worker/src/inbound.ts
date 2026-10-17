@@ -11,35 +11,59 @@ import {
 } from '@replyooo/db'
 import type { TriggerCandidate } from '@replyooo/engine'
 import type { AccountCredentials, NormalizedEvent, PlatformAdapter, Profile } from '@replyooo/meta'
+import { MetaError } from '@replyooo/meta'
 import { and, eq, isNull, lt, sql } from 'drizzle-orm'
+import { flagReauth } from './alerts'
 import type { Deps, FlowJobData } from './deps'
 import { mayStartRun } from './limits'
+import { flushOutbox, stageJobs } from './outbox'
 import type { Logger } from './logger'
 import type { AccountRow, ContactRow } from './records'
+import { pauseForMetaRateLimit } from './rate-limit'
 import { credentials, toContactState, toRunState } from './records'
 import type { Route, WaitingRun } from './route'
 import { decideRoute } from './route'
 
 export const REENTRY_COOLDOWN_MS = 24 * 60 * 60 * 1000
+/** How long a contact's Instagram profile and follow state are trusted before the next event refreshes them. */
+export const PROFILE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+/** After a failed profile lookup, how long until the next event tries again (instead of on every event). */
+export const PROFILE_RETRY_MS = 60 * 60 * 1000
+
+/**
+ * Meta rate-limited the account (or it is paused) and the event cannot be routed without a Graph call: the job is
+ * delayed, not failed, so it neither records an error nor spends an inbound attempt.
+ */
+export class InboundDeferred extends Error {
+  constructor(readonly retryInMs: number) {
+    super(`inbound event deferred ${retryInMs}ms (account rate limited)`)
+    this.name = 'InboundDeferred'
+  }
+}
+
+export type InboundResult = { status: 'done' } | { status: 'deferred'; retryInMs: number }
 
 export type Candidate = TriggerCandidate & { versionId: string }
 
-export async function handleInbound(deps: Deps, webhookEventId: string): Promise<void> {
+export async function handleInbound(deps: Deps, webhookEventId: string): Promise<InboundResult> {
   const [row] = await deps.db.select().from(webhookEvents).where(eq(webhookEvents.id, webhookEventId))
-  if (!row || row.processedAt) return
+  if (!row || row.processedAt) return { status: 'done' }
   try {
-    const job = await processEvent(deps, row.id, row.payload as NormalizedEvent)
-    if (job) await deps.jobs.flow(job)
+    const staged = await processEvent(deps, row.id, row.payload as NormalizedEvent)
+    await flushOutbox(deps, staged)
+    return { status: 'done' }
   } catch (error) {
+    if (error instanceof InboundDeferred) return { status: 'deferred', retryInMs: error.retryInMs }
     await deps.db
       .update(webhookEvents)
-      .set({ error: error instanceof Error ? error.message : String(error) })
+      .set({ error: error instanceof Error ? error.message : String(error), attempts: sql`${webhookEvents.attempts} + 1` })
       .where(eq(webhookEvents.id, row.id))
     throw error
   }
 }
 
-async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEvent): Promise<FlowJobData | null> {
+/** Returns the outbox rows staged with the event, to enqueue once committed. */
+async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEvent): Promise<string[]> {
   const { db } = deps
   const now = deps.now()
   const markProcessed = (executor: Db | Tx) =>
@@ -51,7 +75,7 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
     .where(and(eq(connectedAccounts.platform, event.platform), eq(connectedAccounts.externalId, event.accountExternalId)))
   if (!account || account.status !== 'active') {
     await markProcessed(db)
-    return null
+    return []
   }
 
   const adapter = deps.adapters[account.platform]
@@ -60,40 +84,39 @@ async function processEvent(deps: Deps, eventRowId: string, event: NormalizedEve
     .select()
     .from(contacts)
     .where(and(eq(contacts.connectedAccountId, account.id), eq(contacts.platformUserId, event.senderId)))
-  const profile = existing ? null : await fetchProfile(deps, adapter, creds, event.senderId)
+  const { profile, checkedAt } = needsProfile(account, existing, now)
+    ? await fetchProfile(deps, account, adapter, creds, event.senderId, now)
+    : { profile: null, checkedAt: null }
   const allCandidates = await loadCandidates(db, account.id)
   // A re-run comment may only be answered by the automation that asked for it.
   const candidates =
     event.type === 'comment_created' && event.restrictToAutomationId
       ? allCandidates.filter((c) => c.automationId === event.restrictToAutomationId)
       : allCandidates
-  const waitingRun = existing ? await loadWaitingRun(db, existing.id) : null
   const mediaPublishedAt =
     event.type === 'comment_created' && needsMediaTime(candidates)
-      ? await adapter.getMediaPublishedAt(creds, event.mediaId).catch(() => null)
+      ? await fetchMediaPublishedAt(deps, account, adapter, creds, event.mediaId)
       : null
 
-  const route = decideRoute({
-    event,
-    contact: existing ? toContactState(existing) : newContactState(event, profile),
-    waitingRun,
-    candidates,
-    mediaPublishedAt,
-    now,
-  })
-  if (route.kind === 'ignore') deps.log.debug({ reason: route.reason, eventRowId }, 'inbound event not routed')
+  const outcome = await db.transaction(async (tx) => {
+    // The upsert row-locks the contact (insert, or ON CONFLICT DO UPDATE), serialising this contact's events
+    // and flow jobs. Routing reads the waiting run under that lock, so two DMs cannot both consume one answer.
+    const contact = await upsertContact(tx, account, event, profile, checkedAt, now)
+    const waitingRun = await loadWaitingRun(tx, contact.id)
+    const route = decideRoute({ event, contact: toContactState(contact), waitingRun, candidates, mediaPublishedAt, now })
+    if (route.kind === 'ignore') deps.log.debug({ reason: route.reason, eventRowId }, 'inbound event not routed')
 
-  const job = await db.transaction(async (tx) => {
-    const contact = await upsertContact(tx, account, event, profile, now)
-    const job = await applyRoute(tx, { account, contact, route, candidates, event, now, log: deps.log })
-    await tx.insert(messages).values(inboundMessage(account, contact, event, job?.runId ?? null))
+    const job = await applyRoute(tx, { account, contact, route, candidates, event, eventRowId, now, log: deps.log })
+    await tx.insert(messages).values(inboundMessage(account, contact, event, job?.data.runId ?? null))
+    const staged = job ? await stageJobs(tx, [{ kind: 'flow', ...job }]) : []
     await markProcessed(tx)
-    return job
+    return { route, started: job !== null, staged }
   })
-  if (job && route.kind === 'start' && event.type === 'story_reply') {
+  const { route } = outcome
+  if (outcome.started && route.kind === 'start' && event.type === 'story_reply') {
     await reactToStoryReply(deps, adapter, creds, candidates, route.automationId, event)
   }
-  return job
+  return outcome.staged
 }
 
 /** The ❤️ is a nicety: if Meta refuses it, the DM still goes out. */
@@ -135,7 +158,7 @@ export async function loadCandidates(db: Db, accountId: string): Promise<Candida
   }))
 }
 
-async function loadWaitingRun(db: Db, contactId: string): Promise<WaitingRun | null> {
+async function loadWaitingRun(db: Db | Tx, contactId: string): Promise<WaitingRun | null> {
   const [row] = await db
     .select({ run: flowRuns, definition: automationVersions.definition })
     .from(flowRuns)
@@ -151,16 +174,61 @@ function needsMediaTime(candidates: readonly Candidate[]): boolean {
   )
 }
 
+/** New contacts, and Instagram contacts whose profile (and follow state) is older than PROFILE_TTL_MS. */
+function needsProfile(account: AccountRow, existing: ContactRow | undefined, now: Date): boolean {
+  if (!existing) return true
+  // Facebook profiles carry no follow state and rarely change; they are fetched once.
+  if (account.platform !== 'instagram') return false
+  return existing.followCheckedAt === null || now.getTime() - existing.followCheckedAt.getTime() > PROFILE_TTL_MS
+}
+
+/**
+ * The profile is a nicety: the event is handled without it, but a dead token still flags the account and a rate
+ * limit pauses it. `checkedAt` is what to stamp as followCheckedAt: now on success; on failure a time that makes
+ * the next lookup due PROFILE_RETRY_MS from now, so a failing lookup is not retried on every event. Null (stamp
+ * nothing) when the account is paused and no call was made.
+ */
 async function fetchProfile(
   deps: Deps,
+  account: AccountRow,
   adapter: PlatformAdapter,
   creds: AccountCredentials,
   userId: string,
-): Promise<Profile | null> {
+  now: Date,
+): Promise<{ profile: Profile | null; checkedAt: Date | null }> {
+  if ((await deps.rateLimiter.pausedMs(account.id)) > 0) return { profile: null, checkedAt: null }
   try {
-    return await adapter.getProfile(creds, userId)
+    return { profile: await adapter.getProfile(creds, userId), checkedAt: now }
   } catch (error) {
+    if (error instanceof MetaError && error.kind === 'reauth') await flagReauth(deps, account.id)
+    if (error instanceof MetaError && error.details.reason === 'rate_limited') await pauseForMetaRateLimit(deps, account.id, error)
     deps.log.warn({ err: error, userId }, 'profile lookup failed')
+    return { profile: null, checkedAt: new Date(now.getTime() - PROFILE_TTL_MS + PROFILE_RETRY_MS) }
+  }
+}
+
+/**
+ * Routing for "next post" automations needs the post's time, so a transient failure retries the job rather than
+ * routing without it. A post Meta will not return (deleted, not ours) routes as unknown.
+ */
+async function fetchMediaPublishedAt(
+  deps: Deps,
+  account: AccountRow,
+  adapter: PlatformAdapter,
+  creds: AccountCredentials,
+  mediaId: string,
+): Promise<Date | null> {
+  const paused = await deps.rateLimiter.pausedMs(account.id)
+  if (paused > 0) throw new InboundDeferred(paused)
+  try {
+    return await adapter.getMediaPublishedAt(creds, mediaId)
+  } catch (error) {
+    if (error instanceof MetaError && error.details.reason === 'rate_limited') {
+      throw new InboundDeferred(await pauseForMetaRateLimit(deps, account.id, error))
+    }
+    if (!(error instanceof MetaError) || error.kind === 'retryable') throw error
+    if (error.kind === 'reauth') await flagReauth(deps, account.id)
+    deps.log.warn({ err: error, mediaId, reason: error.details.reason }, 'media lookup failed')
     return null
   }
 }
@@ -181,6 +249,7 @@ async function upsertContact(
   account: AccountRow,
   event: NormalizedEvent,
   profile: Profile | null,
+  checkedAt: Date | null,
   now: Date,
 ): Promise<ContactRow> {
   const messaging = event.type !== 'comment_created'
@@ -196,7 +265,9 @@ async function upsertContact(
       avatarUrl: profile?.avatarUrl ?? null,
       followsYou: profile?.followsYou ?? null,
       youFollow: profile?.youFollow ?? null,
-      followCheckedAt: profile?.followsYou != null || profile?.youFollow != null ? now : null,
+      // Stamped whenever a lookup was made, so the next one waits (PROFILE_TTL_MS after an answer, even one without
+      // follow state; PROFILE_RETRY_MS after a failure).
+      followCheckedAt: account.platform === 'instagram' ? checkedAt : null,
       lastInboundAt: messaging ? new Date(event.occurredAt) : null,
     })
     .onConflictDoUpdate({
@@ -204,6 +275,16 @@ async function upsertContact(
       set: {
         username: sql`coalesce(excluded.username, ${contacts.username})`,
         name: sql`coalesce(${contacts.name}, excluded.name)`,
+        // A refreshed profile (stale Instagram contact) replaces the picture and follow state.
+        ...(profile
+          ? {
+              avatarUrl: sql`coalesce(excluded.avatar_url, ${contacts.avatarUrl})`,
+              followsYou: sql`coalesce(excluded.follows_you, ${contacts.followsYou})`,
+              youFollow: sql`coalesce(excluded.you_follow, ${contacts.youFollow})`,
+            }
+          : {}),
+        // A failed lookup stamps a back-dated time; never move an existing stamp backwards.
+        ...(checkedAt ? { followCheckedAt: sql`greatest(${contacts.followCheckedAt}, excluded.follow_checked_at)` } : {}),
         ...(messaging ? { lastInboundAt: sql`greatest(${contacts.lastInboundAt}, excluded.last_inbound_at)` } : {}),
         updatedAt: now,
       },
@@ -218,20 +299,28 @@ interface ApplyContext {
   route: Route
   candidates: readonly Candidate[]
   event: NormalizedEvent
+  eventRowId: string
   now: Date
   log: Logger
 }
 
-async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<FlowJobData | null> {
+type RoutedJob = { jobId: string; data: FlowJobData }
+
+async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<RoutedJob | null> {
   const { route, contact, account, now, event } = ctx
   if (route.kind === 'ignore') return null
 
   if (route.kind === 'resume') {
     const [run] = await tx
-      .select({ id: flowRuns.id, contactId: flowRuns.contactId })
+      .select({ id: flowRuns.id, contactId: flowRuns.contactId, stateVersion: flowRuns.stateVersion })
       .from(flowRuns)
       .where(eq(flowRuns.id, route.runId))
-    return run && run.contactId === contact.id ? { runId: run.id, event: route.event } : null
+    if (!run || run.contactId !== contact.id) return null
+    // One job per event, pinned to the state it answers: a redelivery or a run that moved on makes it a no-op.
+    return {
+      jobId: `resume-${ctx.eventRowId}`,
+      data: { runId: run.id, event: route.event, expectedVersion: run.stateVersion },
+    }
   }
 
   const candidate = ctx.candidates.find((c) => c.automationId === route.automationId)
@@ -296,7 +385,10 @@ async function applyRoute(tx: Tx, ctx: ApplyContext): Promise<FlowJobData | null
       commentId: route.trigger.kind === 'comment' ? route.trigger.commentId : null,
     })
     .returning({ id: flowRuns.id })
-  return { runId: run!.id, event: { type: 'start', trigger: route.trigger }, expectedVersion: 0 }
+  return {
+    jobId: `start-${run!.id}`,
+    data: { runId: run!.id, event: { type: 'start', trigger: route.trigger }, expectedVersion: 0 },
+  }
 }
 
 function inboundMessage(account: AccountRow, contact: ContactRow, event: NormalizedEvent, runId: string | null) {

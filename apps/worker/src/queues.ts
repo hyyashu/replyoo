@@ -31,25 +31,48 @@ export async function closeQueues(queues: Queues): Promise<void> {
   await Promise.all(Object.values(queues).map((queue) => queue.close()))
 }
 
+/**
+ * Adds a job, or revives the one already holding its id. BullMQ ignores an add whose id exists, and failed and
+ * completed jobs are kept for a while, so a plain re-add (the sweep's, or an outbox replay) would be a no-op:
+ * a failed job is retried instead, a completed one is replaced. Waiting, delayed and active jobs are left alone.
+ * Handlers are idempotent (claims, expectedVersion, processedAt), so a revived job never applies work twice.
+ */
+export async function addOrRevive(queue: Queue, name: string, data: unknown, opts: JobsOptions & { jobId: string }): Promise<void> {
+  const existing = await queue.getJob(opts.jobId)
+  if (existing) {
+    const state = await existing.getState()
+    if (state === 'failed') {
+      // Fresh attempts: a revived job that fails once must not be final straight away. It may race a cleanup.
+      await existing.retry('failed', { resetAttemptsMade: true, resetAttemptsStarted: true }).catch(() => undefined)
+      return
+    }
+    if (state !== 'completed') return
+    await existing.remove().catch(() => undefined)
+  }
+  await queue.add(name, data, opts)
+}
+
 export function createBullJobs(queues: Queues): Jobs {
   return {
     async inbound(webhookEventId) {
-      await queues.inbound.add('inbound', { webhookEventId }, { jobId: `inbound-${webhookEventId}` })
+      await addOrRevive(queues.inbound, 'inbound', { webhookEventId }, { jobId: `inbound-${webhookEventId}` })
     },
     async flow(data, opts) {
-      await queues.flow.add('advance', data, {
-        ...(opts?.at ? { delay: Math.max(0, opts.at.getTime() - Date.now()) } : {}),
-        ...(opts?.jobId ? { jobId: opts.jobId } : {}),
-      })
+      const delay = opts?.at ? { delay: Math.max(0, opts.at.getTime() - Date.now()) } : {}
+      if (opts?.jobId) await addOrRevive(queues.flow, 'advance', data, { ...delay, jobId: opts.jobId })
+      else await queues.flow.add('advance', data, delay)
     },
-    async followCheck(data) {
-      await queues.flow.add('follow_check', data)
+    async followCheck(data, opts) {
+      if (opts?.jobId) await addOrRevive(queues.flow, 'follow_check', data, { jobId: opts.jobId })
+      else await queues.flow.add('follow_check', data)
     },
     async outbound(data) {
-      await queues.outbound.add('send', data)
+      const first = data.messageIds[0]
+      if (!first) return
+      await addOrRevive(queues.outbound, 'send', data, { jobId: `out-${first}` })
     },
     async backfill(runId) {
-      await queues.backfill.add('backfill', { runId }, { jobId: `backfill-${runId}` })
+      await addOrRevive(queues.backfill, 'backfill', { runId }, { jobId: `backfill-${runId}` })
     },
   }
 }
@@ -66,12 +89,29 @@ export function startWorkers(
   }
 
   const workers = [
-    new Worker('inbound', async (job: Job<{ webhookEventId: string }>) => handleInbound(deps, job.data.webhookEventId), base),
+    new Worker(
+      'inbound',
+      async (job: Job<{ webhookEventId: string }>, token?: string) => {
+        const result = await handleInbound(deps, job.data.webhookEventId)
+        if (result.status === 'deferred') {
+          await job.moveToDelayed(Date.now() + result.retryInMs, token)
+          throw new DelayedError()
+        }
+      },
+      base,
+    ),
     new Worker(
       'flow',
-      async (job: Job<FlowJobData | FollowCheckJobData>) => {
-        if (job.name === 'follow_check') await handleFollowCheck(deps, job.data as FollowCheckJobData)
-        else await handleFlowJob(deps, job.data as FlowJobData)
+      async (job: Job<FlowJobData | FollowCheckJobData>, token?: string) => {
+        if (job.name === 'follow_check') {
+          await handleFollowCheck(deps, job.data as FollowCheckJobData)
+          return
+        }
+        const result = await handleFlowJob(deps, job.data as FlowJobData)
+        if (result.status === 'early') {
+          await job.moveToDelayed(Math.max(result.retryAt.getTime(), Date.now() + 1000), token)
+          throw new DelayedError()
+        }
       },
       base,
     ),
@@ -80,7 +120,7 @@ export function startWorkers(
       async (job: Job<OutboundJobData>, token?: string) => {
         const isFinal = job.attemptsMade + 1 >= (job.opts.attempts ?? 1)
         const result = await handleOutbound(deps, job.data, { isFinal })
-        if (result.status === 'rate_limited') {
+        if (result.status !== 'done') {
           await job.moveToDelayed(Date.now() + result.retryInMs, token)
           throw new DelayedError()
         }

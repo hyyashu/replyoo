@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Db } from '../src'
 import {
+  authUsers,
   automationVersions,
   automations,
   connectedAccounts,
@@ -44,6 +45,7 @@ function one<T>(rows: T[]): T {
 }
 
 async function seed() {
+  await db.insert(authUsers).values({ id: 'user_1', name: 'Owner', email: 'user_1@example.com' }).onConflictDoNothing()
   const workspace = one(await db.insert(workspaces).values({ name: 'Acme', ownerUserId: 'user_1' }).returning())
   const account = one(
     await db
@@ -172,6 +174,7 @@ describe('schema', () => {
 
 describe('subscriptions.billing_interval', () => {
   it('defaults to month and accepts year', async () => {
+    await db.insert(authUsers).values({ id: 'user_interval', name: 'Owner', email: 'user_interval@example.com' }).onConflictDoNothing()
     const workspace = one(await db.insert(workspaces).values({ name: 'Interval', ownerUserId: 'user_interval' }).returning())
     const monthly = one(await db.insert(subscriptions).values({ workspaceId: workspace.id, plan: 'pro' }).returning())
     expect(monthly.billingInterval).toBe('month')
@@ -179,5 +182,27 @@ describe('subscriptions.billing_interval', () => {
       await db.update(subscriptions).set({ billingInterval: 'year' }).where(eq(subscriptions.id, monthly.id)).returning(),
     )
     expect(yearly.billingInterval).toBe('year')
+  })
+})
+
+describe('subscriptions Dodo ids', () => {
+  async function workspace(name: string) {
+    await db.insert(authUsers).values({ id: 'user_dodo', name: 'Owner', email: 'user_dodo@example.com' }).onConflictDoNothing()
+    return one(await db.insert(workspaces).values({ name, ownerUserId: 'user_dodo' }).returning())
+  }
+
+  it('rejects one Dodo subscription on two workspaces but allows many without one', async () => {
+    const [a, b, c, d] = [await workspace('A'), await workspace('B'), await workspace('C'), await workspace('D')]
+    await db.insert(subscriptions).values({ workspaceId: a.id, dodoSubscriptionId: 'sub_dup' })
+    await expect(db.insert(subscriptions).values({ workspaceId: b.id, dodoSubscriptionId: 'sub_dup' })).rejects.toThrow()
+    await db.insert(subscriptions).values([{ workspaceId: c.id }, { workspaceId: d.id }])
+  })
+
+  it('lets one Dodo customer pay for several workspaces', async () => {
+    const [a, b] = [await workspace('E'), await workspace('F')]
+    await db.insert(subscriptions).values([
+      { workspaceId: a.id, dodoCustomerId: 'cus_shared', dodoSubscriptionId: 'sub_e' },
+      { workspaceId: b.id, dodoCustomerId: 'cus_shared', dodoSubscriptionId: 'sub_f' },
+    ])
   })
 })

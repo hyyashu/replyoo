@@ -1,11 +1,13 @@
 import type { NormalizedEvent } from '@replyooo/meta'
-import { automationEntries, automations, connectedAccounts, contacts, flowRuns, messages, webhookEvents } from '@replyooo/db'
+import { MetaError } from '@replyooo/meta'
+import { automationEntries, automations, connectedAccounts, contacts, flowRuns, messages, usageCounters, webhookEvents } from '@replyooo/db'
 import type { FlowDefinition } from '@replyooo/shared'
 import { encodePostback, PLAN_LIMITS, usagePeriod } from '@replyooo/shared'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import { handleInbound } from '../src/inbound'
+import { handleInbound, PROFILE_RETRY_MS, PROFILE_TTL_MS } from '../src/inbound'
 import {
+  allowAll,
   comment,
   createTestContext,
   dm,
@@ -137,7 +139,10 @@ describe('handleInbound', () => {
     const [run] = await db.select().from(flowRuns).where(eq(flowRuns.contactId, contact!.id))
     expect(run).toMatchObject({ automationId: automation.id, status: 'running', stateVersion: 0 })
     expect(jobs.flows).toEqual([
-      { data: { runId: run!.id, event: { type: 'start', trigger: { kind: 'dm', text: 'PRICE?' } }, expectedVersion: 0 } },
+      {
+        data: { runId: run!.id, event: { type: 'start', trigger: { kind: 'dm', text: 'PRICE?' } }, expectedVersion: 0 },
+        opts: { jobId: `start-${run!.id}` },
+      },
     ])
     const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
     expect(event?.processedAt).toEqual(NOW)
@@ -205,7 +210,12 @@ describe('handleInbound', () => {
       stateVersion: 1,
     })
     await handleInbound(deps, await insertEvent(db, dm(account, 'u4', 'priya@gmail.com')))
-    expect(jobs.flows).toEqual([{ data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' } } }])
+    expect(jobs.flows).toEqual([
+      {
+        data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' }, expectedVersion: 1 },
+        opts: { jobId: expect.stringMatching(/^resume-/) },
+      },
+    ])
     const runs = await db.select().from(flowRuns).where(eq(flowRuns.contactId, contact.id))
     expect(runs).toHaveLength(1)
   })
@@ -239,7 +249,10 @@ describe('handleInbound', () => {
     expect(jobs.flows).toEqual([])
     await handleInbound(deps, await insertEvent(db, postback(account, 'owner', payload)))
     expect(jobs.flows).toEqual([
-      { data: { runId: run.id, event: { type: 'postback', stepId: 's1', buttonId: 'b1' } } },
+      {
+        data: { runId: run.id, event: { type: 'postback', stepId: 's1', buttonId: 'b1' }, expectedVersion: run.stateVersion },
+        opts: { jobId: expect.stringMatching(/^resume-/) },
+      },
     ])
   })
 
@@ -305,6 +318,31 @@ describe('plan limits', () => {
     expect(jobs.flows).toEqual([])
   })
 
+  it('lets concurrent new contacts start no more runs than the month has room for', async () => {
+    const { db, deps, jobs, account } = await setup()
+    await publishAutomation(db, account, keywordFlow)
+    await seedUsage(db, account.workspaceId, FREE_LIMIT - 2)
+
+    const ids = await Promise.all(Array.from({ length: 6 }, (_, i) => insertEvent(db, dm(account, `u-rush-${i}`, 'price please'))))
+    await Promise.all(ids.map((id) => handleInbound(deps, id)))
+    expect(jobs.flows).toHaveLength(2)
+    const [usage] = await db.select().from(usageCounters).where(eq(usageCounters.workspaceId, account.workspaceId))
+    expect(usage?.contactsReached).toBe(FREE_LIMIT)
+    const counted = await db.select().from(contacts).where(eq(contacts.lastCountedPeriod, usagePeriod(NOW)))
+    expect(counted.filter((c) => c.connectedAccountId === account.id)).toHaveLength(2)
+  })
+
+  it('counts a contact once when it starts several runs in a month', async () => {
+    const { db, deps, account } = await setup()
+    await publishAutomation(db, account, keywordFlow)
+    await publishAutomation(db, account, anyDmFlow)
+    await seedUsage(db, account.workspaceId, 0)
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-twice', 'price please')))
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-twice', 'hello again')))
+    const [usage] = await db.select().from(usageCounters).where(eq(usageCounters.workspaceId, account.workspaceId))
+    expect(usage?.contactsReached).toBe(1)
+  })
+
   it('lets a waiting run finish at the limit', async () => {
     const { db, deps, jobs, account } = await setup()
     const ask = await publishAutomation(db, account, askFlow)
@@ -319,6 +357,132 @@ describe('plan limits', () => {
     await seedUsage(db, account.workspaceId, FREE_LIMIT)
 
     await handleInbound(deps, await insertEvent(db, dm(account, 'u-waiting', 'priya@gmail.com')))
-    expect(jobs.flows).toEqual([{ data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' } } }])
+    expect(jobs.flows).toEqual([
+      {
+        data: { runId: run.id, event: { type: 'reply', text: 'priya@gmail.com' }, expectedVersion: 1 },
+        opts: { jobId: expect.stringMatching(/^resume-/) },
+      },
+    ])
+  })
+})
+
+describe('inbound Graph lookups', () => {
+  const nextPost = async () => {
+    const ctx = await setup()
+    await publishAutomation(ctx.db, ctx.account, commentFlow({ mode: 'next' }), { publishedAt: new Date(NOW.getTime() - 3_600_000) })
+    return ctx
+  }
+  const accountStatus = async (db: Awaited<ReturnType<typeof setup>>['db'], id: string) =>
+    (await db.select().from(connectedAccounts).where(eq(connectedAccounts.id, id)))[0]?.status
+
+  it('retries the event when the post time lookup fails transiently', async () => {
+    const { db, deps, jobs, adapters, account } = await nextPost()
+    adapters.instagram.mediaError = new MetaError('retryable', 'graph down', { reason: 'server' })
+    const id = await insertEvent(db, comment(account, 'u3', 'guide', { mediaId: 'new-post' }))
+    await expect(handleInbound(deps, id)).rejects.toThrow('graph down')
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
+    expect(event).toMatchObject({ processedAt: null, error: 'graph down' })
+    expect(jobs.flows).toEqual([])
+  })
+
+  it('routes without the post time when Meta will not return the post', async () => {
+    const { db, deps, adapters, account } = await nextPost()
+    adapters.instagram.mediaError = new MetaError('permanent', 'not found', { reason: 'invalid_request' })
+    const id = await insertEvent(db, comment(account, 'u3', 'guide', { mediaId: 'gone' }))
+    await handleInbound(deps, id)
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
+    expect(event?.processedAt).toEqual(NOW)
+    expect(await accountStatus(db, account.id)).toBe('active')
+  })
+
+  it('flags the account when the post or profile lookup says the token is dead', async () => {
+    const media = await nextPost()
+    media.adapters.instagram.mediaError = new MetaError('reauth', 'expired', { reason: 'token_invalid' })
+    await handleInbound(media.deps, await insertEvent(media.db, comment(media.account, 'u3', 'guide', { mediaId: 'p' })))
+    expect(await accountStatus(media.db, media.account.id)).toBe('reauth_required')
+
+    const profile = await setup()
+    profile.adapters.instagram.profileError = new MetaError('reauth', 'expired', { reason: 'token_invalid' })
+    const id = await insertEvent(profile.db, dm(profile.account, 'u1', 'hi'))
+    await handleInbound(profile.deps, id)
+    expect(await accountStatus(profile.db, profile.account.id)).toBe('reauth_required')
+    const [contact] = await profile.db.select().from(contacts).where(eq(contacts.connectedAccountId, profile.account.id))
+    expect(contact).toMatchObject({ platformUserId: 'u1', name: null })
+  })
+
+  it('refreshes a stale Instagram profile and follow state, and leaves a fresh one alone', async () => {
+    const { db, deps, adapters, account } = await setup()
+    const checked = new Date(NOW.getTime() - PROFILE_TTL_MS - 60_000)
+    const stale = await seedContact(db, account, { platformUserId: 'u-stale', followsYou: false, followCheckedAt: checked })
+    const fresh = await seedContact(db, account, { platformUserId: 'u-fresh', followsYou: false, followCheckedAt: NOW })
+    adapters.instagram.profile = { name: 'Priya Sharma', username: 'priya', avatarUrl: 'https://cdn.example/p.jpg', followsYou: true, youFollow: false }
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-stale', 'hi')))
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u-fresh', 'hi')))
+    expect(adapters.instagram.sent('getProfile').map((c) => c.args[0])).toEqual(['u-stale'])
+
+    const rows = await db.select().from(contacts).where(eq(contacts.connectedAccountId, account.id))
+    expect(rows.find((r) => r.id === stale.id)).toMatchObject({ followsYou: true, youFollow: false, followCheckedAt: NOW, avatarUrl: 'https://cdn.example/p.jpg' })
+    expect(rows.find((r) => r.id === fresh.id)).toMatchObject({ followsYou: false, followCheckedAt: NOW })
+  })
+
+  it('retries a failed profile lookup an hour later, not on every event', async () => {
+    const { db, deps, adapters, account, clock } = await setup()
+    const profileCalls = () => adapters.instagram.sent('getProfile').length
+    adapters.instagram.profileError = new MetaError('retryable', 'graph down', { reason: 'server' })
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u1', 'hi')))
+    expect(profileCalls()).toBe(1)
+
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u1', 'again')))
+    expect(profileCalls()).toBe(1)
+
+    clock.now = new Date(NOW.getTime() + PROFILE_RETRY_MS + 60_000)
+    await handleInbound(deps, await insertEvent(db, dm(account, 'u1', 'later')))
+    expect(profileCalls()).toBe(2)
+    const [contact] = await db.select().from(contacts).where(eq(contacts.connectedAccountId, account.id))
+    expect(contact).toMatchObject({ name: 'Priya Sharma', followCheckedAt: clock.now })
+  })
+
+  it('skips the profile lookup while the account is paused, stamping nothing', async () => {
+    const { db, deps, adapters, account } = await setup()
+    deps.rateLimiter = { ...allowAll, pausedMs: async () => 30_000 }
+    const id = await insertEvent(db, dm(account, 'u1', 'hi'))
+    expect(await handleInbound(deps, id)).toEqual({ status: 'done' })
+    expect(adapters.instagram.sent('getProfile')).toEqual([])
+    const [contact] = await db.select().from(contacts).where(eq(contacts.connectedAccountId, account.id))
+    expect(contact).toMatchObject({ platformUserId: 'u1', followCheckedAt: null })
+  })
+
+  it('pauses the account when the profile lookup is rate limited', async () => {
+    const { db, deps, adapters, account } = await setup()
+    const pauses: [string, number][] = []
+    deps.rateLimiter = { ...allowAll, pause: async (key, ms) => void pauses.push([key, ms]) }
+    adapters.instagram.profileError = new MetaError('retryable', 'slow down', { reason: 'rate_limited', retryAfterMs: 90_000 })
+    const id = await insertEvent(db, dm(account, 'u1', 'hi'))
+    expect(await handleInbound(deps, id)).toEqual({ status: 'done' })
+    expect(pauses).toEqual([[account.id, 90_000]])
+  })
+
+  it('defers the event without an error or attempt when the post time lookup is rate limited', async () => {
+    const { db, deps, jobs, adapters, account } = await nextPost()
+    const pauses: [string, number][] = []
+    deps.rateLimiter = { ...allowAll, pause: async (key, ms) => void pauses.push([key, ms]) }
+    adapters.instagram.mediaError = new MetaError('retryable', 'slow down', { reason: 'rate_limited', retryAfterMs: 60_000 })
+    const id = await insertEvent(db, comment(account, 'u3', 'guide', { mediaId: 'new-post' }))
+    expect(await handleInbound(deps, id)).toEqual({ status: 'deferred', retryInMs: 60_000 })
+    expect(pauses).toEqual([[account.id, 60_000]])
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
+    expect(event).toMatchObject({ processedAt: null, error: null, attempts: 0 })
+    expect(jobs.flows).toEqual([])
+  })
+
+  it('defers the event without calling Graph while the account is paused', async () => {
+    const { db, deps, adapters, account } = await nextPost()
+    deps.rateLimiter = { ...allowAll, pausedMs: async () => 45_000 }
+    const id = await insertEvent(db, comment(account, 'u3', 'guide', { mediaId: 'new-post' }))
+    expect(await handleInbound(deps, id)).toEqual({ status: 'deferred', retryInMs: 45_000 })
+    expect(adapters.instagram.sent('getMediaPublishedAt')).toEqual([])
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.id, id))
+    expect(event).toMatchObject({ processedAt: null, error: null, attempts: 0 })
   })
 })

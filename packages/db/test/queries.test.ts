@@ -35,6 +35,7 @@ async function member(workspaceId: string, role: 'owner' | 'admin' | 'member', e
 
 describe('accountAlertContext', () => {
   it('returns the account, its workspace and the owners’ and admins’ emails', async () => {
+    await db.insert(authUsers).values({ id: 'x', name: 'Owner', email: 'x@example.com' }).onConflictDoNothing()
     const [workspace] = await db.insert(workspaces).values({ name: 'Acme', ownerUserId: 'x' }).returning()
     const workspaceId = workspace!.id
     const tag = randomUUID().slice(0, 8)

@@ -3,19 +3,24 @@ import {
   encryptToken,
   failStuckBackfillRuns,
   flowRuns,
+  jobOutbox,
   messages,
   queuedBackfillRunIds,
   webhookEvents,
 } from '@replyooo/db'
 import type { StartTrigger } from '@replyooo/engine'
 import { MetaError } from '@replyooo/meta'
-import { and, asc, eq, gt, isNull, lt } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt } from 'drizzle-orm'
 import { flagReauth } from './alerts'
 import { sendDueClickFollowUps } from './click-follow-ups'
 import type { Deps } from './deps'
-import { credentials } from './records'
+import { failMessages, MAX_SEND_ATTEMPTS, SEND_LEASE_MS, skipQueuedInRun } from './outbound'
+import { replayOutbox } from './outbox'
+import { credentials, endRun } from './records'
 
 export const SWEEP_BATCH = 500
+/** Processing attempts after which the sweep stops replaying a webhook event. */
+export const MAX_INBOUND_ATTEMPTS = 15
 const SECOND = 1000
 const MINUTE = 60 * SECOND
 const DAY = 24 * 60 * MINUTE
@@ -31,7 +36,10 @@ export async function sweep(deps: Deps) {
     .where(and(eq(flowRuns.status, 'waiting'), lt(flowRuns.waitUntil, ago(30 * SECOND))))
     .limit(SWEEP_BATCH)
   for (const run of overdue) {
-    await jobs.flow({ runId: run.id, event: { type: 'timeout' }, expectedVersion: run.stateVersion })
+    await jobs.flow(
+      { runId: run.id, event: { type: 'timeout' }, expectedVersion: run.stateVersion },
+      { jobId: `timeout-${run.id}-${run.stateVersion}` },
+    )
   }
 
   const lost = await db
@@ -43,22 +51,59 @@ export async function sweep(deps: Deps) {
   for (const run of lost) {
     if (!run.triggerRef) continue
     const trigger = run.triggerRef as unknown as StartTrigger
-    await jobs.flow({ runId: run.id, event: { type: 'start', trigger }, expectedVersion: 0 })
+    await jobs.flow({ runId: run.id, event: { type: 'start', trigger }, expectedVersion: 0 }, { jobId: `start-${run.id}` })
     starts++
   }
 
+  // A claim whose lease ran out unresolved (its sender crashed mid-send) may have reached Meta: never resend it.
+  const lapsed = await db
+    .update(messages)
+    .set({ status: 'failed', error: 'send_unknown', claimedAt: null })
+    .where(and(eq(messages.direction, 'out'), eq(messages.status, 'sending'), lt(messages.claimedAt, ago(SEND_LEASE_MS))))
+    .returning({ flowRunId: messages.flowRunId })
+  for (const runId of new Set(lapsed.flatMap(({ flowRunId }) => (flowRunId ? [flowRunId] : [])))) {
+    await skipQueuedInRun(db, runId)
+    await endRun(db, runId, 'failed', 'send_unknown', deps.now())
+  }
+
   const stuck = await db
-    .select({ id: messages.id, flowRunId: messages.flowRunId })
+    .select({ id: messages.id, flowRunId: messages.flowRunId, attempts: messages.attempts })
     .from(messages)
-    .where(and(eq(messages.status, 'queued'), eq(messages.direction, 'out'), lt(messages.createdAt, ago(5 * MINUTE))))
+    .where(and(eq(messages.direction, 'out'), eq(messages.status, 'queued'), lt(messages.createdAt, ago(5 * MINUTE))))
     .orderBy(asc(messages.createdAt), asc(messages.id))
     .limit(SWEEP_BATCH)
   const groups = new Map<string, string[]>()
+  let exhausted = 0
   for (const message of stuck) {
+    if (message.attempts >= MAX_SEND_ATTEMPTS) {
+      // Out of attempts: never resend; fail it like a permanent error would.
+      await failMessages(db, [message.id], 'max_attempts', ['queued', 'sending'])
+      if (message.flowRunId) await endRun(db, message.flowRunId, 'failed', 'max_attempts', deps.now())
+      exhausted++
+      continue
+    }
     const key = message.flowRunId ?? message.id
     groups.set(key, [...(groups.get(key) ?? []), message.id])
   }
+  // A run whose earlier message is still claimed must not have its later messages sent ahead of it; the claim's
+  // own job sends them once it resolves.
+  const held =
+    groups.size === 0
+      ? []
+      : await db
+          .selectDistinct({ flowRunId: messages.flowRunId })
+          .from(messages)
+          .where(
+            and(
+              eq(messages.status, 'sending'),
+              gte(messages.claimedAt, ago(SEND_LEASE_MS)),
+              inArray(messages.flowRunId, [...groups.keys()]),
+            ),
+          )
+  for (const { flowRunId } of held) if (flowRunId) groups.delete(flowRunId)
   for (const messageIds of groups.values()) await jobs.outbound({ messageIds })
+
+  const outbox = await replayOutbox(deps, ago(30 * SECOND), SWEEP_BATCH)
 
   const events = await db
     .select({ id: webhookEvents.id })
@@ -66,6 +111,7 @@ export async function sweep(deps: Deps) {
     .where(
       and(
         isNull(webhookEvents.processedAt),
+        lt(webhookEvents.attempts, MAX_INBOUND_ATTEMPTS),
         lt(webhookEvents.receivedAt, ago(2 * MINUTE)),
         gt(webhookEvents.receivedAt, ago(DAY)),
       ),
@@ -78,7 +124,16 @@ export async function sweep(deps: Deps) {
 
   const followUps = await sendDueClickFollowUps(deps)
 
-  const result = { timeouts: overdue.length, starts, messages: stuck.length, events: events.length, followUps }
+  const result = {
+    timeouts: overdue.length,
+    starts,
+    messages: stuck.length - exhausted,
+    exhausted,
+    lapsed: lapsed.length,
+    outbox,
+    events: events.length,
+    followUps,
+  }
   if (Object.values(result).some((n) => n > 0)) deps.log.info(result, 'sweeper re-enqueued work')
   return result
 }
@@ -148,5 +203,6 @@ export async function pruneWebhookEvents(deps: Deps): Promise<number> {
     .delete(webhookEvents)
     .where(lt(webhookEvents.receivedAt, cutoff))
     .returning({ id: webhookEvents.id })
+  await deps.db.delete(jobOutbox).where(and(isNotNull(jobOutbox.enqueuedAt), lt(jobOutbox.createdAt, cutoff)))
   return deleted.length
 }
